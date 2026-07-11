@@ -48,6 +48,8 @@ LOBBY
 
 有效行动产生 `STATE_UPDATED`。`events` 用于动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。
 
+比赛掷骰被服务端确认后，会先广播不改变 revision 的 `ROLL_STARTED`，供所有客户端同步启动投掷动画；实际点数仍只在随后的 `STATE_UPDATED.events` 中公布。
+
 ```json
 {
   "type": "STATE_UPDATED",

@@ -174,6 +174,21 @@ class RoomManager:
                         room.game_state, player_id, intent.athlete_ids
                     )
                 elif isinstance(intent, RollDiceIntent):
+                    if (
+                        room.game_state.phase == "RACING"
+                        and room.game_state.active_player_id == player_id
+                        and room.game_state.magsim_engine is not None
+                    ):
+                        await self._broadcast_locked(
+                            room,
+                            {
+                                "type": "ROLL_STARTED",
+                                "actionId": intent.action_id,
+                                "playerId": player_id,
+                            },
+                        )
+                        # Give clients a render frame before the authoritative result arrives.
+                        await asyncio.sleep(0.05)
                     transition = room.engine.roll_dice(room.game_state, player_id)
                 else:
                     transition = room.engine.advance_race(room.game_state, player_id)

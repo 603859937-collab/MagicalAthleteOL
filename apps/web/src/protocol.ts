@@ -77,6 +77,7 @@ export interface RoomSnapshot {
 export type ServerMessage =
   | (RoomSnapshot & { type: "WELCOME"; playerId: string; reconnectToken: string })
   | (RoomSnapshot & { type: "STATE_UPDATED"; actionId?: string; events: GameEvent[] })
+  | (RoomSnapshot & { type: "ROLL_STARTED"; actionId: string; playerId: string })
   | { type: "ACTION_ACK"; actionId: string; revision: number }
   | { type: "ERROR"; code: string; message: string; actionId?: string };
 
@@ -87,6 +88,8 @@ export type GameEvent = {
   athleteId?: string;
   values?: number[];
   value?: number;
+  baseValue?: number;
+  finalValue?: number;
   finishPosition?: number;
   raceNumber?: number;
   from?: number;

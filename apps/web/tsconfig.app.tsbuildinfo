@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/gameclient.ts","./src/main.tsx","./src/protocol.ts","./src/components/racetrack.tsx"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/gameclient.ts","./src/main.tsx","./src/protocol.ts","./src/components/racedice.tsx","./src/components/racetrack.tsx"],"version":"5.9.3"}
