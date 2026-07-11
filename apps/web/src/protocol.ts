@@ -14,6 +14,11 @@ export interface PlayerState {
   connected: boolean;
   selectionLocked: boolean;
   selectedAthlete: AthleteCard | null;
+  victoryPoints?: number;
+  finished?: boolean;
+  finishPosition?: number | null;
+  eliminated?: boolean;
+  tripped?: boolean;
 }
 
 export interface GameState {
@@ -48,8 +53,14 @@ export type ServerMessage =
 export type GameEvent = {
   type: string;
   playerId?: string;
+  athleteId?: string;
   winnerId?: string;
   value?: number;
+  baseValue?: number;
+  finalValue?: number;
+  finishPosition?: number;
+  from?: number;
+  to?: number;
 };
 
 export type ClientIntent =

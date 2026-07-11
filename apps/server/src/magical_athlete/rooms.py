@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from fastapi import WebSocket
 
-from .game import DemoGameEngine, GameEngine, GameRuleError, GameState, Player
+from .game import GameEngine, GameRuleError, GameState, MagsimGameEngine, Player
 from .protocol import (
     ErrorMessage,
     JoinRoomIntent,
@@ -66,7 +66,7 @@ class InMemoryRoomRepository:
             for _ in range(20):
                 room_id = "".join(secrets.choice(string.ascii_uppercase) for _ in range(code_length))
                 if room_id not in self._rooms:
-                    room = Room(id=room_id, engine=engine or DemoGameEngine())
+                    room = Room(id=room_id, engine=engine or MagsimGameEngine())
                     self._rooms[room_id] = room
                     return room
         raise RoomError("ROOM_CODE_EXHAUSTED", "暂时无法创建房间，请重试")

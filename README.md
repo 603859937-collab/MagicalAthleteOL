@@ -11,7 +11,7 @@ apps/web (React + TypeScript + PixiJS)
 apps/server (FastAPI)
     ├── RoomManager：连接、重连、广播、房间生命周期
     └── GameEngine：纯状态转换端口
-          └── DemoGameEngine（之后替换为 magsim adapter）
+          └── MagsimGameEngine（复用 vendored magsim 规则）
 ```
 
 - `apps/web`：房间 UI 使用 React/HTML/CSS，跑道动画由 PixiJS 渲染。
@@ -19,7 +19,7 @@ apps/server (FastAPI)
 - `docs/protocol.md`：连接、消息和版本约定。
 - `infra/Caddyfile`：生产环境同域反向代理，避免额外的跨域配置。
 
-当前示例规则是一条 20 格跑道，2–4 人加入后由房主开局。服务端为每人无重复发放四张角色牌，所有人秘密锁定本场角色后同时揭示，再轮流掷骰，先到终点者获胜。角色能力目前只展示说明、尚未影响比赛；这个流程用于打通完整链路，不是替代 `magsim` 的正式规则。
+当前规则由服务端 `MagsimGameEngine` 驱动，底层复用 `apps/server/src/magsim` 中 vendored 的 Magical Athlete 模拟器实现。2–4 人加入后由房主开局，服务端为每人无重复发放四张角色牌，所有人秘密锁定本场角色后同时揭示。玩家发起一次 `ROLL_DICE` 会执行当前角色在 magsim 中的完整 turn，包括掷骰、移动、反应事件、回合结束和下一位 active racer 推进。
 
 ## 本地运行
 
@@ -47,12 +47,8 @@ docker compose up --build
 
 然后打开 `http://localhost:8080`。
 
-## 接入 magsim
+## magsim 代码来源
 
-后端只依赖 `GameEngine` 协议，接入时新增 `MagsimGameEngine`，实现：
+`apps/server/src/magsim` 是从上游 `magsim` 包 vendored 进来的普通 Python 模块，服务端代码直接 `import magsim`。更新上游规则时，重新同步该目录和 `apps/server/THIRD_PARTY_LICENSES/magsim-LICENSE`，再跑 server 测试确认 adapter 事件映射没有回归。
 
-1. `create_game(players)`：把房间玩家映射成 magsim 初始局面；
-2. `handle_intent(state, player_id, intent)`：校验行动者与阶段，调用 magsim，返回新状态和领域事件；
-3. `public_state(state)`：剔除其他玩家不可见信息，生成广播快照。
-
-房间管理、WebSocket、断线重连和前端协议不需要跟着重写。生产阶段再把 `InMemoryRoomRepository` 换成 Redis/PostgreSQL 实现。
+房间管理、WebSocket、断线重连和前端协议仍然隔离在 `RoomManager` 和 `GameEngine` 协议之后。生产阶段再把 `InMemoryRoomRepository` 换成 Redis/PostgreSQL 实现。

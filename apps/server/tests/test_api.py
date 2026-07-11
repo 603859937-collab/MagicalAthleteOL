@@ -37,15 +37,17 @@ def test_two_players_can_start_and_roll() -> None:
         assert dealt_for_alice["game"]["phase"] == "CHARACTER_SELECTION"
         assert len(dealt_for_alice["game"]["hand"]) == 4
         assert len(dealt_for_bob["game"]["hand"]) == 4
-        alice_cards = {card["id"] for card in dealt_for_alice["game"]["hand"]}
-        bob_cards = {card["id"] for card in dealt_for_bob["game"]["hand"]}
+        alice_hand = dealt_for_alice["game"]["hand"]
+        bob_hand = dealt_for_bob["game"]["hand"]
+        alice_cards = {card["id"] for card in alice_hand}
+        bob_cards = {card["id"] for card in bob_hand}
         assert alice_cards.isdisjoint(bob_cards)
 
         alice.send_json(
             {
                 "type": "SELECT_ATHLETE",
                 "actionId": "select-a",
-                "athleteId": next(iter(alice_cards)),
+                "athleteId": alice_hand[0]["id"],
             }
         )
         alice_locked = alice.receive_json()
@@ -58,11 +60,11 @@ def test_two_players_can_start_and_roll() -> None:
             {
                 "type": "SELECT_ATHLETE",
                 "actionId": "select-b",
-                "athleteId": next(iter(bob_cards)),
+                "athleteId": bob_hand[0]["id"],
             }
         )
-        started_for_alice = alice.receive_json()
         started_for_bob = bob.receive_json()
+        started_for_alice = alice.receive_json()
         assert started_for_alice["game"]["activePlayerId"] == alice_id
         assert started_for_bob["revision"] == started_for_alice["revision"]
         assert all(
@@ -74,5 +76,5 @@ def test_two_players_can_start_and_roll() -> None:
         rolled = alice.receive_json()
         bob.receive_json()
 
-        assert rolled["events"][0]["type"] == "DICE_ROLLED"
+        assert any(event["type"] == "DICE_ROLLED" for event in rolled["events"])
         assert rolled["game"]["players"][0]["position"] >= 1
