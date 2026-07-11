@@ -1,4 +1,5 @@
 import random
+import time
 from dataclasses import replace
 from typing import Any
 
@@ -54,11 +55,15 @@ async def test_race_roll_broadcasts_started_before_authoritative_result() -> Non
     )
     manager = RoomManager(InMemoryRoomRepository())
 
+    started_at = time.monotonic()
     await manager.handle_intent(
         room,
         active_player_id,
         RollDiceIntent(type="ROLL_DICE", actionId="roll-1"),
     )
+    elapsed = time.monotonic() - started_at
+
+    assert elapsed >= 0.3
 
     for socket in sockets.values():
         assert [message["type"] for message in socket.messages] == [
@@ -70,6 +75,12 @@ async def test_race_roll_broadcasts_started_before_authoritative_result() -> Non
             event["type"] == "DICE_ROLLED"
             for event in socket.messages[1]["events"]
         )
+
+    authoritative_results = sockets[active_player_id].messages[1]["rollResults"]
+    assert authoritative_results
+    assert len(authoritative_results[0]["values"]) == 1
+    for socket in sockets.values():
+        assert socket.messages[1]["rollResults"] == authoritative_results
 
 
 @pytest.mark.anyio

@@ -49,7 +49,7 @@ LOBBY
 
 ## 状态广播
 
-有效行动产生 `STATE_UPDATED`。`events` 用于动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。
+有效行动产生 `STATE_UPDATED`。`events` 用于移动动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。骰子结果通过 `rollResults` 明确广播给房间内所有客户端，每个结果带全局一致的 `id`，客户端必须以此字段中的 `values` 为权威点数。
 
 比赛掷骰被服务端确认后，会先广播不改变 revision 的 `ROLL_STARTED`，供所有客户端同步启动投掷动画；实际点数仍只在随后的 `STATE_UPDATED.events` 中公布。
 
@@ -58,6 +58,9 @@ LOBBY
   "type": "STATE_UPDATED",
   "roomId": "ABCD",
   "revision": 18,
+  "rollResults": [
+    { "id": "race:2:serial:7", "playerId": "p1", "athleteId": "centaur", "values": [5], "rollSerial": 7, "baseValue": 5, "finalValue": 5 }
+  ],
   "events": [
     { "type": "DICE_ROLLED", "playerId": "p1", "athleteId": "centaur", "value": 5 },
     { "type": "RACER_MOVED", "playerId": "p1", "athleteId": "centaur", "from": 4, "to": 9, "movementKind": "FORWARD" },

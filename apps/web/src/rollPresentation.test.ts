@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GameEvent, RoomSnapshot } from "./protocol";
+import type { DiceRollResult, GameEvent, RoomSnapshot } from "./protocol";
 import { collectUnseenRollValues } from "./rollPresentation";
 
 function update(revision: number, rollSerial: number, value: number, events: GameEvent[] = []): RoomSnapshot & { events: GameEvent[] } {
@@ -25,6 +25,17 @@ function update(revision: number, rollSerial: number, value: number, events: Gam
 }
 
 describe("collectUnseenRollValues", () => {
+  it("uses globally identified server results as the authoritative source", () => {
+    const shown = new Set<string>();
+    const message = update(8, 4, 6);
+    const rollResults: DiceRollResult[] = [{
+      id: "race:1:serial:4", playerId: "p0", values: [6], rollSerial: 4,
+    }];
+
+    expect(collectUnseenRollValues({ ...message, rollResults }, shown)).toEqual([6]);
+    expect(collectUnseenRollValues({ ...message, rollResults }, shown)).toEqual([]);
+  });
+
   it("shows each reroll preview once and suppresses its matching final event", () => {
     const shown = new Set<string>();
 

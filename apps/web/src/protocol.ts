@@ -97,9 +97,19 @@ export interface RoomSnapshot {
   game: GameState;
 }
 
+export interface DiceRollResult {
+  id: string;
+  playerId?: string;
+  athleteId?: string;
+  values: number[];
+  baseValue?: number;
+  finalValue?: number;
+  rollSerial?: number;
+}
+
 export type ServerMessage =
   | (RoomSnapshot & { type: "WELCOME"; playerId: string; reconnectToken: string })
-  | (RoomSnapshot & { type: "STATE_UPDATED"; actionId?: string; events: GameEvent[] })
+  | (RoomSnapshot & { type: "STATE_UPDATED"; actionId?: string; events: GameEvent[]; rollResults: DiceRollResult[] })
   | (RoomSnapshot & { type: "ROLL_STARTED"; actionId: string; playerId: string })
   | { type: "ACTION_ACK"; actionId: string; revision: number }
   | { type: "ERROR"; code: string; message: string; actionId?: string };

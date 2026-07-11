@@ -1,8 +1,9 @@
 import { Canvas, type ThreeEvent, useFrame } from "@react-three/fiber";
 import { CuboidCollider, Physics, RigidBody, type RapierRigidBody } from "@react-three/rapier";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MathUtils, Quaternion, Vector3 } from "three";
+import { MathUtils, Quaternion } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { targetQuaternion, throwVector } from "../diceOrientation";
 
 type ThrowState = "ready" | "dragging" | "rolling" | "settling" | "settled";
 
@@ -13,7 +14,7 @@ interface RaceDiceProps {
   autoThrow: boolean;
   resetKey: number;
   activePlayerName: string;
-  onThrow: () => void;
+  onThrow: (throwId: string) => void;
   onSettled: () => void;
 }
 
@@ -25,16 +26,6 @@ const pipLayouts: Record<number, Array<[number, number]>> = {
   5: [[-0.3, -0.3], [-0.3, 0.3], [0, 0], [0.3, -0.3], [0.3, 0.3]],
   6: [[-0.3, -0.38], [-0.3, 0], [-0.3, 0.38], [0.3, -0.38], [0.3, 0], [0.3, 0.38]],
 };
-
-function targetQuaternion(value: number): Quaternion {
-  const quaternion = new Quaternion();
-  if (value === 2) return quaternion.setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2);
-  if (value === 3) return quaternion.setFromAxisAngle(new Vector3(0, 0, 1), Math.PI / 2);
-  if (value === 4) return quaternion.setFromAxisAngle(new Vector3(0, 0, 1), -Math.PI / 2);
-  if (value === 5) return quaternion.setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2);
-  if (value === 6) return quaternion.setFromAxisAngle(new Vector3(1, 0, 0), Math.PI);
-  return quaternion;
-}
 
 function Pips({ value, face }: { value: number; face: "top" | "bottom" | "front" | "back" | "right" | "left" }) {
   return <>{pipLayouts[value].map(([a, b], index) => {
@@ -52,13 +43,16 @@ function Pips({ value, face }: { value: number; face: "top" | "bottom" | "front"
   })}</>;
 }
 
-function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow, onSettled, onStateChange, manualThrowKey }: Omit<RaceDiceProps, "activePlayerName"> & { onStateChange: (state: ThrowState) => void; manualThrowKey: number }) {
+type Launch = (dragX?: number, dragY?: number) => boolean;
+
+function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow, onSettled, onStateChange, registerLauncher }: Omit<RaceDiceProps, "activePlayerName"> & { onStateChange: (state: ThrowState) => void; registerLauncher: (launch: Launch | null) => void }) {
   const body = useRef<RapierRigidBody>(null);
   const pointer = useRef({ id: -1, x: 0, y: 0, lastX: 0, lastY: 0, time: 0 });
   const rollingSince = useRef(0);
   const settleSince = useRef(0);
   const settleStart = useRef(new Quaternion());
   const lastSettledValue = useRef(1);
+  const launchedRollKey = useRef<string | null>(null);
   const target = useRef<number | null>(targetValue);
   const state = useRef<ThrowState>("ready");
   const geometry = useMemo(() => new RoundedBoxGeometry(1.4, 1.4, 1.4, 5, 0.16), []);
@@ -80,9 +74,9 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
     setState("ready");
   }, [setState]);
 
-  const launch = useCallback((dragX = 0, dragY = -80) => {
+  const launch = useCallback<Launch>((dragX = 0, dragY = -80) => {
     const rigidBody = body.current;
-    if (!rigidBody || state.current === "rolling" || state.current === "settling") return;
+    if (!rigidBody || state.current === "rolling" || state.current === "settling") return false;
     const strength = MathUtils.clamp(Math.hypot(dragX, dragY), 45, 220);
     rigidBody.setGravityScale(1, true);
     rigidBody.setTranslation({ x: MathUtils.clamp(dragX * 0.006, -0.9, 0.9), y: 1.15, z: 1.55 }, true);
@@ -98,24 +92,37 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
     }, true);
     rollingSince.current = performance.now();
     setState("rolling");
+    return true;
   }, [setState]);
 
   useEffect(() => { target.current = targetValue; }, [targetValue]);
   useEffect(() => { reset(); }, [reset, resetKey]);
   useEffect(() => {
-    if (autoThrow) launch((Math.random() - 0.5) * 100, -70 - Math.random() * 90);
-  }, [autoThrow, launch, rollKey, targetValue]);
-  const lastManualThrow = useRef(manualThrowKey);
+    registerLauncher(launch);
+    return () => registerLauncher(null);
+  }, [launch, registerLauncher]);
   useEffect(() => {
-    if (manualThrowKey === lastManualThrow.current) return;
-    lastManualThrow.current = manualThrowKey;
-    launch(0, -105);
-  }, [launch, manualThrowKey]);
+    if (!autoThrow || launchedRollKey.current === rollKey) return;
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        if (launch(...throwVector(rollKey))) launchedRollKey.current = rollKey;
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [autoThrow, launch, rollKey, targetValue]);
+  useEffect(() => {
+    if (targetValue === null || launchedRollKey.current === rollKey) return;
+    if (launch(...throwVector(rollKey))) launchedRollKey.current = rollKey;
+  }, [launch, rollKey, targetValue]);
 
   useFrame(() => {
     const rigidBody = body.current;
     if (!rigidBody || target.current === null || state.current !== "rolling") return;
-    if (performance.now() - rollingSince.current < 850) return;
+    if (performance.now() - rollingSince.current < 1050) return;
     const current = rigidBody.rotation();
     settleStart.current.set(current.x, current.y, current.z, current.w);
     settleSince.current = performance.now();
@@ -128,7 +135,7 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
   useFrame(() => {
     const rigidBody = body.current;
     if (!rigidBody || target.current === null || state.current !== "settling") return;
-    const progress = MathUtils.clamp((performance.now() - settleSince.current) / 420, 0, 1);
+    const progress = MathUtils.clamp((performance.now() - settleSince.current) / 500, 0, 1);
     const eased = 1 - Math.pow(1 - progress, 3);
     const rotation = settleStart.current.clone().slerp(targetQuaternion(target.current), eased);
     const translation = rigidBody.translation();
@@ -173,10 +180,8 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
   function handlePointerUp(event: ThreeEvent<PointerEvent>) {
     if (state.current !== "dragging" || event.pointerId !== pointer.current.id) return;
     event.stopPropagation();
-    const dx = event.clientX - pointer.current.x;
-    const dy = event.clientY - pointer.current.y;
-    launch(dx, dy);
-    onThrow();
+    const throwId = crypto.randomUUID();
+    if (launch(...throwVector(`start-${throwId}`))) onThrow(throwId);
   }
 
   return <RigidBody ref={body} colliders="cuboid" restitution={0.58} friction={0.72} linearDamping={0.15} angularDamping={0.18} position={[0, 0.86, 1.15]}>
@@ -189,7 +194,7 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
   </RigidBody>;
 }
 
-function DiceScene(props: RaceDiceProps & { onStateChange: (state: ThrowState) => void; manualThrowKey: number }) {
+function DiceScene(props: RaceDiceProps & { onStateChange: (state: ThrowState) => void; registerLauncher: (launch: Launch | null) => void }) {
   return <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0, 4.5, 6.8], fov: 36 }} gl={{ antialias: true, alpha: false }}>
     <color attach="background" args={["#1d1d20"]} />
     <ambientLight intensity={1.4} />
@@ -213,7 +218,8 @@ function DiceScene(props: RaceDiceProps & { onStateChange: (state: ThrowState) =
 
 export function RaceDice(props: RaceDiceProps) {
   const [throwState, setThrowState] = useState<ThrowState>("ready");
-  const [manualThrowKey, setManualThrowKey] = useState(0);
+  const launcher = useRef<Launch | null>(null);
+  const registerLauncher = useCallback((next: Launch | null) => { launcher.current = next; }, []);
   const [webglAvailable] = useState(() => {
     try {
       const canvas = document.createElement("canvas");
@@ -231,7 +237,7 @@ export function RaceDice(props: RaceDiceProps) {
   if (!webglAvailable || reducedMotion) {
     return <div className="dice-fallback" aria-label="比赛骰子">
       <div className={props.targetValue ? "fallback-die landed" : "fallback-die"}>{props.targetValue ?? "?"}</div>
-      <button className="command dice-throw-button" disabled={!props.enabled} onClick={props.onThrow}>掷骰</button>
+      <button className="command dice-throw-button" disabled={!props.enabled} onClick={() => props.onThrow(crypto.randomUUID())}>掷骰</button>
     </div>;
   }
 
@@ -240,11 +246,11 @@ export function RaceDice(props: RaceDiceProps) {
       : props.enabled ? "轮到你" : `等待 ${props.activePlayerName}`;
 
   return <section className={`race-dice ${props.enabled ? "enabled" : ""}`} aria-label="3D 比赛骰子">
-    <DiceScene {...props} onStateChange={setThrowState} manualThrowKey={manualThrowKey} />
+    <DiceScene {...props} onStateChange={setThrowState} registerLauncher={registerLauncher} />
     <div className="dice-hud" aria-live="polite"><strong>{status}</strong>
       <button className="dice-throw-button" disabled={!props.enabled || throwState !== "ready"} onClick={() => {
-        setManualThrowKey((value) => value + 1);
-        props.onThrow();
+        const throwId = crypto.randomUUID();
+        if (launcher.current?.(...throwVector(`start-${throwId}`))) props.onThrow(throwId);
       }}>掷骰</button>
     </div>
   </section>;

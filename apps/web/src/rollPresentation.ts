@@ -1,8 +1,16 @@
-import type { GameEvent, RoomSnapshot } from "./protocol";
+import type { DiceRollResult, GameEvent, RoomSnapshot } from "./protocol";
 
-type RollUpdate = RoomSnapshot & { events: GameEvent[] };
+type RollUpdate = RoomSnapshot & { events: GameEvent[]; rollResults?: DiceRollResult[] };
 
 export function collectUnseenRollValues(message: RollUpdate, shownRolls: Set<string>): number[] {
+  if (message.rollResults) {
+    return message.rollResults.flatMap((result) => {
+      if (shownRolls.has(result.id)) return [];
+      shownRolls.add(result.id);
+      return result.values;
+    });
+  }
+
   const raceKey = message.game.raceNumber;
   const newlyShown = new Set<string>();
   const values = message.events.flatMap((event, index) => {

@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from fastapi import WebSocket
 
-from .game import GameEngine, GameRuleError, GameState, MagsimGameEngine, Player
+from .game import GameEngine, GameRuleError, GameState, GameTransition, MagsimGameEngine, Player
 from .protocol import (
     AdvanceRaceIntent,
     DraftAthleteIntent,
@@ -23,6 +23,9 @@ from .protocol import (
     SetVariantIntent,
     StartGameIntent,
 )
+
+
+ROLL_ANIMATION_LEAD_SECONDS = 0.35
 
 
 class RoomError(Exception):
@@ -136,7 +139,11 @@ class RoomManager:
             )
             await self._broadcast_locked(
                 room,
-                {"type": "STATE_UPDATED", "events": [{"type": "PLAYER_JOINED", "playerId": player_id}]},
+                {
+                    "type": "STATE_UPDATED",
+                    "events": [{"type": "PLAYER_JOINED", "playerId": player_id}],
+                    "rollResults": [],
+                },
                 exclude=websocket,
             )
             return room, player_id
@@ -203,8 +210,9 @@ class RoomManager:
                                 "playerId": player_id,
                             },
                         )
-                        # Give clients a render frame before the authoritative result arrives.
-                        await asyncio.sleep(0.05)
+                        # Keep the start signal visible long enough for background tabs and
+                        # slower WebGL clients to commit the first animation frame.
+                        await asyncio.sleep(ROLL_ANIMATION_LEAD_SECONDS)
                     transition = room.engine.roll_dice(room.game_state, player_id)
                 elif isinstance(intent, ResolveDecisionIntent):
                     transition = room.engine.resolve_decision(
@@ -228,12 +236,14 @@ class RoomManager:
             room.game_state = transition.state
             room.revision += 1
             self._sync_decision_timer_locked(room)
+            roll_results = self._roll_results(transition, room.revision)
             await self._broadcast_locked(
                 room,
                 {
                     "type": "STATE_UPDATED",
                     "actionId": intent.action_id,
                     "events": list(transition.events),
+                    "rollResults": roll_results,
                 },
             )
 
@@ -270,7 +280,11 @@ class RoomManager:
                     self._sync_decision_timer_locked(room)
                 await self._broadcast_locked(
                     room,
-                    {"type": "STATE_UPDATED", "events": list(transition.events)},
+                    {
+                        "type": "STATE_UPDATED",
+                        "events": list(transition.events),
+                        "rollResults": self._roll_results(transition, room.revision),
+                    },
                 )
         except asyncio.CancelledError:
             return
@@ -288,6 +302,7 @@ class RoomManager:
                 {
                     "type": "STATE_UPDATED",
                     "events": [{"type": "PLAYER_DISCONNECTED", "playerId": player_id}],
+                    "rollResults": [],
                 },
             )
 
@@ -309,3 +324,52 @@ class RoomManager:
         for member in failed:
             member.connected = False
             member.socket = None
+
+    @staticmethod
+    def _roll_results(transition: GameTransition, revision: int) -> list[dict[str, Any]]:
+        race_number = transition.state.race_number
+        results: list[dict[str, Any]] = []
+        seen_serials: set[int] = set()
+        for index, event in enumerate(transition.events):
+            if event.get("type") == "START_DICE_ROLLED":
+                results.append(
+                    {
+                        "id": f"revision:{revision}:event:{index}",
+                        "playerId": event.get("playerId"),
+                        "values": list(event.get("values", [])),
+                    }
+                )
+            elif event.get("type") == "DICE_ROLLED" and isinstance(event.get("value"), int):
+                serial = event.get("rollSerial")
+                result_id = (
+                    f"race:{race_number}:serial:{serial}"
+                    if isinstance(serial, int)
+                    else f"revision:{revision}:event:{index}"
+                )
+                if isinstance(serial, int):
+                    seen_serials.add(serial)
+                results.append(
+                    {
+                        "id": result_id,
+                        "playerId": event.get("playerId"),
+                        "athleteId": event.get("athleteId"),
+                        "values": [event["value"]],
+                        "baseValue": event.get("baseValue"),
+                        "finalValue": event.get("finalValue"),
+                        "rollSerial": serial,
+                    }
+                )
+
+        pending = transition.state.pending_decision
+        preview = pending.get("rollPreview") if pending else None
+        if preview and preview["rollSerial"] not in seen_serials:
+            results.append(
+                {
+                    "id": f"race:{race_number}:serial:{preview['rollSerial']}",
+                    "playerId": pending.get("playerId"),
+                    "athleteId": pending.get("athleteId"),
+                    "values": [preview["value"]],
+                    **preview,
+                }
+            )
+        return results
