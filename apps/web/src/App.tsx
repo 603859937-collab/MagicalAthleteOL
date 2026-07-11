@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSPropertie
 import { RaceTrack } from "./components/RaceTrack";
 import { actionId, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
 import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
+import { collectUnseenRollValues } from "./rollPresentation";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
@@ -184,26 +185,7 @@ export default function App() {
     if (message.type === "STATE_UPDATED") {
       const lines = message.events.map((event) => eventText(event, message.game.players)).filter(Boolean);
       setFeed((current) => [...lines, ...current].slice(0, 10));
-      const raceKey = message.game.raceNumber;
-      const newlyShown = new Set<string>();
-      const diceValues = message.events.flatMap((event, index) => {
-        if (event.type !== "DICE_ROLLED" || typeof event.value !== "number") return [];
-        const key = typeof event.rollSerial === "number"
-          ? `${raceKey}:${event.rollSerial}`
-          : `${raceKey}:${message.revision}:event:${index}`;
-        if (shownRolls.current.has(key) || newlyShown.has(key)) return [];
-        newlyShown.add(key);
-        return [event.value];
-      });
-      const preview = message.game.pendingDecision?.rollPreview;
-      if (preview) {
-        const key = `${raceKey}:${preview.rollSerial}`;
-        if (!shownRolls.current.has(key) && !newlyShown.has(key)) {
-          newlyShown.add(key);
-          diceValues.push(preview.value);
-        }
-      }
-      newlyShown.forEach((key) => shownRolls.current.add(key));
+      const diceValues = collectUnseenRollValues(message, shownRolls.current);
       if (diceValues.length === 0 && (localRollPendingRef.current || rollingPlayerRef.current !== null)) {
         localRollPendingRef.current = false;
         rollingPlayerRef.current = null;

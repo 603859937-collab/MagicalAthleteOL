@@ -215,3 +215,52 @@ def test_event_choice_rolls_back_and_reuses_same_die() -> None:
     assert roll["baseValue"] == 4
     assert roll["finalValue"] == 5  # Coach contributes +1 at the starting tile.
     assert transition.state.positions["alchemist"] == 5
+
+
+def test_magician_reveals_each_roll_before_reroll_decision() -> None:
+    engine = MagsimGameEngine(random.Random(21))
+    players = make_players(2)
+    teams = {
+        "p0": (ATHLETE_BY_ID["magician"], ATHLETE_BY_ID["banana"]),
+        "p1": (ATHLETE_BY_ID["skipper"], ATHLETE_BY_ID["blimp"]),
+    }
+    state = replace(
+        engine.create_game(players),
+        phase=GamePhase.CHARACTER_SELECTION,
+        teams=teams,
+        first_turn_player_id="p0",
+    )
+    state = engine.select_racers(state, "p0", ("magician", "banana")).state
+    state = engine.select_racers(state, "p1", ("skipper", "blimp")).state
+    state.magsim_engine.rng = random.Random(1)  # Rolls 2, then 5.
+
+    transition = engine.roll_dice(state, "p0")
+    first = transition.state.pending_decision
+    assert first is not None
+    assert first["abilityName"] == "MagicalReroll"
+    assert first["rollPreview"] == {
+        "rollSerial": 1,
+        "value": 2,
+        "baseValue": 2,
+        "finalValue": 2,
+    }
+
+    transition = engine.resolve_decision(
+        transition.state, "p0", first["id"], "1"
+    )
+    second = transition.state.pending_decision
+    assert second is not None
+    assert second["rollPreview"] == {
+        "rollSerial": 3,
+        "value": 5,
+        "baseValue": 5,
+        "finalValue": 5,
+    }
+
+    transition = engine.resolve_decision(
+        transition.state, "p0", second["id"], "0"
+    )
+    assert transition.state.pending_decision is None
+    roll = next(event for event in transition.events if event["type"] == "DICE_ROLLED")
+    assert roll["value"] == 5
+    assert roll["rollSerial"] == second["rollPreview"]["rollSerial"]
