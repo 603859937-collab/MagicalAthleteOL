@@ -26,7 +26,7 @@ WebSocket 建立后，第一条消息必须是：
 { "type": "ROLL_DICE", "actionId": "16b2..." }
 ```
 
-重复的 `actionId` 不会重复执行，服务端返回 `ACTION_ACK`。客户端只发送意图，不发送骰子点数、移动终点或胜负结果。
+重复的 `actionId` 不会重复执行，服务端返回 `ACTION_ACK`。客户端只发送意图，不发送骰子点数、移动终点或胜负结果。当前 `ROLL_DICE` 的服务端语义是执行当前角色在 magsim 中的完整 turn，而不是只做一次位置累加。
 
 ## 状态广播
 
@@ -39,13 +39,13 @@ WebSocket 建立后，第一条消息必须是：
   "revision": 8,
   "actionId": "16b2...",
   "events": [
-    { "type": "DICE_ROLLED", "playerId": "p1", "value": 5 },
-    { "type": "ATHLETE_MOVED", "athleteId": "p1", "from": 4, "to": 9 },
+    { "type": "DICE_ROLLED", "playerId": "p1", "value": 5, "baseValue": 5, "finalValue": 6 },
+    { "type": "ATHLETE_MOVED", "playerId": "p1", "athleteId": "p1", "from": 4, "to": 10 },
     { "type": "TURN_CHANGED", "playerId": "p2" }
   ],
   "game": {
     "phase": "RACING",
-    "finishLine": 20,
+    "finishLine": 30,
     "players": [],
     "activePlayerId": "p2",
     "winnerId": null
