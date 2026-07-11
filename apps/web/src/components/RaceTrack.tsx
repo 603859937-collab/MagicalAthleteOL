@@ -15,7 +15,7 @@ const WIDTH = 1200;
 const HEIGHT = 360;
 const ink = 0x171719;
 const paper = 0xf7f4e9;
-const tileColors = [0x4f83ce, 0x387b38, 0xf2b91b, 0xad5aa5, 0xe63a24];
+const tileColors = [0xad5aa5, 0xf2b91b, 0x387b38, 0x4f83ce, 0xe63a24];
 const playerColors = [0xeb3e27, 0x4b8bd2, 0xf2bd27, 0x48a657, 0xd968a9, 0x8b5eb2];
 
 const wildTiles: Record<number, { label: string; kind: "star" | "trip" | "move" }> = {
@@ -25,6 +25,13 @@ const wildTiles: Record<number, { label: string; kind: "star" | "trip" | "move" 
   17: { label: "绊倒!", kind: "trip" }, 23: { label: "+2", kind: "move" },
   24: { label: "-2", kind: "move" }, 26: { label: "绊倒!", kind: "trip" },
 };
+
+function tileColor(position: number, feature?: { kind: "star" | "trip" | "move" }): number {
+  if (feature?.kind === "star") return 0xf0b718;
+  if (feature?.kind === "trip") return 0xe4482c;
+  if (feature?.kind === "move") return 0x5b81bd;
+  return tileColors[(position - 1) % tileColors.length];
+}
 
 function positionOnTrack(position: number, finishLine: number): Point {
   const step = Math.round((Math.max(0, Math.min(position, finishLine)) / finishLine) * 30);
@@ -76,21 +83,20 @@ export function RaceTrack({ players, finishLine, trackName }: RaceTrackProps) {
     g.lineStyle(3, ink); g.drawRoundedRect(29, 28, 205, 78, 28);
     for (let i = 1; i <= 12; i += 1) {
       const feature = trackName === "WildWilds" ? wildTiles[i] : undefined;
-      g.beginFill(feature ? (feature.kind === "star" ? 0xf0b718 : feature.kind === "trip" ? 0xe4482c : 0x5b81bd) : tileColors[(i + 2) % tileColors.length]);
+      g.beginFill(tileColor(i, feature));
       g.drawRect(234 + (i - 1) * (871 / 12), 28, 871 / 12, 78); g.endFill();
       g.lineStyle(3, ink); g.drawRect(234 + (i - 1) * (871 / 12), 28, 871 / 12, 78);
     }
     for (let i = 13; i <= 14; i += 1) {
       const feature = trackName === "WildWilds" ? wildTiles[i] : undefined;
-      g.beginFill(feature?.kind === "star" ? 0xf0b718 : tileColors[(i + 2) % tileColors.length]);
+      g.beginFill(tileColor(i, feature));
       g.drawRect(1105, 106 + (i - 13) * 74, 66, 74); g.endFill();
       g.lineStyle(3, ink); g.drawRect(1105, 106 + (i - 13) * 74, 66, 74);
     }
     for (let i = 15; i <= 29; i += 1) {
       const x = 1105 - (i - 15) * 70;
       const feature = trackName === "WildWilds" ? wildTiles[i] : undefined;
-      const featureColor = feature?.kind === "trip" ? 0xe4482c : feature?.kind === "move" ? 0x6487be : undefined;
-      g.beginFill(featureColor ?? tileColors[(i + 1) % tileColors.length]);
+      g.beginFill(tileColor(i, feature));
       g.drawRect(x, 254, 70, 78); g.endFill();
       g.lineStyle(3, ink); g.drawRect(x, 254, 70, 78);
     }
