@@ -1,3 +1,0 @@
-[submodule "third_party/magsim"]
-	path = third_party/magsim
-	url = git@github.com:pschonev/magsim.git
