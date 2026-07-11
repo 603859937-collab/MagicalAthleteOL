@@ -1,0 +1,19 @@
+services:
+  server:
+    build: ./apps/server
+    restart: unless-stopped
+
+  web:
+    build: ./apps/web
+    restart: unless-stopped
+
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - server
+      - web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
