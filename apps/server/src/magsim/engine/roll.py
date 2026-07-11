@@ -182,6 +182,7 @@ def resolve_main_move(engine: GameEngine, event: ResolveMainMoveEvent) -> None:
             dice_value=engine.state.roll_state.dice_value,
             base_value=engine.state.roll_state.base_value,
             final_value=engine.state.roll_state.final_value,
+            roll_serial=event.roll_serial,
             phase=Phase.MAIN_ACT,
             modifier_breakdown=event.modifier_breakdown,  # Pass it
         ),

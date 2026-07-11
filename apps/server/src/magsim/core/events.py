@@ -124,6 +124,7 @@ class RollResultEvent(GameEvent, HasTargetRacer):
     dice_value: int | None
     base_value: int
     final_value: int
+    roll_serial: int
     phase: Phase = Phase.MAIN_ACT
     modifier_breakdown: list[RollData] = field(default_factory=list)
 

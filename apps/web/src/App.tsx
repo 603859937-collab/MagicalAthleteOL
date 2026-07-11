@@ -89,6 +89,7 @@ export default function App() {
   const [diceResetKey, setDiceResetKey] = useState(0);
   const [abilityBanner, setAbilityBanner] = useState("");
   const [decisionSeconds, setDecisionSeconds] = useState(0);
+  const [resolvingDecisionId, setResolvingDecisionId] = useState<string | null>(null);
   const client = useRef(new GameClient());
   const visibleSnapshot = useRef<RoomSnapshot | null>(null);
   const authoritativeSnapshot = useRef<RoomSnapshot | null>(null);
@@ -97,9 +98,15 @@ export default function App() {
   const rollAnimationRef = useRef<RollAnimation | null>(null);
   const rollingPlayerRef = useRef<string | null>(null);
   const pendingRollEvents = useRef<GameEvent[]>([]);
+  const shownRolls = useRef(new Set<string>());
+  const finishingRollKey = useRef<string | null>(null);
+  const revealTimer = useRef<number | null>(null);
   const playbackId = useRef(0);
 
-  useEffect(() => () => client.current.close(), []);
+  useEffect(() => () => {
+    client.current.close();
+    if (revealTimer.current !== null) window.clearTimeout(revealTimer.current);
+  }, []);
   useEffect(() => setSelectedIds([]), [snapshot?.game.raceNumber, snapshot?.game.phase]);
 
   const game = snapshot?.game;
@@ -120,6 +127,12 @@ export default function App() {
     const timer = window.setInterval(update, 250);
     return () => window.clearInterval(timer);
   }, [game?.pendingDecision?.deadlineAt]);
+
+  useEffect(() => {
+    if (resolvingDecisionId && game?.pendingDecision?.id !== resolvingDecisionId) {
+      setResolvingDecisionId(null);
+    }
+  }, [game?.pendingDecision?.id, resolvingDecisionId]);
 
   async function createRoom() {
     setError("");
@@ -144,6 +157,7 @@ export default function App() {
 
   function handleMessage(message: ServerMessage) {
     if (message.type === "ERROR") {
+      setResolvingDecisionId(null);
       if (localRollPendingRef.current) {
         localRollPendingRef.current = false;
         setLocalRollPending(false);
@@ -170,9 +184,26 @@ export default function App() {
     if (message.type === "STATE_UPDATED") {
       const lines = message.events.map((event) => eventText(event, message.game.players)).filter(Boolean);
       setFeed((current) => [...lines, ...current].slice(0, 10));
-      const diceValues = message.events
-        .filter((event) => event.type === "DICE_ROLLED" && typeof event.value === "number")
-        .map((event) => event.value as number);
+      const raceKey = message.game.raceNumber;
+      const newlyShown = new Set<string>();
+      const diceValues = message.events.flatMap((event, index) => {
+        if (event.type !== "DICE_ROLLED" || typeof event.value !== "number") return [];
+        const key = typeof event.rollSerial === "number"
+          ? `${raceKey}:${event.rollSerial}`
+          : `${raceKey}:${message.revision}:event:${index}`;
+        if (shownRolls.current.has(key) || newlyShown.has(key)) return [];
+        newlyShown.add(key);
+        return [event.value];
+      });
+      const preview = message.game.pendingDecision?.rollPreview;
+      if (preview) {
+        const key = `${raceKey}:${preview.rollSerial}`;
+        if (!shownRolls.current.has(key) && !newlyShown.has(key)) {
+          newlyShown.add(key);
+          diceValues.push(preview.value);
+        }
+      }
+      newlyShown.forEach((key) => shownRolls.current.add(key));
       if (diceValues.length === 0 && (localRollPendingRef.current || rollingPlayerRef.current !== null)) {
         localRollPendingRef.current = false;
         rollingPlayerRef.current = null;
@@ -204,11 +235,20 @@ export default function App() {
     setError("");
   }
 
-  function send(intent: GameActionInput) {
+  function send(intent: GameActionInput): boolean {
     try {
       client.current.send({ ...intent, actionId: actionId() } as GameAction);
+      return true;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "发送行动失败");
+      return false;
+    }
+  }
+
+  function resolveDecision(decisionId: string, optionId: string) {
+    setResolvingDecisionId(decisionId);
+    if (!send({ type: "RESOLVE_DECISION", decisionId, optionId })) {
+      setResolvingDecisionId(null);
     }
   }
 
@@ -236,7 +276,16 @@ export default function App() {
       return;
     }
 
+    if (finishingRollKey.current === expectedKey) return;
+    finishingRollKey.current = expectedKey;
     const nextSnapshot = pendingRollSnapshot.current ?? authoritativeSnapshot.current;
+    const revealDelay = nextSnapshot?.game.pendingDecision?.rollPreview ? 600 : 0;
+    revealTimer.current = window.setTimeout(() => completeDiceAnimation(nextSnapshot), revealDelay);
+  }
+
+  function completeDiceAnimation(nextSnapshot: RoomSnapshot | null) {
+    revealTimer.current = null;
+    finishingRollKey.current = null;
     pendingRollSnapshot.current = null;
     rollAnimationRef.current = null;
     rollingPlayerRef.current = null;
@@ -410,13 +459,13 @@ export default function App() {
       )}
 
       {abilityBanner && <div className="ability-banner" role="status">{abilityBanner}</div>}
-      {game!.pendingDecision && <div className="decision-backdrop">
+      {game!.pendingDecision && !rollAnimation && resolvingDecisionId !== game!.pendingDecision.id && <div className="decision-backdrop">
         <section className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
           <header><div><small>{game!.pendingDecision.athleteName}</small><h2 id="decision-title">{game!.pendingDecision.abilityName}</h2></div><strong>{decisionSeconds}s</strong></header>
           <p>{game!.pendingDecision.prompt}</p>
           <div className="decision-options">{game!.pendingDecision.options.map((option) => <button className="command secondary" key={option.id}
             disabled={game!.pendingDecision?.playerId !== playerId || status !== "connected"}
-            onClick={() => send({ type: "RESOLVE_DECISION", decisionId: game!.pendingDecision!.id, optionId: option.id })}>{option.label}</button>)}</div>
+            onClick={() => resolveDecision(game!.pendingDecision!.id, option.id)}>{option.label}</button>)}</div>
           {game!.pendingDecision.playerId !== playerId && <small>等待 {game!.players.find((player) => player.id === game!.pendingDecision?.playerId)?.name} 选择</small>}
         </section>
       </div>}

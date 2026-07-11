@@ -415,7 +415,7 @@ class MagsimGameEngine:
         owner_map = owners or state.racer_owner_by_index
         athlete_map = athletes or state.racer_athlete_by_index
         athlete = athlete_map[pending.racer_idx]
-        return {
+        public = {
             "id": pending.id,
             "playerId": owner_map[pending.racer_idx],
             "athleteId": athlete.id,
@@ -425,6 +425,9 @@ class MagsimGameEngine:
             "choiceType": pending.choice_type,
             "options": pending.public_options(),
         }
+        if pending.roll_preview is not None:
+            public["rollPreview"] = pending.roll_preview
+        return public
 
     def _transition_with_log(self, state: GameState, events: list[dict[str, Any]]) -> GameTransition:
         log = list(state.race_log)
@@ -522,7 +525,7 @@ class MagsimGameEngine:
         athlete = state.racer_athlete_by_index.get(index)
         base = {"playerId": owner_id, "athleteId": athlete.id if athlete else None}
         if name == "RollResultEvent":
-            events.append({"type": "DICE_ROLLED", **base, "value": event.dice_value or event.base_value, "baseValue": event.base_value, "finalValue": event.final_value})
+            events.append({"type": "DICE_ROLLED", **base, "value": event.dice_value or event.base_value, "baseValue": event.base_value, "finalValue": event.final_value, "rollSerial": event.roll_serial})
         elif name == "PostMoveEvent":
             kind = "PUSH" if str(event.source) in {"CentaurTrample", "HugeBabyPush"} else ("FORWARD" if event.end_tile >= event.start_tile else "BACKWARD")
             events.append({"type": "RACER_MOVED", **base, "from": event.start_tile, "to": event.end_tile, "movementKind": kind, "source": str(event.source)})

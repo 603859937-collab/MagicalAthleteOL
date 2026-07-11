@@ -28,6 +28,7 @@ class PendingChoice:
     choice_type: str
     options: tuple[Any, ...]
     option_labels: tuple[str, ...]
+    roll_preview: dict[str, int] | None = None
     answer_index: int | None = None
     auto_answer: bool = False
 
@@ -53,6 +54,16 @@ class DecisionBroker:
         ability_name = str(getattr(ctx.source, "name", type(ctx.source).__name__))
         signature = (ctx.source_racer_idx, ability_name, choice_type)
         if self.pending is None:
+            roll_state = ctx.game_state.roll_state
+            roll_serial = getattr(ctx.event, "roll_serial", None)
+            roll_preview = None
+            if roll_serial is not None and getattr(ctx.event, "current_roll_val", None) is not None:
+                roll_preview = {
+                    "rollSerial": roll_serial,
+                    "value": roll_state.dice_value or roll_state.base_value,
+                    "baseValue": roll_state.base_value,
+                    "finalValue": roll_state.final_value,
+                }
             self.pending = PendingChoice(
                 id=uuid4().hex,
                 racer_idx=ctx.source_racer_idx,
@@ -61,6 +72,7 @@ class DecisionBroker:
                 choice_type=choice_type,
                 options=options,
                 option_labels=labels,
+                roll_preview=roll_preview,
             )
             raise DecisionRequired
 
@@ -84,6 +96,7 @@ class DecisionBroker:
             choice_type=current.choice_type,
             options=options,
             option_labels=labels,
+            roll_preview=current.roll_preview,
             answer_index=index,
             auto_answer=auto,
         )

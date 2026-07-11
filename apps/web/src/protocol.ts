@@ -49,6 +49,12 @@ export interface RaceResult {
 }
 
 export interface DecisionOption { id: string; label: string }
+export interface RollPreview {
+  rollSerial: number;
+  value: number;
+  baseValue: number;
+  finalValue: number;
+}
 export interface PendingDecision {
   id: string;
   playerId: string;
@@ -58,6 +64,7 @@ export interface PendingDecision {
   prompt: string;
   choiceType: "BOOLEAN" | "RACER" | "TILE" | "DIE";
   options: DecisionOption[];
+  rollPreview?: RollPreview;
   deadlineAt?: string;
 }
 
@@ -106,6 +113,7 @@ export type GameEvent = {
   value?: number;
   baseValue?: number;
   finalValue?: number;
+  rollSerial?: number;
   finishPosition?: number;
   raceNumber?: number;
   from?: number;
