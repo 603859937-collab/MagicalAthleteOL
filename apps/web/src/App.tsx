@@ -444,6 +444,7 @@ export default function App() {
       {game!.pendingDecision && !rollAnimation && resolvingDecisionId !== game!.pendingDecision.id && <div className="decision-backdrop">
         <section className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
           <header><div><small>{game!.pendingDecision.athleteName}</small><h2 id="decision-title">{game!.pendingDecision.abilityName}</h2></div><strong>{decisionSeconds}s</strong></header>
+          {game!.pendingDecision.rollPreview && <p className="decision-roll">本次掷出 <strong>{game!.pendingDecision.rollPreview.value}</strong>{game!.pendingDecision.rollPreview.finalValue !== game!.pendingDecision.rollPreview.value && <small>最终移动 {game!.pendingDecision.rollPreview.finalValue}</small>}</p>}
           <p>{game!.pendingDecision.prompt}</p>
           <div className="decision-options">{game!.pendingDecision.options.map((option) => <button className="command secondary" key={option.id}
             disabled={game!.pendingDecision?.playerId !== playerId || status !== "connected"}

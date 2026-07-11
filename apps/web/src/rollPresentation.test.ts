@@ -20,7 +20,7 @@ function update(revision: number, rollSerial: number, value: number, events: Gam
         options: [],
         rollPreview: { rollSerial, value, baseValue: value, finalValue: value },
       },
-    } as RoomSnapshot["game"],
+    } as unknown as RoomSnapshot["game"],
   };
 }
 
