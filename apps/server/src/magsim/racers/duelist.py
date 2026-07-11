@@ -77,7 +77,7 @@ class DuelistAbility(
         ):
             return "skip_trigger"
 
-        return self._check_and_run_duel(engine, owner, agent, event.phase)
+        return self._check_and_run_duel(engine, owner, agent, event.phase, event)
 
     def _check_and_run_duel(
         self,
@@ -85,12 +85,20 @@ class DuelistAbility(
         owner: ActiveRacerState,
         agent: Agent,
         phase: Phase,
+        event: GameEvent | None = None,
     ) -> AbilityTriggeredEventOrSkipped:
         # skip if duel already triggered of this event to avoid Copycat double trigger
         if (
             current_schedule := engine.current_processing_event
         ) is not None and self.name in current_schedule.locked_abilities:
             return "skip_trigger"
+
+        if isinstance(event, (PostMoveEvent, PostWarpEvent)):
+            event_racer = engine.get_racer(event.target_racer_idx)
+            if event.target_racer_idx != owner.idx and (
+                not event_racer.active or event_racer.position != owner.position
+            ):
+                return "skip_trigger"
 
         targets = engine.get_racers_at_position(
             owner.position,
