@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DiceRollResult, GameEvent, RoomSnapshot } from "./protocol";
-import { collectUnseenRollValues } from "./rollPresentation";
+import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
 
 function update(revision: number, rollSerial: number, value: number, events: GameEvent[] = []): RoomSnapshot & { events: GameEvent[] } {
   return {
@@ -53,5 +53,25 @@ describe("collectUnseenRollValues", () => {
     message.game.pendingDecision = null;
 
     expect(collectUnseenRollValues(message, shown)).toEqual([4]);
+  });
+});
+
+describe("latestAuthoritativeRollValue", () => {
+  it("restores the latest completed roll from an authoritative snapshot", () => {
+    const message = update(4, 3, 2);
+    message.game.pendingDecision = null;
+    message.game.raceLog = [
+      { type: "DICE_ROLLED", value: 3, rollSerial: 2 },
+      { type: "DICE_ROLLED", value: 6, rollSerial: 3 },
+    ];
+
+    expect(latestAuthoritativeRollValue(message)).toBe(6);
+  });
+
+  it("prefers an in-progress roll preview over the completed race log", () => {
+    const message = update(5, 4, 2);
+    message.game.raceLog = [{ type: "DICE_ROLLED", value: 6, rollSerial: 3 }];
+
+    expect(latestAuthoritativeRollValue(message)).toBe(2);
   });
 });

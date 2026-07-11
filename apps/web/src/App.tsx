@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSPropertie
 import { RaceTrack } from "./components/RaceTrack";
 import { actionId, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
 import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
-import { collectUnseenRollValues } from "./rollPresentation";
+import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
@@ -101,12 +101,14 @@ export default function App() {
   const [rollingPlayerId, setRollingPlayerId] = useState<string | null>(null);
   const [rollingActionId, setRollingActionId] = useState<string | null>(null);
   const [diceResetKey, setDiceResetKey] = useState(0);
+  const [restingDiceValue, setRestingDiceValue] = useState(1);
   const [abilityBanner, setAbilityBanner] = useState("");
   const [decisionSeconds, setDecisionSeconds] = useState(0);
   const [resolvingDecisionId, setResolvingDecisionId] = useState<string | null>(null);
   const client = useRef(new GameClient());
   const visibleSnapshot = useRef<RoomSnapshot | null>(null);
   const authoritativeSnapshot = useRef<RoomSnapshot | null>(null);
+  const latestAuthoritativeDiceValue = useRef<number | null>(null);
   const localRollPendingRef = useRef(false);
   const rollAnimationRef = useRef<RollAnimation | null>(null);
   const rollingPlayerRef = useRef<string | null>(null);
@@ -178,6 +180,8 @@ export default function App() {
 
   function rememberAuthoritativeSnapshot(next: RoomSnapshot) {
     authoritativeSnapshot.current = next;
+    const latestDiceValue = latestAuthoritativeRollValue(next);
+    if (latestDiceValue !== null) latestAuthoritativeDiceValue.current = latestDiceValue;
     setViewState((current) => ({
       ...current,
       authoritative: next,
@@ -214,6 +218,8 @@ export default function App() {
     const item = playbackQueue.current.shift();
     if (!item) {
       const latest = authoritativeSnapshot.current;
+      const latestDiceValue = latestAuthoritativeDiceValue.current;
+      if (latestDiceValue !== null) setRestingDiceValue(latestDiceValue);
       if (latest && (visibleSnapshot.current?.revision ?? -1) < latest.revision) {
         publishSnapshot(latest);
       }
@@ -224,6 +230,7 @@ export default function App() {
     setPlaybackBusyState(true);
     if (item.values.length > 0) {
       activePlayback.current = item;
+      setRestingDiceValue(item.values[0]);
       const animation = {
         revision: item.revision,
         values: item.values,
@@ -237,12 +244,49 @@ export default function App() {
     }
 
     eventPlaybackActive.current = true;
+    const playbackRunId = ++playbackId.current;
     try {
-      await playRaceEvents(item.events, item.finalSnapshot);
+      await playRaceEvents(item.events, item.finalSnapshot, playbackRunId);
     } finally {
+      if (playbackRunId !== playbackId.current) return;
       eventPlaybackActive.current = false;
       void drainPlaybackQueue();
     }
+  }
+
+  function resetPlaybackForWelcome(message: Extract<ServerMessage, { type: "WELCOME" }>) {
+    if (revealTimer.current !== null) window.clearTimeout(revealTimer.current);
+    revealTimer.current = null;
+    finishingRollKey.current = null;
+    playbackId.current += 1;
+    playbackQueue.current = [];
+    activePlayback.current = null;
+    eventPlaybackActive.current = false;
+    rollAnimationRef.current = null;
+    rollingPlayerRef.current = null;
+    rollingActionRef.current = null;
+    localRollPendingRef.current = false;
+    latestAuthoritativeDiceValue.current = null;
+
+    const restoredRolls = new Set<string>();
+    const raceKey = message.game.raceNumber - 1;
+    for (const event of message.game.raceLog) {
+      if (event.type === "DICE_ROLLED" && typeof event.rollSerial === "number") {
+        restoredRolls.add(`race:${raceKey}:serial:${event.rollSerial}`);
+      }
+    }
+    const preview = message.game.pendingDecision?.rollPreview;
+    if (preview) restoredRolls.add(`race:${raceKey}:serial:${preview.rollSerial}`);
+    shownRolls.current = restoredRolls;
+
+    setRollAnimation(null);
+    setRollingPlayerId(null);
+    setRollingActionId(null);
+    setLocalRollPending(false);
+    setPlaybackBusyState(false);
+    setAbilityBanner("");
+    setResolvingDecisionId(null);
+    setDiceResetKey((value) => value + 1);
   }
 
   function handleMessage(message: ServerMessage) {
@@ -256,13 +300,18 @@ export default function App() {
       return setError(message.message);
     }
     if (message.type === "ACTION_ACK") return;
-    rememberAuthoritativeSnapshot(message);
     if (message.type === "WELCOME") {
+      resetPlaybackForWelcome(message);
+      rememberAuthoritativeSnapshot(message);
+      setRestingDiceValue(latestAuthoritativeDiceValue.current ?? 1);
       publishSnapshot(message);
       setPlayerId(message.playerId);
       saveSession({ roomId: message.roomId, playerId: message.playerId,
         reconnectToken: message.reconnectToken, playerName: playerName.trim() });
+      setError("");
+      return;
     }
+    rememberAuthoritativeSnapshot(message);
     if (message.type === "ROLL_STARTED") {
       rollingPlayerRef.current = message.playerId;
       rollingActionRef.current = message.actionId;
@@ -319,6 +368,8 @@ export default function App() {
       } else if (playbackBusy || activePlayback.current || eventPlaybackActive.current || playbackQueue.current.length > 0) {
         // Keep display state stable while queued race playback is catching up.
       } else {
+        const latestDiceValue = latestAuthoritativeDiceValue.current;
+        if (latestDiceValue !== null) setRestingDiceValue(latestDiceValue);
         publishSnapshot(message);
       }
     }
@@ -366,6 +417,7 @@ export default function App() {
     if (current.index + 1 < current.values.length) {
       const nextIndex = current.index + 1;
       const next = { ...current, index: nextIndex, autoThrow: true, throwKey: `result-${current.revision}-${nextIndex}` };
+      setRestingDiceValue(next.values[nextIndex]);
       rollAnimationRef.current = next;
       setRollAnimation(next);
       return;
@@ -397,25 +449,30 @@ export default function App() {
       return;
     }
     eventPlaybackActive.current = true;
-    void playRaceEvents(playback.events, playback.finalSnapshot).finally(() => {
+    const playbackRunId = ++playbackId.current;
+    void playRaceEvents(playback.events, playback.finalSnapshot, playbackRunId).finally(() => {
+      if (playbackRunId !== playbackId.current) return;
       eventPlaybackActive.current = false;
       void drainPlaybackQueue();
     });
   }
 
-  async function playRaceEvents(events: GameEvent[], finalSnapshot: RoomSnapshot) {
-    const id = ++playbackId.current;
+  async function playRaceEvents(events: GameEvent[], finalSnapshot: RoomSnapshot, playbackRunId: number) {
     let working = structuredClone(visibleSnapshot.current ?? finalSnapshot);
+    const cancelled = () => playbackRunId !== playbackId.current;
     const publish = () => {
+      if (cancelled()) return false;
       const next = structuredClone(working);
       publishSnapshot(next);
+      return true;
     };
     const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
     for (const event of events) {
-      if (id !== playbackId.current) return;
+      if (cancelled()) return;
       if (event.type === "ABILITY_TRIGGERED") {
         setAbilityBanner(`${event.sourceAthleteName ?? "赛车手"} · ${event.abilityName ?? "技能触发"}`);
         await pause(900);
+        if (cancelled()) return;
         setAbilityBanner("");
       }
       if (["RACER_MOVED", "RACER_WARPED"].includes(event.type) && event.athleteId && typeof event.to === "number") {
@@ -423,15 +480,18 @@ export default function App() {
         if (racer) {
           if (event.type === "RACER_WARPED") {
             await pause(180);
+            if (cancelled()) return;
             racer.position = event.to;
-            publish();
+            if (!publish()) return;
             await pause(320);
+            if (cancelled()) return;
           } else {
             const start = typeof event.from === "number" ? event.from : racer.position;
             const direction = event.to >= start ? 1 : -1;
             for (let position = start + direction; direction > 0 ? position <= event.to : position >= event.to; position += direction) {
+              if (cancelled()) return;
               racer.position = position;
-              publish();
+              if (!publish()) return;
               await pause(220);
             }
           }
@@ -440,11 +500,11 @@ export default function App() {
       if (event.type === "RACER_TRIPPED" && event.athleteId) {
         const racer = working.game.players.flatMap((player) => player.activeRacers).find((item) => item.id === event.athleteId);
         if (racer) racer.tripped = true;
-        publish();
+        if (!publish()) return;
         await pause(420);
       }
     }
-    if (id !== playbackId.current) return;
+    if (cancelled()) return;
     publishSnapshot(finalSnapshot);
   }
 
@@ -541,6 +601,7 @@ export default function App() {
               <RaceDice
                 enabled={controlGame?.activePlayerId === playerId && !controlGame.pendingDecision && !localRollPending && !playbackBusy && !rollAnimation && status === "connected"}
                 targetValue={rollAnimation?.values[rollAnimation.index] ?? null}
+                restingValue={restingDiceValue}
                 rollKey={rollAnimation?.throwKey ?? (rollingActionId ? `start-${rollingActionId}` : `idle-${game!.raceNumber}`)}
                 autoThrow={rollAnimation?.autoThrow ?? (rollingPlayerId !== null && !localRollPending)}
                 resetKey={diceResetKey}

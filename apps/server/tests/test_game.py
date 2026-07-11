@@ -104,6 +104,32 @@ def test_selection_is_secret_and_requires_two_unique_racers_for_two_players() ->
     assert all(engine.public_state(state, "p1")["players"][index]["activeRacers"] for index in range(2))
 
 
+def test_roll_serial_increases_across_turns() -> None:
+    engine = MagsimGameEngine(random.Random(13))
+    players = make_players(4)
+    teams = {
+        "p0": (ATHLETE_BY_ID["banana"],),
+        "p1": (ATHLETE_BY_ID["blimp"],),
+        "p2": (ATHLETE_BY_ID["hare"],),
+        "p3": (ATHLETE_BY_ID["lovable_loser"],),
+    }
+    state = replace(
+        engine.create_game(players),
+        phase=GamePhase.CHARACTER_SELECTION,
+        teams=teams,
+        first_turn_player_id="p0",
+    )
+    for player in players:
+        state = engine.select_racers(state, player.id, (teams[player.id][0].id,)).state
+
+    first = engine.roll_dice(state, state.active_player_id)
+    first_roll = next(event for event in first.events if event["type"] == "DICE_ROLLED")
+    second = engine.roll_dice(first.state, first.state.active_player_id)
+    second_roll = next(event for event in second.events if event["type"] == "DICE_ROLLED")
+
+    assert second_roll["rollSerial"] > first_roll["rollSerial"]
+
+
 def test_race_uses_schedule_rewards_and_accumulates_score() -> None:
     engine = MagsimGameEngine(random.Random(3))
     players = make_players(4)

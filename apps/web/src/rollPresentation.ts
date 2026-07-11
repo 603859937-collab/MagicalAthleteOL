@@ -2,6 +2,21 @@ import type { DiceRollResult, GameEvent, RoomSnapshot } from "./protocol";
 
 type RollUpdate = RoomSnapshot & { events: GameEvent[]; rollResults?: DiceRollResult[] };
 
+function isDieValue(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 6;
+}
+
+export function latestAuthoritativeRollValue(snapshot: RoomSnapshot): number | null {
+  const previewValue = snapshot.game.pendingDecision?.rollPreview?.value;
+  if (isDieValue(previewValue)) return previewValue;
+
+  for (let index = snapshot.game.raceLog.length - 1; index >= 0; index -= 1) {
+    const event = snapshot.game.raceLog[index];
+    if (event.type === "DICE_ROLLED" && isDieValue(event.value)) return event.value;
+  }
+  return null;
+}
+
 export function collectUnseenRollValues(message: RollUpdate, shownRolls: Set<string>): number[] {
   if (message.rollResults) {
     return message.rollResults.flatMap((result) => {

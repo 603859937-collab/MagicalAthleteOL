@@ -3,6 +3,7 @@ import { CuboidCollider, Physics, RigidBody, type RapierRigidBody } from "@react
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MathUtils, Quaternion } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { createDiceLifecycle, syncDiceLifecycle, takeDiceResetValue } from "../diceLifecycle";
 import { targetQuaternion, throwVector } from "../diceOrientation";
 
 type ThrowState = "ready" | "dragging" | "rolling" | "settling" | "settled";
@@ -10,6 +11,7 @@ type ThrowState = "ready" | "dragging" | "rolling" | "settling" | "settled";
 interface RaceDiceProps {
   enabled: boolean;
   targetValue: number | null;
+  restingValue: number;
   rollKey: string;
   autoThrow: boolean;
   resetKey: number;
@@ -45,15 +47,14 @@ function Pips({ value, face }: { value: number; face: "top" | "bottom" | "front"
 
 type Launch = (dragX?: number, dragY?: number) => boolean;
 
-function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow, onSettled, onStateChange, registerLauncher }: Omit<RaceDiceProps, "activePlayerName"> & { onStateChange: (state: ThrowState) => void; registerLauncher: (launch: Launch | null) => void }) {
+function DiceBody({ enabled, targetValue, restingValue, rollKey, autoThrow, resetKey, onThrow, onSettled, onStateChange, registerLauncher }: Omit<RaceDiceProps, "activePlayerName"> & { onStateChange: (state: ThrowState) => void; registerLauncher: (launch: Launch | null) => void }) {
   const body = useRef<RapierRigidBody>(null);
   const pointer = useRef({ id: -1, x: 0, y: 0, lastX: 0, lastY: 0, time: 0 });
   const rollingSince = useRef(0);
   const settleSince = useRef(0);
   const settleStart = useRef(new Quaternion());
-  const lastSettledValue = useRef(1);
   const launchedRollKey = useRef<string | null>(null);
-  const target = useRef<number | null>(targetValue);
+  const lifecycle = useRef(createDiceLifecycle(targetValue, restingValue));
   const state = useRef<ThrowState>("ready");
   const geometry = useMemo(() => new RoundedBoxGeometry(1.4, 1.4, 1.4, 5, 0.16), []);
 
@@ -62,15 +63,14 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
     onStateChange(next);
   }, [onStateChange]);
 
-  const reset = useCallback(() => {
+  const reset = useCallback((value: number) => {
     const rigidBody = body.current;
     if (!rigidBody) return;
-    rigidBody.setGravityScale(1, true);
+    rigidBody.setGravityScale(0, true);
     rigidBody.setTranslation({ x: 0, y: 0.86, z: 1.15 }, true);
-    rigidBody.setRotation(targetQuaternion(lastSettledValue.current), true);
+    rigidBody.setRotation(targetQuaternion(value), true);
     rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
     rigidBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    target.current = null;
     setState("ready");
   }, [setState]);
 
@@ -95,8 +95,16 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
     return true;
   }, [setState]);
 
-  useEffect(() => { target.current = targetValue; }, [targetValue]);
-  useEffect(() => { reset(); }, [reset, resetKey]);
+  useEffect(() => {
+    const restingValueChanged = lifecycle.current.restingValue !== restingValue;
+    syncDiceLifecycle(lifecycle.current, targetValue, restingValue);
+    if (restingValueChanged && targetValue === null) reset(restingValue);
+  }, [reset, restingValue, targetValue]);
+  useEffect(() => {
+    if (!body.current) return;
+    const value = takeDiceResetValue(lifecycle.current, resetKey);
+    if (value !== undefined) reset(value);
+  }, [reset, resetKey]);
   useEffect(() => {
     registerLauncher(launch);
     return () => registerLauncher(null);
@@ -121,7 +129,7 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
 
   useFrame(() => {
     const rigidBody = body.current;
-    if (!rigidBody || target.current === null || state.current !== "rolling") return;
+    if (!rigidBody || lifecycle.current.targetValue === null || state.current !== "rolling") return;
     if (performance.now() - rollingSince.current < 1050) return;
     const current = rigidBody.rotation();
     settleStart.current.set(current.x, current.y, current.z, current.w);
@@ -134,10 +142,11 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
 
   useFrame(() => {
     const rigidBody = body.current;
-    if (!rigidBody || target.current === null || state.current !== "settling") return;
+    const targetValue = lifecycle.current.targetValue;
+    if (!rigidBody || targetValue === null || state.current !== "settling") return;
     const progress = MathUtils.clamp((performance.now() - settleSince.current) / 500, 0, 1);
     const eased = 1 - Math.pow(1 - progress, 3);
-    const rotation = settleStart.current.clone().slerp(targetQuaternion(target.current), eased);
+    const rotation = settleStart.current.clone().slerp(targetQuaternion(targetValue), eased);
     const translation = rigidBody.translation();
     rigidBody.setRotation(rotation, true);
     rigidBody.setTranslation({
@@ -147,7 +156,6 @@ function DiceBody({ enabled, targetValue, rollKey, autoThrow, resetKey, onThrow,
     }, true);
     if (progress < 1) return;
     rigidBody.setTranslation({ x: 0, y: 0.72, z: 0 }, true);
-    lastSettledValue.current = target.current;
     setState("settled");
     onSettled();
   });
@@ -236,7 +244,7 @@ export function RaceDice(props: RaceDiceProps) {
 
   if (!webglAvailable || reducedMotion) {
     return <div className="dice-fallback" aria-label="比赛骰子">
-      <div className={props.targetValue ? "fallback-die landed" : "fallback-die"}>{props.targetValue ?? "?"}</div>
+      <div className={props.targetValue ? "fallback-die landed" : "fallback-die"}>{props.targetValue ?? props.restingValue}</div>
       <button className="command dice-throw-button" disabled={!props.enabled} onClick={() => props.onThrow(crypto.randomUUID())}>掷骰</button>
     </div>;
   }

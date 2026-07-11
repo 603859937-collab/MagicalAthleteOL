@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from magical_athlete.athletes import ATHLETE_BY_ID
-from magical_athlete.game import GamePhase, MagsimGameEngine, Player
+from magical_athlete.game import GamePhase, GameTransition, MagsimGameEngine, Player
 from magical_athlete.protocol import RollDiceIntent
 from magical_athlete.rooms import InMemoryRoomRepository, Room, RoomManager, RoomPlayer
 
@@ -124,3 +124,23 @@ async def test_tripped_turn_does_not_start_a_dice_animation() -> None:
         assert [message["type"] for message in socket.messages] == ["STATE_UPDATED"]
         assert any(event["type"] == "TRIP_RECOVERED" for event in socket.messages[0]["events"])
         assert not any(event["type"] == "DICE_ROLLED" for event in socket.messages[0]["events"])
+
+
+def test_roll_preview_and_final_event_share_the_same_result_id() -> None:
+    engine = MagsimGameEngine(random.Random(4))
+    state = engine.create_game((Player("p0", "Alice"), Player("p1", "Bob")))
+    preview = {"rollSerial": 7, "value": 5, "baseValue": 5, "finalValue": 5}
+    pending_state = replace(
+        state,
+        pending_decision={"playerId": "p0", "athleteId": "magician", "rollPreview": preview},
+    )
+    preview_results = RoomManager._roll_results(GameTransition(pending_state, ()), revision=10)
+    final_results = RoomManager._roll_results(
+        GameTransition(
+            replace(pending_state, pending_decision=None),
+            ({"type": "DICE_ROLLED", "playerId": "p0", "athleteId": "magician", "value": 5, "rollSerial": 7},),
+        ),
+        revision=11,
+    )
+
+    assert preview_results[0]["id"] == final_results[0]["id"]

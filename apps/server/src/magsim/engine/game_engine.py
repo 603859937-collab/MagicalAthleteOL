@@ -189,8 +189,8 @@ class GameEngine:
         cr = self.state.current_racer_idx
         racer = self.state.racers[cr]
 
-        # reset roll state
-        self.state.roll_state = RollState()
+        # Reset per-turn values while preserving the race-wide roll identity.
+        self.state.roll_state = RollState(serial_id=self.state.roll_state.serial_id)
         racer.roll_override = None
         racer.can_reroll = True
         racer.main_move_consumed = False
