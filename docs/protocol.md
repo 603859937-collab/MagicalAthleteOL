@@ -23,10 +23,11 @@ WebSocket 建立后第一条消息必须是 `JOIN_ROOM`：
 { "type": "DRAFT_ATHLETE", "actionId": "a4", "athleteId": "centaur" }
 { "type": "SELECT_RACERS", "actionId": "a5", "athleteIds": ["centaur", "banana"] }
 { "type": "ROLL_DICE", "actionId": "a6" }
-{ "type": "ADVANCE_RACE", "actionId": "a7" }
+{ "type": "RESOLVE_DECISION", "actionId": "a7", "decisionId": "d1", "optionId": "1" }
+{ "type": "ADVANCE_RACE", "actionId": "a8" }
 ```
 
-`SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。`ROLL_DICE` 在服务端执行当前赛车手的完整回合，不接受客户端点数或移动终点。
+`SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。`ROLL_DICE` 在服务端执行到本回合结束或下一个技能选择，不接受客户端点数或移动终点。`RESOLVE_DECISION` 只接受公开候选项中的 ID，且只能由 `pendingDecision.playerId` 提交。
 
 重复的 `actionId` 不会重复执行，服务端返回 `ACTION_ACK`。
 
@@ -44,6 +45,8 @@ LOBBY
 
 `DRAFTING` 公开 `draftPool`、`activePlayerId`、各玩家 `team` 与招募轮次。`CHARACTER_SELECTION` 只公开 `selectionLocked`；全部玩家锁定后，`activeRacers` 同时揭示。`raceNumber` 为 1–4，`trackName`、`raceRewards` 和 `scores` 始终来自服务端。
 
+比赛状态还包含 `pendingDecision`、`raceLog` 和 `resolutionStatus`。候选项对房间内所有玩家公开；待选状态包含 60 秒的 `deadlineAt`，超时后服务端采用该能力的 SmartAgent 推荐并继续。重连会恢复同一个决策 ID 和截止时间。
+
 ## 状态广播
 
 有效行动产生 `STATE_UPDATED`。`events` 用于动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。
@@ -57,12 +60,14 @@ LOBBY
   "revision": 18,
   "events": [
     { "type": "DICE_ROLLED", "playerId": "p1", "athleteId": "centaur", "value": 5 },
-    { "type": "ATHLETE_MOVED", "playerId": "p1", "athleteId": "centaur", "from": 4, "to": 9 },
+    { "type": "RACER_MOVED", "playerId": "p1", "athleteId": "centaur", "from": 4, "to": 9, "movementKind": "FORWARD" },
     { "type": "TURN_CHANGED", "playerId": "p2" }
   ],
   "game": { "phase": "RACING", "raceNumber": 2, "activePlayerId": "p2" }
 }
 ```
+
+比赛事件包括 `ABILITY_TRIGGERED`、`DECISION_REQUIRED`、`DECISION_RESOLVED`、`DECISION_TIMED_OUT`、`RACER_MOVED`、`RACER_TRIPPED`、`RACER_WARPED`、`RACERS_SWAPPED` 和 `RACER_FINISHED`。客户端按数组顺序播放，最后以同一消息中的 `game` 快照对齐。
 
 ## 错误
 

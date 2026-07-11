@@ -60,6 +60,7 @@ class GameScenario:
     board: Board | None = None
     rules: GameRules | None = None
     seed: int | None = None
+    defer_setup: bool = False
 
     # These are set in __post_init__
     state: GameState = field(init=False)
@@ -111,6 +112,7 @@ class GameScenario:
                 parent_engine_id=None,
             ),
             agents=agents,
+            defer_setup=self.defer_setup,
         )
 
     def set_dice_rolls(self, rolls: list[int]):

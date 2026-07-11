@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import heapq
 import logging
+import copy
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -40,6 +41,7 @@ from magsim.core.registry import (
     RACER_ABILITIES,
 )
 from magsim.core.state import ActiveRacerState, RollState, is_active
+from magsim.core.interactive import DecisionRequired
 from magsim.engine.logging import ContextFilter
 from magsim.engine.loop_detection import LoopDetector
 from magsim.engine.movement import (
@@ -90,6 +92,7 @@ class GameEngine:
     current_processing_event: ScheduledEvent | None = None
     subscribers: dict[type[GameEvent], list[Subscriber]] = field(default_factory=dict)
     agents: dict[int, Agent] = field(default_factory=dict)
+    defer_setup: bool = False
 
     # Errors and loop detection
     bug_reason: ErrorCode | None = None
@@ -99,6 +102,10 @@ class GameEngine:
     on_event_processed: Callable[[GameEngine, GameEvent], None] | None = None
     verbose: bool = True
     _logger: logging.Logger = field(init=False, repr=False)
+    _setup_completed: set[tuple[int, str]] = field(default_factory=set, init=False)
+    _setup_complete: bool = field(default=False, init=False)
+    _turn_in_progress: bool = field(default=False, init=False)
+    _turn_end_triggered: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
         """Assigns starting abilities to all racers and fires on_gain hooks."""
@@ -115,28 +122,51 @@ class GameEngine:
 
             _ = self.agents.setdefault(racer.idx, SmartAgent())
 
-            # 2. Dynamic Setup Phase Handling
-            # Use a set of OBJECT IDs to track processed instances (since instances are mutable/unhashable)
-            processed_ids: set[int] = set()
+        if not self.defer_setup:
+            if not self.continue_setup():
+                raise RuntimeError("Interactive setup requires defer_setup=True")
 
-            while True:
-                # Find abilities we haven't processed yet
-                # We iterate the current live list from the racer state
-                new_abilities = [
-                    ab for ab in racer.active_abilities if id(ab) not in processed_ids
-                ]
+    def _transaction_snapshot(self) -> tuple[Any, Any, Any, Any, Any]:
+        state, subscribers, detector, current = copy.deepcopy(
+            (self.state, self.subscribers, self.loop_detector, self.current_processing_event)
+        )
+        return state, subscribers, detector, current, self.rng.getstate()
 
-                if not new_abilities:
+    def _restore_transaction(self, snapshot: tuple[Any, Any, Any, Any, Any]) -> None:
+        state, subscribers, detector, current, rng_state = snapshot
+        self.state = state
+        self.subscribers = subscribers
+        self.loop_detector = detector
+        self.current_processing_event = current
+        self.rng.setstate(rng_state)
+
+    def continue_setup(self) -> bool:
+        """Run setup abilities until complete or an interactive choice pauses them."""
+        if self._setup_complete:
+            return True
+        while True:
+            task: tuple[int, Any] | None = None
+            for racer in self.get_active_racers():
+                for ability in racer.active_abilities:
+                    key = (racer.idx, type(ability).__qualname__)
+                    if isinstance(ability, SetupPhaseMixin) and key not in self._setup_completed:
+                        task = (racer.idx, ability)
+                        break
+                if task is not None:
                     break
+            if task is None:
+                self._setup_complete = True
+                self.state.race_active = True
+                return True
 
-                for ability in new_abilities:
-                    processed_ids.add(id(ability))
-
-                    # If this ability has setup logic (e.g. Egg picking a card), run it
-                    if isinstance(ability, SetupPhaseMixin):
-                        ability.on_setup(self, racer, self.agents[racer.idx])
-        # finally, start the race
-        self.state.race_active = True
+            racer_idx, ability = task
+            snapshot = self._transaction_snapshot()
+            try:
+                ability.on_setup(self, self.get_active_racer(racer_idx), self.agents[racer_idx])
+            except DecisionRequired:
+                self._restore_transaction(snapshot)
+                return False
+            self._setup_completed.add((racer_idx, type(ability).__qualname__))
 
     # --- Main Loop ---
     def run_race(self):
@@ -145,6 +175,13 @@ class GameEngine:
             self.advance_turn()
 
     def run_turn(self):
+        self.start_turn()
+        if not self.continue_turn():
+            raise RuntimeError("run_turn cannot pause; use start_turn/continue_turn")
+
+    def start_turn(self) -> None:
+        if self._turn_in_progress:
+            return
         # 1. Reset detector for the new turn
         self.loop_detector.reset_for_turn()
         self.state.history.clear()
@@ -160,6 +197,8 @@ class GameEngine:
 
         self.log_context.start_turn_log(f"{racer.idx}•{racer.name}")
         self.log_info(f"=== START TURN: {racer.repr} ===")
+        self._turn_in_progress = True
+        self._turn_end_triggered = False
 
         # --- Pre-Turn Recording (for Heckler) ---
         self.push_event(
@@ -206,23 +245,31 @@ class GameEngine:
                 ),
             )
 
-        turn_end_triggered = False
+    def continue_turn(self) -> bool:
+        """Resolve queued events until the turn ends or a choice is required."""
+        if not self._turn_in_progress:
+            raise RuntimeError("start_turn must be called before continue_turn")
         while self.state.race_active:
             if not self.state.queue:
                 # If done with normal events, inject TurnEndEvent ONCE
-                if not turn_end_triggered:
+                if not self._turn_end_triggered:
                     self.push_event(
                         TurnEndEvent(
                             responsible_racer_idx=None,
                             source="System",
                         ),
                     )
-                    turn_end_triggered = True
+                    self._turn_end_triggered = True
                     continue  # Restart loop to process TurnEndEvent
 
                 # If already triggered and still empty, we are truly done
-                break
+                self._turn_in_progress = False
+                return True
             # -------------------------------
+
+            # The detector mutates while checking. Include it in the event
+            # transaction so replay after a decision is not mistaken for a loop.
+            snapshot = self._transaction_snapshot()
 
             # Prepare hashes for checks
             current_board_hash = self._calculate_board_hash()
@@ -266,7 +313,13 @@ class GameEngine:
                 break
 
             self.current_processing_event = sched
-            self._handle_event(sched.event)
+            try:
+                self._handle_event(sched.event)
+            except DecisionRequired:
+                self._restore_transaction(snapshot)
+                return False
+        self._turn_in_progress = False
+        return True
 
     def _calculate_board_hash(self) -> int:
         racer_states = tuple(

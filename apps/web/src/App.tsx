@@ -32,6 +32,12 @@ function eventText(event: GameEvent, players: PlayerState[]): string {
   if (event.type === "ATHLETE_DRAFTED") return `${player?.name ?? "玩家"} 完成一次招募`;
   if (event.type === "RACERS_LOCKED") return `${player?.name ?? "玩家"} 已锁定阵容`;
   if (event.type === "DICE_ROLLED") return `${player?.name ?? "玩家"} 掷出 ${event.value}`;
+  if (event.type === "RACER_MOVED") return `赛车手从 ${event.from} 移动到 ${event.to}`;
+  if (event.type === "RACER_WARPED") return `赛车手从 ${event.from} 传送到 ${event.to}`;
+  if (event.type === "RACER_TRIPPED") return "赛车手被绊倒";
+  if (event.type === "ABILITY_TRIGGERED") return `${event.sourceAthleteName ?? "赛车手"} 触发 ${event.abilityName}`;
+  if (event.type === "DECISION_RESOLVED") return `${player?.name ?? "玩家"} 完成技能选择`;
+  if (event.type === "DECISION_TIMED_OUT") return `${player?.name ?? "玩家"} 超时，已自动选择`;
   if (event.type === "RACER_FINISHED") return `${player?.name ?? "玩家"} 的赛车手第 ${event.finishPosition} 名冲线`;
   if (event.type === "RACE_FINISHED") return `第 ${event.raceNumber} 场比赛结束`;
   if (event.type === "PLAYER_JOINED") return `${player?.name ?? "新玩家"} 加入房间`;
@@ -81,6 +87,8 @@ export default function App() {
   const [rollingPlayerId, setRollingPlayerId] = useState<string | null>(null);
   const [rollStartSequence, setRollStartSequence] = useState(0);
   const [diceResetKey, setDiceResetKey] = useState(0);
+  const [abilityBanner, setAbilityBanner] = useState("");
+  const [decisionSeconds, setDecisionSeconds] = useState(0);
   const client = useRef(new GameClient());
   const visibleSnapshot = useRef<RoomSnapshot | null>(null);
   const authoritativeSnapshot = useRef<RoomSnapshot | null>(null);
@@ -88,6 +96,8 @@ export default function App() {
   const localRollPendingRef = useRef(false);
   const rollAnimationRef = useRef<RollAnimation | null>(null);
   const rollingPlayerRef = useRef<string | null>(null);
+  const pendingRollEvents = useRef<GameEvent[]>([]);
+  const playbackId = useRef(0);
 
   useEffect(() => () => client.current.close(), []);
   useEffect(() => setSelectedIds([]), [snapshot?.game.raceNumber, snapshot?.game.phase]);
@@ -101,6 +111,15 @@ export default function App() {
   const statusText = useMemo(
     () => ({ connecting: "连接中", connected: "在线", disconnected: "已断开" })[status], [status],
   );
+
+  useEffect(() => {
+    const deadline = game?.pendingDecision?.deadlineAt;
+    if (!deadline) return setDecisionSeconds(0);
+    const update = () => setDecisionSeconds(Math.max(0, Math.ceil((Date.parse(deadline) - Date.now()) / 1000)));
+    update();
+    const timer = window.setInterval(update, 250);
+    return () => window.clearInterval(timer);
+  }, [game?.pendingDecision?.deadlineAt]);
 
   async function createRoom() {
     setError("");
@@ -157,6 +176,7 @@ export default function App() {
       if (visibleSnapshot.current?.game.phase === "RACING" && diceValues.length > 0) {
         const diceWasAlreadyRolling = localRollPendingRef.current || rollingPlayerRef.current !== null;
         pendingRollSnapshot.current = message;
+        pendingRollEvents.current = message.events;
         const animation = {
           revision: message.revision,
           values: diceValues,
@@ -167,6 +187,8 @@ export default function App() {
         setRollingPlayerId(null);
         rollAnimationRef.current = animation;
         setRollAnimation(animation);
+      } else if (visibleSnapshot.current?.game.phase === "RACING" && message.events.some((event) => ["RACER_MOVED", "RACER_WARPED", "RACER_TRIPPED", "ABILITY_TRIGGERED"].includes(event.type))) {
+        void playRaceEvents(message.events, message);
       } else {
         visibleSnapshot.current = message;
         setSnapshot(message);
@@ -208,10 +230,6 @@ export default function App() {
     }
 
     const nextSnapshot = pendingRollSnapshot.current ?? authoritativeSnapshot.current;
-    if (nextSnapshot) {
-      visibleSnapshot.current = nextSnapshot;
-      setSnapshot(nextSnapshot);
-    }
     pendingRollSnapshot.current = null;
     rollAnimationRef.current = null;
     rollingPlayerRef.current = null;
@@ -220,6 +238,54 @@ export default function App() {
     setRollingPlayerId(null);
     setLocalRollPending(false);
     setDiceResetKey((value) => value + 1);
+    if (nextSnapshot) void playRaceEvents(pendingRollEvents.current, nextSnapshot);
+  }
+
+  async function playRaceEvents(events: GameEvent[], finalSnapshot: RoomSnapshot) {
+    const id = ++playbackId.current;
+    let working = structuredClone(visibleSnapshot.current ?? finalSnapshot);
+    const publish = () => {
+      const next = structuredClone(working);
+      visibleSnapshot.current = next;
+      setSnapshot(next);
+    };
+    const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+    for (const event of events) {
+      if (id !== playbackId.current) return;
+      if (event.type === "ABILITY_TRIGGERED") {
+        setAbilityBanner(`${event.sourceAthleteName ?? "赛车手"} · ${event.abilityName ?? "技能触发"}`);
+        await pause(900);
+        setAbilityBanner("");
+      }
+      if (["RACER_MOVED", "RACER_WARPED"].includes(event.type) && event.athleteId && typeof event.to === "number") {
+        const racer = working.game.players.flatMap((player) => player.activeRacers).find((item) => item.id === event.athleteId);
+        if (racer) {
+          if (event.type === "RACER_WARPED") {
+            await pause(180);
+            racer.position = event.to;
+            publish();
+            await pause(320);
+          } else {
+            const start = typeof event.from === "number" ? event.from : racer.position;
+            const direction = event.to >= start ? 1 : -1;
+            for (let position = start + direction; direction > 0 ? position <= event.to : position >= event.to; position += direction) {
+              racer.position = position;
+              publish();
+              await pause(220);
+            }
+          }
+        }
+      }
+      if (event.type === "RACER_TRIPPED" && event.athleteId) {
+        const racer = working.game.players.flatMap((player) => player.activeRacers).find((item) => item.id === event.athleteId);
+        if (racer) racer.tripped = true;
+        publish();
+        await pause(420);
+      }
+    }
+    if (id !== playbackId.current) return;
+    visibleSnapshot.current = finalSnapshot;
+    setSnapshot(finalSnapshot);
   }
 
   useEffect(() => {
@@ -313,7 +379,7 @@ export default function App() {
             <div className="score-strip">{game!.players.map((player, index) => <div className={game!.activePlayerId === player.id ? "active" : ""} key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><small>{player.score} 分</small></div>)}</div>
             <Suspense fallback={<div className="dice-loading" aria-label="正在加载比赛骰子" />}>
               <RaceDice
-                enabled={game!.activePlayerId === playerId && !localRollPending && !rollAnimation && status === "connected"}
+                enabled={game!.activePlayerId === playerId && !game!.pendingDecision && !localRollPending && !rollAnimation && status === "connected"}
                 targetValue={rollAnimation?.values[rollAnimation.index] ?? null}
               rollKey={rollAnimation ? `${rollAnimation.revision}-${rollAnimation.index}` : rollingPlayerId ? `start-${rollStartSequence}` : `idle-${game!.raceNumber}`}
               autoThrow={rollAnimation?.autoThrow ?? (rollingPlayerId !== null && !localRollPending)}
@@ -336,6 +402,18 @@ export default function App() {
         </section>
       )}
 
+      {abilityBanner && <div className="ability-banner" role="status">{abilityBanner}</div>}
+      {game!.pendingDecision && <div className="decision-backdrop">
+        <section className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
+          <header><div><small>{game!.pendingDecision.athleteName}</small><h2 id="decision-title">{game!.pendingDecision.abilityName}</h2></div><strong>{decisionSeconds}s</strong></header>
+          <p>{game!.pendingDecision.prompt}</p>
+          <div className="decision-options">{game!.pendingDecision.options.map((option) => <button className="command secondary" key={option.id}
+            disabled={game!.pendingDecision?.playerId !== playerId || status !== "connected"}
+            onClick={() => send({ type: "RESOLVE_DECISION", decisionId: game!.pendingDecision!.id, optionId: option.id })}>{option.label}</button>)}</div>
+          {game!.pendingDecision.playerId !== playerId && <small>等待 {game!.players.find((player) => player.id === game!.pendingDecision?.playerId)?.name} 选择</small>}
+        </section>
+      </div>}
+
       {(game!.phase === "RACE_RESULTS" || game!.phase === "FINISHED") && (
         <section className="results-stage stage">
           <div className="stage-title"><p className="kicker">{game!.phase === "FINISHED" ? "FINAL SCORE" : `RACE ${game!.raceNumber} COMPLETE`}</p><h2>{game!.phase === "FINISHED" ? (game!.winnerIds.length > 1 ? "并列冠军" : `${game!.players.find((p) => p.id === game!.winnerIds[0])?.name} 获胜`) : "本场成绩"}</h2></div>
@@ -344,7 +422,7 @@ export default function App() {
         </section>
       )}
 
-      {game!.phase !== "LOBBY" && <aside className={`event-feed ${game!.phase === "RACING" ? "racing" : ""}`}><strong>赛场动态</strong>{feed.slice(0, 3).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</aside>}
+      {game!.phase !== "LOBBY" && <aside className={`event-feed ${game!.phase === "RACING" ? "racing" : ""}`}><strong>赛场动态</strong>{(game!.raceLog.length ? game!.raceLog.slice().reverse().map((event) => eventText(event, game!.players)).filter(Boolean) : feed).slice(0, 12).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</aside>}
       {error && <div className="toast" role="alert">{error}<button aria-label="关闭" onClick={() => setError("")}>×</button></div>}
     </main>
   );

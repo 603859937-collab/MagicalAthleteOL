@@ -142,3 +142,76 @@ def test_only_host_can_start_or_advance() -> None:
     with pytest.raises(GameRuleError) as error:
         engine.start(state, "p1")
     assert error.value.code == "ONLY_HOST_CAN_START"
+
+
+def test_egg_setup_pauses_and_only_owner_can_resolve() -> None:
+    engine = MagsimGameEngine(random.Random(17))
+    players = make_players(2)
+    teams = {
+        "p0": (ATHLETE_BY_ID["egg"], ATHLETE_BY_ID["blimp"]),
+        "p1": (ATHLETE_BY_ID["banana"], ATHLETE_BY_ID["coach"]),
+    }
+    state = replace(
+        engine.create_game(players),
+        phase=GamePhase.CHARACTER_SELECTION,
+        teams=teams,
+        first_turn_player_id="p0",
+    )
+    state = engine.select_racers(state, "p0", ("egg", "blimp")).state
+    transition = engine.select_racers(state, "p1", ("banana", "coach"))
+    state = transition.state
+
+    assert state.phase == GamePhase.RACING
+    assert state.pending_decision is not None
+    assert state.pending_decision["playerId"] == "p0"
+    assert len(state.pending_decision["options"]) == 3
+    assert any(event["type"] == "DECISION_REQUIRED" for event in transition.events)
+
+    with pytest.raises(GameRuleError) as error:
+        engine.resolve_decision(state, "p1", state.pending_decision["id"], "0")
+    assert error.value.code == "NOT_DECIDING_PLAYER"
+
+    with pytest.raises(GameRuleError) as error:
+        engine.resolve_decision(state, "p0", state.pending_decision["id"], "99")
+    assert error.value.code == "INVALID_DECISION_OPTION"
+
+    transition = engine.resolve_decision(
+        state, "p0", state.pending_decision["id"], "", timed_out=True
+    )
+    assert transition.state.pending_decision is None
+    assert transition.state.magsim_engine._setup_complete is True
+    assert transition.events[0]["type"] == "DECISION_TIMED_OUT"
+
+
+def test_event_choice_rolls_back_and_reuses_same_die() -> None:
+    engine = MagsimGameEngine(random.Random(21))
+    players = make_players(2)
+    teams = {
+        "p0": (ATHLETE_BY_ID["alchemist"], ATHLETE_BY_ID["blimp"]),
+        "p1": (ATHLETE_BY_ID["banana"], ATHLETE_BY_ID["coach"]),
+    }
+    state = replace(
+        engine.create_game(players),
+        phase=GamePhase.CHARACTER_SELECTION,
+        teams=teams,
+        first_turn_player_id="p0",
+    )
+    state = engine.select_racers(state, "p0", ("alchemist", "blimp")).state
+    state = engine.select_racers(state, "p1", ("banana", "coach")).state
+    state.magsim_engine.rng = random.Random(2)  # First d6 is 1.
+
+    transition = engine.roll_dice(state, "p0")
+    paused = transition.state
+    assert paused.pending_decision is not None
+    assert paused.positions["alchemist"] == 0
+    assert not any(event["type"] == "DICE_ROLLED" for event in transition.events)
+
+    transition = engine.resolve_decision(
+        paused, "p0", paused.pending_decision["id"], "1"
+    )
+    assert transition.state.pending_decision is None
+    roll = next(event for event in transition.events if event["type"] == "DICE_ROLLED")
+    assert roll["value"] == 1
+    assert roll["baseValue"] == 4
+    assert roll["finalValue"] == 5  # Coach contributes +1 at the starting tile.
+    assert transition.state.positions["alchemist"] == 5

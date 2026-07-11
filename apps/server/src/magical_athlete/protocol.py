@@ -49,6 +49,13 @@ class AdvanceRaceIntent(BaseModel):
     action_id: str = Field(alias="actionId", min_length=1, max_length=64)
 
 
+class ResolveDecisionIntent(BaseModel):
+    type: Literal["RESOLVE_DECISION"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+    decision_id: str = Field(alias="decisionId", min_length=1, max_length=64)
+    option_id: str = Field(alias="optionId", min_length=1, max_length=64)
+
+
 ClientIntent = Annotated[
     JoinRoomIntent
     | StartGameIntent
@@ -57,7 +64,8 @@ ClientIntent = Annotated[
     | DraftAthleteIntent
     | SelectRacersIntent
     | RollDiceIntent
-    | AdvanceRaceIntent,
+    | AdvanceRaceIntent
+    | ResolveDecisionIntent,
     Field(discriminator="type"),
 ]
 

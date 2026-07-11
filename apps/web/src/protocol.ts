@@ -48,6 +48,19 @@ export interface RaceResult {
   eliminated: boolean;
 }
 
+export interface DecisionOption { id: string; label: string }
+export interface PendingDecision {
+  id: string;
+  playerId: string;
+  athleteId: string;
+  athleteName: string;
+  abilityName: string;
+  prompt: string;
+  choiceType: "BOOLEAN" | "RACER" | "TILE" | "DIE";
+  options: DecisionOption[];
+  deadlineAt?: string;
+}
+
 export interface GameState {
   phase: GamePhase;
   finishLine: number;
@@ -66,6 +79,9 @@ export interface GameState {
   draftRoundCount: number;
   rollCandidateIds: string[];
   raceResults: RaceResult[];
+  pendingDecision: PendingDecision | null;
+  raceLog: GameEvent[];
+  resolutionStatus: "IDLE" | "ANIMATING" | "WAITING_FOR_DECISION";
 }
 
 export interface RoomSnapshot {
@@ -94,6 +110,17 @@ export type GameEvent = {
   raceNumber?: number;
   from?: number;
   to?: number;
+  movementKind?: "FORWARD" | "BACKWARD" | "WARP" | "SWAP" | "PUSH";
+  source?: string;
+  sourcePlayerId?: string;
+  sourceAthleteId?: string;
+  sourceAthleteName?: string;
+  abilityName?: string;
+  movementDistance?: number;
+  decisionId?: string;
+  optionId?: string;
+  automatic?: boolean;
+  sequence?: number;
 };
 
 export type ClientIntent =
@@ -104,4 +131,5 @@ export type ClientIntent =
   | { type: "DRAFT_ATHLETE"; actionId: string; athleteId: string }
   | { type: "SELECT_RACERS"; actionId: string; athleteIds: string[] }
   | { type: "ROLL_DICE"; actionId: string }
+  | { type: "RESOLVE_DECISION"; actionId: string; decisionId: string; optionId: string }
   | { type: "ADVANCE_RACE"; actionId: string };

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import secrets
 import string
+from datetime import UTC, datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
@@ -17,6 +18,7 @@ from .protocol import (
     JoinRoomIntent,
     RollDiceIntent,
     RollStartIntent,
+    ResolveDecisionIntent,
     SelectRacersIntent,
     SetVariantIntent,
     StartGameIntent,
@@ -46,12 +48,19 @@ class Room:
     game_state: GameState | None = None
     revision: int = 0
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    decision_task: asyncio.Task[None] | None = None
+    decision_deadline: datetime | None = None
 
     def public_state(self, viewer_id: str | None = None) -> dict[str, Any]:
         if self.game_state is None:
             game = self.engine.public_state(self.engine.create_game(tuple()), viewer_id)
         else:
             game = self.engine.public_state(self.game_state, viewer_id)
+        if game.get("pendingDecision") is not None and self.decision_deadline is not None:
+            game["pendingDecision"] = {
+                **game["pendingDecision"],
+                "deadlineAt": self.decision_deadline.isoformat(),
+            }
         connected = {player_id: member.connected for player_id, member in self.players.items()}
         for player in game["players"]:
             player["connected"] = connected.get(player["id"], False)
@@ -142,6 +151,7 @@ class RoomManager:
         | DraftAthleteIntent
         | SelectRacersIntent
         | RollDiceIntent
+        | ResolveDecisionIntent
         | AdvanceRaceIntent,
     ) -> None:
         async with room.lock:
@@ -190,6 +200,13 @@ class RoomManager:
                         # Give clients a render frame before the authoritative result arrives.
                         await asyncio.sleep(0.05)
                     transition = room.engine.roll_dice(room.game_state, player_id)
+                elif isinstance(intent, ResolveDecisionIntent):
+                    transition = room.engine.resolve_decision(
+                        room.game_state,
+                        player_id,
+                        intent.decision_id,
+                        intent.option_id,
+                    )
                 else:
                     transition = room.engine.advance_race(room.game_state, player_id)
             except GameRuleError as error:
@@ -204,6 +221,7 @@ class RoomManager:
 
             room.game_state = transition.state
             room.revision += 1
+            self._sync_decision_timer_locked(room)
             await self._broadcast_locked(
                 room,
                 {
@@ -212,6 +230,44 @@ class RoomManager:
                     "events": list(transition.events),
                 },
             )
+
+    def _sync_decision_timer_locked(self, room: Room) -> None:
+        pending = room.game_state.pending_decision if room.game_state else None
+        if room.decision_task is not None:
+            room.decision_task.cancel()
+            room.decision_task = None
+        room.decision_deadline = None
+        if pending is None:
+            return
+        room.decision_deadline = datetime.now(UTC) + timedelta(seconds=60)
+        room.decision_task = asyncio.create_task(
+            self._decision_timeout(room, pending["id"]),
+            name=f"decision-timeout-{room.id}",
+        )
+
+    async def _decision_timeout(self, room: Room, decision_id: str) -> None:
+        try:
+            await asyncio.sleep(60)
+            async with room.lock:
+                state = room.game_state
+                if state is None or state.pending_decision is None or state.pending_decision["id"] != decision_id:
+                    return
+                player_id = state.pending_decision["playerId"]
+                transition = room.engine.resolve_decision(
+                    state, player_id, decision_id, "", timed_out=True
+                )
+                room.game_state = transition.state
+                room.revision += 1
+                room.decision_task = None
+                room.decision_deadline = None
+                if transition.state.pending_decision is not None:
+                    self._sync_decision_timer_locked(room)
+                await self._broadcast_locked(
+                    room,
+                    {"type": "STATE_UPDATED", "events": list(transition.events)},
+                )
+        except asyncio.CancelledError:
+            return
 
     async def disconnect(self, room: Room, player_id: str, websocket: WebSocket) -> None:
         async with room.lock:
