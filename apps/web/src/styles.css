@@ -106,8 +106,8 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .selection-footer > div span.locked { color: #176c36; border-color: #218548; background: #dff2e4; }
 
 .race-heading { display: flex; margin-bottom: 18px; justify-content: space-between; align-items: end; }
-.track-wrap { overflow-x: auto; border: 5px solid #151515; border-radius: 6px; background: white url('/assets/rulebook-setup.jpg') center / cover; box-shadow: 8px 8px 0 #151515; }
-.track-wrap canvas { display: block; width: 100%; min-width: 980px; height: auto; background: rgba(255,255,255,.9); }
+.track-wrap { overflow-x: auto; border-radius: 8px; background: #171719; box-shadow: 8px 8px 0 #151515; scrollbar-color: #ee3825 #ded8cc; }
+.track-wrap canvas { display: block; width: 100%; min-width: 980px; height: auto; }
 .race-console { display: grid; margin-top: 26px; grid-template-columns: 1fr auto; gap: 20px; align-items: center; }
 .score-strip { display: flex; flex-wrap: wrap; gap: 8px; }
 .score-strip > div { display: grid; min-width: 130px; padding: 8px 12px; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; border: 3px solid #151515; background: white; }
