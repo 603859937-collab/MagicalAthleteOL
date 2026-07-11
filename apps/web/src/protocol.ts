@@ -12,6 +12,7 @@ export interface AthleteCard {
   id: string;
   name: string;
   nameZh: string;
+  abilityTitleZh: string;
   abilitySummary: string;
 }
 

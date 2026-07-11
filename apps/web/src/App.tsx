@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { RaceTrack } from "./components/RaceTrack";
 import { actionId, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
-import type { AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
+import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
@@ -10,6 +10,17 @@ type GameActionInput = WithoutActionId<GameAction>;
 
 const playerColors = ["red", "blue", "yellow", "green", "pink", "purple"];
 const tracks = ["Mild Mile", "Mild Mile", "Wild Wilds", "Wild Wilds"];
+const cardAccents: Record<string, string> = {
+  alchemist: "#f6d51f", baba_yaga: "#68aeda", banana: "#d965ab", blimp: "#68aeda",
+  centaur: "#b88ac8", cheerleader: "#68aeda", coach: "#b88ac8", copycat: "#ef432d",
+  dicemonger: "#f6d51f", duelist: "#d965ab", egg: "#319a55", flip_flop: "#ef432d",
+  genius: "#f6d51f", gunk: "#ef7f2b", hare: "#68aeda", heckler: "#319a55",
+  huge_baby: "#319a55", hypnotist: "#f6d51f", inchworm: "#ef432d", lackey: "#ef432d",
+  leaptoad: "#ef7f2b", legs: "#319a55", lovable_loser: "#ef7f2b", magician: "#ef7f2b",
+  mastermind: "#d965ab", mouth: "#319a55", party_animal: "#ef432d", romantic: "#b88ac8",
+  rocket_scientist: "#d965ab", scoocher: "#d965ab", sisyphus: "#e8e4dc", skipper: "#b88ac8",
+  stickler: "#68aeda", suckerfish: "#68aeda", third_wheel: "#319a55", twin: "#68aeda",
+};
 
 function eventText(event: GameEvent, players: PlayerState[]): string {
   const player = players.find((item) => item.id === event.playerId);
@@ -25,19 +36,31 @@ function eventText(event: GameEvent, players: PlayerState[]): string {
   return "";
 }
 
-function RacerCard({ athlete, selected, disabled, used, onClick }: {
-  athlete: AthleteCard; selected?: boolean; disabled?: boolean; used?: boolean; onClick?: () => void;
+function RacerCard({ athlete, selected, disabled, used, compact, status, onClick }: {
+  athlete: AthleteCard; selected?: boolean; disabled?: boolean; used?: boolean; compact?: boolean;
+  status?: ReactNode; onClick?: () => void;
 }) {
-  return (
-    <button className={`racer-card ${selected ? "selected" : ""} ${used ? "used" : ""}`}
-      disabled={disabled || used} onClick={onClick}>
-      <span className="racer-stripe" />
-      <span className="racer-art" aria-hidden="true">{athlete.name.slice(0, 1)}</span>
-      <span className="racer-copy"><strong>{athlete.nameZh}</strong><small>{athlete.name}</small></span>
-      <span className="ability">{athlete.abilitySummary}</span>
-      {used && <span className="used-stamp">已退场</span>}
-    </button>
-  );
+  const className = `racer-card ${selected ? "selected" : ""} ${used ? "used" : ""} ${compact ? "compact" : ""}`;
+  const style = { "--card-accent": cardAccents[athlete.id] ?? "#f2bd27" } as CSSProperties;
+  const face = <>
+    <span className="racer-portrait">
+      <img src={`/assets/racers/${athlete.id}.webp`} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />
+      <strong className="racer-name">{athlete.nameZh}</strong>
+    </span>
+    <span className="ability-panel">{athlete.abilitySummary}</span>
+    <strong className="ability-title">{athlete.abilityTitleZh}</strong>
+    {used && <span className="used-stamp">已退场</span>}
+    {status && <span className="racer-status">{status}</span>}
+  </>;
+  if (!onClick) return <article className={className} style={style}>{face}</article>;
+  return <button className={className} style={style} disabled={disabled || used} onClick={onClick}>{face}</button>;
+}
+
+function racerStatus(racer: ActiveRacer): string | null {
+  if (racer.eliminated) return "已淘汰";
+  if (racer.finished) return racer.finishPosition ? `第 ${racer.finishPosition} 名` : "已完赛";
+  if (racer.tripped) return "已绊倒";
+  return null;
 }
 
 export default function App() {
@@ -201,6 +224,15 @@ export default function App() {
             <div className="score-strip">{game!.players.map((player, index) => <div className={game!.activePlayerId === player.id ? "active" : ""} key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><small>{player.score} 分</small></div>)}</div>
             <button className="command dice-command" disabled={game!.activePlayerId !== playerId} onClick={() => send({ type: "ROLL_DICE" })}><span aria-hidden="true">⚄</span>{game!.activePlayerId === playerId ? "掷骰并移动" : `等待 ${game!.players.find((p) => p.id === game!.activePlayerId)?.name}`}</button>
           </div>
+          <section className="race-roster" aria-label="本场角色卡牌">
+            <div className="race-roster-heading"><p className="kicker">RACERS IN PLAY</p><h3>本场角色</h3></div>
+            <div className="race-roster-scroll">
+              {game!.players.map((player, index) => <article className={`racer-owner ${game!.activePlayerId === player.id ? "active" : ""}`} key={player.id}>
+                <header><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong>{player.id === playerId && <small>你</small>}</header>
+                <div>{player.activeRacers.map((racer) => <RacerCard key={racer.id} athlete={racer} compact status={racerStatus(racer)} />)}</div>
+              </article>)}
+            </div>
+          </section>
         </section>
       )}
 
@@ -212,7 +244,7 @@ export default function App() {
         </section>
       )}
 
-      {game!.phase !== "LOBBY" && <aside className="event-feed"><strong>赛场动态</strong>{feed.slice(0, 3).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</aside>}
+      {game!.phase !== "LOBBY" && <aside className={`event-feed ${game!.phase === "RACING" ? "racing" : ""}`}><strong>赛场动态</strong>{feed.slice(0, 3).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</aside>}
       {error && <div className="toast" role="alert">{error}<button aria-label="关闭" onClick={() => setError("")}>×</button></div>}
     </main>
   );

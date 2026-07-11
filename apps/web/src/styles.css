@@ -75,17 +75,18 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 
 .draft-layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
 .draft-pool, .my-team { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.racer-card { position: relative; display: grid; min-width: 0; min-height: 300px; padding: 12px; overflow: hidden; grid-template-rows: 12px 100px auto 1fr; gap: 8px; text-align: left; color: #151515; border: 4px solid #151515; border-radius: 6px; background: white; box-shadow: 5px 5px 0 #151515; transition: transform .15s ease; }
+.racer-card { position: relative; display: grid; width: 100%; min-width: 0; padding: 8px; overflow: hidden; aspect-ratio: 5 / 7; grid-template-rows: 54% 36% 10%; text-align: center; color: #151515; border: 4px solid #151515; border-radius: 6px; background: #151515; box-shadow: 5px 5px 0 #151515; transition: transform .15s ease; isolation: isolate; }
 .racer-card:not(:disabled):hover { transform: translateY(-5px); }
 .racer-card.selected { outline: 6px solid #f2bd27; transform: translateY(-5px); }
-.racer-stripe { margin: -12px -12px 0; background: #ee3825; }
-.racer-art { display: grid; width: 86px; height: 86px; margin: 2px auto; place-items: center; color: white; border: 4px solid #151515; border-radius: 50%; background: #287fc2; font-family: Impact, "Arial Black", sans-serif; font-size: 2.5rem; }
-.racer-copy { display: grid; text-align: center; }
-.racer-copy strong { font-size: 1.15rem; }
-.racer-copy small { color: #736e66; text-transform: uppercase; }
-.ability { padding-top: 10px; align-self: end; border-top: 2px solid #ded8cc; color: #4f4a43; font-size: .78rem; line-height: 1.5; }
+.racer-portrait { position: relative; display: block; min-height: 0; overflow: hidden; border: 3px solid var(--card-accent); border-radius: 4px 4px 0 0; background: var(--card-accent); box-shadow: inset 0 0 0 2px #151515; }
+.racer-portrait img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.racer-name { position: absolute; z-index: 1; top: 0; left: 0; display: grid; width: 100%; min-height: 21%; padding: 3px 8px; place-items: center; background: var(--card-accent); font-family: Impact, "Arial Black", "PingFang SC", sans-serif; font-size: clamp(.9rem, 1.7vw, 1.35rem); line-height: 1; overflow-wrap: anywhere; }
+.ability-panel { position: relative; z-index: 2; display: grid; min-height: 0; margin: -13px 5px 0; padding: 18px 12px 8px; place-items: center; align-content: center; border: 3px solid #151515; border-radius: 48% 48% 10px 10px / 22% 22% 10px 10px; background: #fff; font-size: clamp(.68rem, 1vw, .84rem); font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+.ability-panel::before { position: absolute; inset: 4px; content: ""; pointer-events: none; border: 2px solid var(--card-accent); border-radius: inherit; }
+.ability-title { z-index: 1; display: grid; min-width: 0; padding: 2px 5px 0; place-items: center; color: white; font-size: clamp(.66rem, 1vw, .8rem); line-height: 1; overflow-wrap: anywhere; }
 .racer-card.used { filter: grayscale(1); }
 .used-stamp { position: absolute; right: 8px; top: 22px; padding: 4px 7px; color: white; border: 2px solid #151515; background: #555; font-size: .68rem; font-weight: 900; transform: rotate(5deg); }
+.racer-status { position: absolute; z-index: 4; right: 4px; top: 4px; padding: 4px 6px; color: white; border: 2px solid #151515; border-radius: 3px; background: #ee3825; font-size: .64rem; font-weight: 900; }
 .team-board { padding: 20px; border: 4px solid #151515; background: #f2bd27; box-shadow: 6px 6px 0 #151515; }
 .team-board h3 { margin-bottom: 15px; font-family: Impact, "Arial Black", sans-serif; font-size: 1.5rem; }
 .team-row { display: grid; min-height: 60px; padding: 10px 0; grid-template-columns: 12px 70px 1fr auto; gap: 8px; align-items: center; border-top: 2px solid #151515; }
@@ -113,6 +114,22 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .score-strip .color-chip { grid-row: span 2; }
 .score-strip small { color: #777; }
 .score-strip .active { background: #f2bd27; box-shadow: 4px 4px 0 #151515; }
+.race-roster { margin-top: 34px; padding-top: 22px; border-top: 4px solid #151515; }
+.race-roster-heading { display: flex; margin-bottom: 14px; align-items: baseline; gap: 12px; }
+.race-roster-heading .kicker { margin: 0; }
+.race-roster-heading h3 { margin: 0; font-family: Impact, "Arial Black", sans-serif; font-size: 1.45rem; }
+.race-roster-scroll { display: flex; padding: 0 8px 12px 0; gap: 14px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-color: #151515 #ded8cc; }
+.racer-owner { flex: 0 0 auto; min-width: 210px; padding: 10px; border: 3px solid #151515; border-radius: 5px; background: #fff; scroll-snap-align: start; }
+.racer-owner.active { background: #f2bd27; box-shadow: 5px 5px 0 #151515; }
+.racer-owner > header { display: flex; min-height: 34px; margin-bottom: 8px; gap: 8px; align-items: center; }
+.racer-owner > header .color-chip { height: 24px; }
+.racer-owner > header small { margin-left: auto; padding: 2px 5px; border: 2px solid #151515; font-weight: 900; }
+.racer-owner > div { display: flex; gap: 12px; }
+.racer-card.compact { flex: 0 0 180px; width: 180px; box-shadow: 3px 3px 0 #151515; }
+.racer-card.compact:hover { transform: none; }
+.racer-card.compact .racer-name { font-size: .92rem; }
+.racer-card.compact .ability-panel { padding: 15px 9px 6px; font-size: .65rem; line-height: 1.35; }
+.racer-card.compact .ability-title { font-size: .66rem; }
 
 .results-stage { display: grid; min-height: calc(100vh - 150px); align-content: center; place-items: center; }
 .podium-list { display: grid; width: min(820px, 100%); gap: 10px; }
@@ -125,6 +142,7 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .results-stage > .command { margin-top: 28px; }
 
 .event-feed { position: fixed; z-index: 8; right: 18px; bottom: 16px; display: grid; width: min(340px, calc(100% - 36px)); padding: 10px 14px; border: 3px solid #151515; border-radius: 4px; background: #fff; box-shadow: 4px 4px 0 #151515; }
+.event-feed.racing { position: static; width: min(1340px, calc(100% - 40px)); margin: -62px auto 16px; }
 .event-feed strong { font-size: .72rem; text-transform: uppercase; }
 .event-feed span { overflow: hidden; color: #716b62; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 .toast { position: fixed; z-index: 20; left: 50%; bottom: 24px; display: flex; max-width: calc(100% - 32px); padding: 12px 14px; gap: 16px; align-items: center; color: white; border: 3px solid #151515; border-radius: 4px; background: #c92e20; box-shadow: 5px 5px 0 #151515; font-weight: 800; transform: translateX(-50%); }
@@ -140,10 +158,10 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
   .topbar { padding: 8px 12px; }.room-code small { display: none; }.race-progress small { display: none; }.race-progress > div { grid-template-columns: 1fr; place-items: center; }
   .stage { width: min(100% - 24px, 1340px); padding-top: 26px; }.stage-title h2, .race-heading h2 { font-size: 1.65rem; }
   .lobby-players { grid-template-columns: repeat(2, 1fr); }.seat { min-height: 110px; }
-  .draft-pool, .my-team { grid-template-columns: repeat(2, minmax(0, 1fr)); }.racer-card { min-height: 275px; }
+  .draft-pool, .my-team { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stage-title.row, .selection-footer, .race-console { align-items: stretch; flex-direction: column; grid-template-columns: 1fr; }
   .selection-footer { position: static; }.selection-footer .command { width: 100%; }
   .podium-list > div { grid-template-columns: 34px 1fr auto; }.result-racers { grid-column: 2 / -1; grid-row: 2; }
-  .event-feed { display: none; }
+  .event-feed { display: none; }.event-feed.racing { display: grid; width: min(100% - 24px, 1340px); margin-top: -54px; }
 }
-@media (max-width: 430px) { .draft-pool, .my-team { grid-template-columns: 1fr; }.racer-card { min-height: 255px; }.lobby-players { grid-template-columns: 1fr; } }
+@media (max-width: 430px) { .draft-pool, .my-team { grid-template-columns: 1fr; }.lobby-players { grid-template-columns: 1fr; } }
