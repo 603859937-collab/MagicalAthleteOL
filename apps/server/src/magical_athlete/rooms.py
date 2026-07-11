@@ -11,10 +11,14 @@ from fastapi import WebSocket
 
 from .game import GameEngine, GameRuleError, GameState, MagsimGameEngine, Player
 from .protocol import (
+    AdvanceRaceIntent,
+    DraftAthleteIntent,
     ErrorMessage,
     JoinRoomIntent,
     RollDiceIntent,
-    SelectAthleteIntent,
+    RollStartIntent,
+    SelectRacersIntent,
+    SetVariantIntent,
     StartGameIntent,
 )
 
@@ -99,7 +103,7 @@ class RoomManager:
             else:
                 if room.game_state and room.game_state.phase != "LOBBY":
                     raise RoomError("GAME_ALREADY_STARTED", "比赛已开始，不能加入新玩家")
-                if len(room.players) >= 4:
+                if len(room.players) >= 6:
                     raise RoomError("ROOM_FULL", "房间已满")
                 player_id = uuid4().hex
                 member = RoomPlayer(
@@ -132,7 +136,13 @@ class RoomManager:
         self,
         room: Room,
         player_id: str,
-        intent: StartGameIntent | SelectAthleteIntent | RollDiceIntent,
+        intent: StartGameIntent
+        | SetVariantIntent
+        | RollStartIntent
+        | DraftAthleteIntent
+        | SelectRacersIntent
+        | RollDiceIntent
+        | AdvanceRaceIntent,
     ) -> None:
         async with room.lock:
             member = room.players[player_id]
@@ -149,12 +159,24 @@ class RoomManager:
                 assert room.game_state is not None
                 if isinstance(intent, StartGameIntent):
                     transition = room.engine.start(room.game_state, player_id)
-                elif isinstance(intent, SelectAthleteIntent):
-                    transition = room.engine.select_athlete(
+                elif isinstance(intent, SetVariantIntent):
+                    transition = room.engine.set_variant(
+                        room.game_state, player_id, intent.double_racer
+                    )
+                elif isinstance(intent, RollStartIntent):
+                    transition = room.engine.roll_start(room.game_state, player_id)
+                elif isinstance(intent, DraftAthleteIntent):
+                    transition = room.engine.draft_athlete(
                         room.game_state, player_id, intent.athlete_id
                     )
-                else:
+                elif isinstance(intent, SelectRacersIntent):
+                    transition = room.engine.select_racers(
+                        room.game_state, player_id, intent.athlete_ids
+                    )
+                elif isinstance(intent, RollDiceIntent):
                     transition = room.engine.roll_dice(room.game_state, player_id)
+                else:
+                    transition = room.engine.advance_race(room.game_state, player_id)
             except GameRuleError as error:
                 await member.socket.send_json(
                     ErrorMessage(

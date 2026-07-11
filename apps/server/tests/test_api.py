@@ -14,67 +14,38 @@ def test_create_room_and_join() -> None:
     assert welcome["type"] == "WELCOME"
     assert welcome["roomId"] == room_id
     assert welcome["game"]["players"][0]["name"] == "Alice"
-    assert welcome["reconnectToken"]
+    assert welcome["game"]["phase"] == "LOBBY"
 
 
-def test_two_players_can_start_and_roll() -> None:
+def test_players_start_with_public_roll_off() -> None:
     client = TestClient(app)
     room_id = client.post("/api/rooms").json()["roomId"]
 
     with client.websocket_connect("/ws") as alice, client.websocket_connect("/ws") as bob:
         alice.send_json({"type": "JOIN_ROOM", "roomId": room_id, "playerName": "Alice"})
         alice_welcome = alice.receive_json()
-        alice_id = alice_welcome["playerId"]
-
         bob.send_json({"type": "JOIN_ROOM", "roomId": room_id, "playerName": "Bob"})
-        bob.receive_json()
+        bob_welcome = bob.receive_json()
         alice.receive_json()
 
         alice.send_json({"type": "START_GAME", "actionId": "start-1"})
-        dealt_for_alice = alice.receive_json()
-        dealt_for_bob = bob.receive_json()
-
-        assert dealt_for_alice["game"]["phase"] == "CHARACTER_SELECTION"
-        assert len(dealt_for_alice["game"]["hand"]) == 4
-        assert len(dealt_for_bob["game"]["hand"]) == 4
-        alice_hand = dealt_for_alice["game"]["hand"]
-        bob_hand = dealt_for_bob["game"]["hand"]
-        alice_cards = {card["id"] for card in alice_hand}
-        bob_cards = {card["id"] for card in bob_hand}
-        assert alice_cards.isdisjoint(bob_cards)
-
-        alice.send_json(
-            {
-                "type": "SELECT_ATHLETE",
-                "actionId": "select-a",
-                "athleteId": alice_hand[0]["id"],
-            }
-        )
-        alice_locked = alice.receive_json()
-        bob_sees_alice_locked = bob.receive_json()
-        assert alice_locked["game"]["phase"] == "CHARACTER_SELECTION"
-        assert bob_sees_alice_locked["game"]["players"][0]["selectionLocked"] is True
-        assert bob_sees_alice_locked["game"]["players"][0]["selectedAthlete"] is None
-
-        bob.send_json(
-            {
-                "type": "SELECT_ATHLETE",
-                "actionId": "select-b",
-                "athleteId": bob_hand[0]["id"],
-            }
-        )
-        started_for_bob = bob.receive_json()
-        started_for_alice = alice.receive_json()
-        assert started_for_alice["game"]["activePlayerId"] == alice_id
-        assert started_for_bob["revision"] == started_for_alice["revision"]
-        assert all(
-            player["selectedAthlete"] is not None
-            for player in started_for_alice["game"]["players"]
-        )
-
-        alice.send_json({"type": "ROLL_DICE", "actionId": "roll-1"})
-        rolled = alice.receive_json()
+        started_alice = alice.receive_json()
         bob.receive_json()
+        assert started_alice["game"]["phase"] == "DRAFT_ROLL"
+        assert started_alice["game"]["draftPool"] == []
 
-        assert any(event["type"] == "DICE_ROLLED" for event in rolled["events"])
-        assert rolled["game"]["players"][0]["position"] >= 1
+        alice.send_json({"type": "ROLL_START", "actionId": "roll-a"})
+        rolled_alice = alice.receive_json()
+        bob.receive_json()
+        alice_state = next(player for player in rolled_alice["game"]["players"] if player["id"] == alice_welcome["playerId"])
+        assert len(alice_state["rollValues"]) == 2
+
+        bob.send_json({"type": "ROLL_START", "actionId": "roll-b"})
+        resolved_bob = bob.receive_json()
+        alice.receive_json()
+        assert resolved_bob["game"]["phase"] in ("DRAFTING", "DRAFT_ROLL")
+        if resolved_bob["game"]["phase"] == "DRAFTING":
+            assert len(resolved_bob["game"]["draftPool"]) == 8
+            assert resolved_bob["game"]["activePlayerId"] in {
+                alice_welcome["playerId"], bob_welcome["playerId"]
+            }

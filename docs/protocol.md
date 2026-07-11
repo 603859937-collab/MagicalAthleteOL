@@ -4,74 +4,68 @@
 
 ## 建立会话
 
-WebSocket 建立后，第一条消息必须是：
+WebSocket 建立后第一条消息必须是 `JOIN_ROOM`：
 
 ```json
-{
-  "type": "JOIN_ROOM",
-  "roomId": "ABCD",
-  "playerName": "Alice"
-}
+{ "type": "JOIN_ROOM", "roomId": "ABCD", "playerName": "Alice" }
 ```
 
-服务端返回 `WELCOME`，其中的 `playerId` 与 `reconnectToken` 只保存在该玩家浏览器中。断线后使用相同消息并附带这两个字段即可恢复身份。
+服务端在 `WELCOME` 中返回只保存在该玩家浏览器的 `playerId` 与 `reconnectToken`。断线后在 `JOIN_ROOM` 中附带这两个字段即可恢复身份。
 
 ## 玩家行动
 
-每个改变状态的行动都必须包含客户端生成的唯一 `actionId`：
+所有状态行动都包含客户端生成的唯一 `actionId`：
 
 ```json
-{ "type": "START_GAME", "actionId": "9af4..." }
-{ "type": "SELECT_ATHLETE", "actionId": "3e71...", "athleteId": "centaur" }
-{ "type": "ROLL_DICE", "actionId": "16b2..." }
+{ "type": "SET_VARIANT", "actionId": "a1", "doubleRacer": true }
+{ "type": "START_GAME", "actionId": "a2" }
+{ "type": "ROLL_START", "actionId": "a3" }
+{ "type": "DRAFT_ATHLETE", "actionId": "a4", "athleteId": "centaur" }
+{ "type": "SELECT_RACERS", "actionId": "a5", "athleteIds": ["centaur", "banana"] }
+{ "type": "ROLL_DICE", "actionId": "a6" }
+{ "type": "ADVANCE_RACE", "actionId": "a7" }
 ```
 
-重复的 `actionId` 不会重复执行，服务端返回 `ACTION_ACK`。客户端只发送意图，不发送骰子点数、移动终点或胜负结果。当前 `ROLL_DICE` 的服务端语义是执行当前角色在 magsim 中的完整 turn，而不是只做一次位置累加。
+`SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。`ROLL_DICE` 在服务端执行当前赛车手的完整回合，不接受客户端点数或移动终点。
+
+重复的 `actionId` 不会重复执行，服务端返回 `ACTION_ACK`。
+
+## 游戏阶段
+
+权威状态 `game.phase` 按以下流程推进：
+
+```text
+LOBBY
+  -> DRAFT_ROLL -> DRAFTING
+  -> RACE_ROLL -> CHARACTER_SELECTION -> RACING -> RACE_RESULTS
+  -> CHARACTER_SELECTION / RACE_ROLL ...
+  -> FINISHED
+```
+
+`DRAFTING` 公开 `draftPool`、`activePlayerId`、各玩家 `team` 与招募轮次。`CHARACTER_SELECTION` 只公开 `selectionLocked`；全部玩家锁定后，`activeRacers` 同时揭示。`raceNumber` 为 1–4，`trackName`、`raceRewards` 和 `scores` 始终来自服务端。
 
 ## 状态广播
 
-有效行动产生 `STATE_UPDATED`：
+有效行动产生 `STATE_UPDATED`。`events` 用于动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。
 
 ```json
 {
   "type": "STATE_UPDATED",
   "roomId": "ABCD",
-  "revision": 8,
-  "actionId": "16b2...",
+  "revision": 18,
   "events": [
-    { "type": "DICE_ROLLED", "playerId": "p1", "value": 5, "baseValue": 5, "finalValue": 6 },
-    { "type": "ATHLETE_MOVED", "playerId": "p1", "athleteId": "p1", "from": 4, "to": 10 },
+    { "type": "DICE_ROLLED", "playerId": "p1", "athleteId": "centaur", "value": 5 },
+    { "type": "ATHLETE_MOVED", "playerId": "p1", "athleteId": "centaur", "from": 4, "to": 9 },
     { "type": "TURN_CHANGED", "playerId": "p2" }
   ],
-  "game": {
-    "phase": "RACING",
-    "finishLine": 30,
-    "players": [],
-    "activePlayerId": "p2",
-    "winnerId": null
-  }
+  "game": { "phase": "RACING", "raceNumber": 2, "activePlayerId": "p2" }
 }
 ```
-
-`events` 用于播放动画和提示，`game` 是权威快照。客户端发现 revision 跳跃时应直接以最新快照为准。
-
-## 角色发牌与选择
-
-房主发送 `START_GAME` 后，服务端从角色目录中为每位玩家无重复抽取四张牌，并进入 `CHARACTER_SELECTION`。`game.hand` 是按连接生成的私有字段，只包含当前玩家自己的手牌。
-
-玩家发送 `SELECT_ATHLETE` 后即锁定，不能修改。锁定期间公共玩家状态只公开 `selectionLocked`，`selectedAthlete` 保持为 `null`；最后一名玩家锁定后，服务端同时公开全部 `selectedAthlete` 并进入 `RACING`。
 
 ## 错误
 
 格式或规则错误返回：
 
 ```json
-{
-  "type": "ERROR",
-  "code": "NOT_YOUR_TURN",
-  "message": "还没轮到你",
-  "actionId": "16b2..."
-}
+{ "type": "ERROR", "code": "NOT_YOUR_TURN", "message": "还没轮到你", "actionId": "a6" }
 ```
-
-协议新增字段时保持向后兼容；出现破坏性改动时再增加显式协议版本。

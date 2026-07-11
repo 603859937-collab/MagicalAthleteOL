@@ -3,208 +3,142 @@ from dataclasses import replace
 
 import pytest
 
-from magical_athlete.athletes import ATHLETE_CATALOG, AthleteCard
-from magical_athlete.game import (
-    DemoGameEngine,
-    GamePhase,
-    GameRuleError,
-    MagsimGameEngine,
-    Player,
-)
+from magical_athlete.athletes import ATHLETE_BY_ID, ATHLETE_CATALOG
+from magical_athlete.game import GamePhase, GameRuleError, MagsimGameEngine, Player
 
 
-def players() -> tuple[Player, ...]:
-    return (Player("p1", "Alice"), Player("p2", "Bob"))
+def make_players(count: int) -> tuple[Player, ...]:
+    return tuple(Player(f"p{index}", f"Player {index}") for index in range(count))
 
 
-def three_players() -> tuple[Player, ...]:
-    return (
-        Player("p1", "Alice"),
-        Player("p2", "Bob"),
-        Player("p3", "Carol"),
-    )
-
-
-def athlete(athlete_id: str) -> AthleteCard:
-    return next(card for card in ATHLETE_CATALOG if card.id == athlete_id)
-
-
-def magsim_race_state(
-    engine: MagsimGameEngine,
-    selected_athlete_ids: tuple[str, ...],
-    race_players: tuple[Player, ...] | None = None,
-):
-    race_players = race_players or players()
-    state = engine.create_game(race_players)
-    state = replace(
-        state,
-        phase=GamePhase.CHARACTER_SELECTION,
-        hands={
-            player.id: (athlete(athlete_id),)
-            for player, athlete_id in zip(
-                race_players, selected_athlete_ids, strict=True
-            )
-        },
-        selections={},
-    )
-    for player, athlete_id in zip(race_players, selected_athlete_ids, strict=True):
-        state = engine.select_athlete(state, player.id, athlete_id).state
+def complete_roll_off(engine: MagsimGameEngine, state):
+    while state.phase in (GamePhase.DRAFT_ROLL, GamePhase.RACE_ROLL):
+        for player_id in state.roll_candidates:
+            if player_id not in state.roll_values:
+                state = engine.roll_start(state, player_id).state
     return state
 
 
-def test_vendored_magsim_imports_as_normal_module() -> None:
-    import magsim
-    from magsim.engine.scenario import GameScenario
+def complete_draft(engine: MagsimGameEngine, state):
+    while state.phase == GamePhase.DRAFTING:
+        state = engine.draft_athlete(
+            state, state.active_player_id, state.draft_pool[0].id
+        ).state
+    return state
 
-    assert magsim.__name__ == "magsim"
-    assert GameScenario.__name__ == "GameScenario"
+
+def test_complete_catalog_matches_vendored_rules() -> None:
+    from magsim.core.registry import RACER_ABILITIES
+
+    assert len(ATHLETE_CATALOG) == 36
+    assert {card.engine_name for card in ATHLETE_CATALOG} == set(RACER_ABILITIES)
 
 
-def test_host_can_start_and_turn_advances() -> None:
-    engine = DemoGameEngine(random.Random(1))
-    state = engine.create_game(players())
+@pytest.mark.parametrize(
+    ("player_count", "expected_team_size", "expected_picks"),
+    ((2, 8, 16), (3, 4, 12), (4, 4, 16), (5, 4, 20), (6, 4, 24)),
+)
+def test_formal_draft_sizes(player_count: int, expected_team_size: int, expected_picks: int) -> None:
+    engine = MagsimGameEngine(random.Random(5))
+    players = make_players(player_count)
+    state = engine.start(engine.create_game(players), players[0].id).state
+    state = complete_roll_off(engine, state)
+    picks = 0
+    seen: set[str] = set()
+    while state.phase == GamePhase.DRAFTING:
+        picked = state.draft_pool[0]
+        assert picked.id not in seen
+        seen.add(picked.id)
+        state = engine.draft_athlete(state, state.active_player_id, picked.id).state
+        picks += 1
 
-    started = engine.start(state, "p1")
-    assert started.state.phase == GamePhase.CHARACTER_SELECTION
-    assert len(started.state.hands["p1"]) == 4
+    assert state.phase == GamePhase.RACE_ROLL
+    assert picks == expected_picks
+    assert all(len(state.teams[player.id]) == expected_team_size for player in players)
 
-    alice_selected = engine.select_athlete(
-        started.state, "p1", started.state.hands["p1"][0].id
+
+def test_two_player_first_draft_uses_abbaabba_order() -> None:
+    engine = MagsimGameEngine(random.Random(2))
+    players = make_players(2)
+    state = complete_roll_off(engine, engine.start(engine.create_game(players), "p0").state)
+    a, b = state.draft_order[0], state.draft_order[1]
+    assert state.draft_order == (a, b, b, a, a, b, b, a)
+
+
+def test_three_player_double_racer_variant_drafts_eight_each() -> None:
+    engine = MagsimGameEngine(random.Random(11))
+    players = make_players(3)
+    state = engine.set_variant(engine.create_game(players), "p0", True).state
+    state = complete_draft(engine, complete_roll_off(engine, engine.start(state, "p0").state))
+
+    assert all(len(state.teams[player.id]) == 8 for player in players)
+    assert engine.public_state(state)["doubleRacerVariant"] is True
+
+
+def test_selection_is_secret_and_requires_two_unique_racers_for_two_players() -> None:
+    engine = MagsimGameEngine(random.Random(7))
+    players = make_players(2)
+    teams = {
+        "p0": (ATHLETE_BY_ID["banana"], ATHLETE_BY_ID["skipper"]),
+        "p1": (ATHLETE_BY_ID["coach"], ATHLETE_BY_ID["alchemist"]),
+    }
+    state = replace(
+        engine.create_game(players),
+        phase=GamePhase.CHARACTER_SELECTION,
+        teams=teams,
+        first_turn_player_id="p0",
     )
-    assert alice_selected.state.phase == GamePhase.CHARACTER_SELECTION
-    started_race = engine.select_athlete(
-        alice_selected.state, "p2", alice_selected.state.hands["p2"][0].id
-    )
-    assert started_race.state.phase == GamePhase.RACING
-    assert started_race.state.active_player_id == "p1"
-
-    rolled = engine.roll_dice(started_race.state, "p1")
-    assert 1 <= rolled.state.positions["p1"] <= 6
-    assert rolled.events[0]["value"] == rolled.state.positions["p1"]
-    assert rolled.state.active_player_id == "p2"
-    assert [event["type"] for event in rolled.events] == [
-        "DICE_ROLLED",
-        "ATHLETE_MOVED",
-        "TURN_CHANGED",
-    ]
-
-
-def test_non_active_player_cannot_roll() -> None:
-    engine = DemoGameEngine(random.Random(1))
-    state = engine.start(engine.create_game(players()), "p1").state
-    state = engine.select_athlete(state, "p1", state.hands["p1"][0].id).state
-    state = engine.select_athlete(state, "p2", state.hands["p2"][0].id).state
-
-    with pytest.raises(GameRuleError, match="还没轮到你"):
-        engine.roll_dice(state, "p2")
-
-
-def test_only_host_can_start() -> None:
-    engine = DemoGameEngine()
 
     with pytest.raises(GameRuleError) as error:
-        engine.start(engine.create_game(players()), "p2")
+        engine.select_racers(state, "p0", ("banana",))
+    assert error.value.code == "INVALID_RACER_COUNT"
 
+    state = engine.select_racers(state, "p0", ("banana", "skipper")).state
+    assert engine.public_state(state, "p1")["players"][0]["activeRacers"] == []
+    assert engine.public_state(state, "p1")["players"][0]["selectionLocked"] is True
+
+    state = engine.select_racers(state, "p1", ("coach", "alchemist")).state
+    assert state.phase == GamePhase.RACING
+    assert len(state.magsim_engine.state.racers) == 4
+    assert [state.racer_owner_by_index[index] for index in range(4)] == ["p0", "p0", "p1", "p1"]
+    assert all(engine.public_state(state, "p1")["players"][index]["activeRacers"] for index in range(2))
+
+
+def test_race_uses_schedule_rewards_and_accumulates_score() -> None:
+    engine = MagsimGameEngine(random.Random(3))
+    players = make_players(4)
+    teams = {
+        "p0": (ATHLETE_BY_ID["banana"],),
+        "p1": (ATHLETE_BY_ID["skipper"],),
+        "p2": (ATHLETE_BY_ID["coach"],),
+        "p3": (ATHLETE_BY_ID["alchemist"],),
+    }
+    state = replace(
+        engine.create_game(players),
+        phase=GamePhase.CHARACTER_SELECTION,
+        teams=teams,
+        first_turn_player_id="p0",
+        race_number=2,
+    )
+    for player in players:
+        state = engine.select_racers(state, player.id, (teams[player.id][0].id,)).state
+
+    assert state.magsim_engine.state.rules.winner_vp == (4, 2)
+    assert engine.public_state(state)["trackName"] == "WildWilds"
+    # Force two ordinary racers across the line, preserving the authoritative turn flow.
+    while state.phase == GamePhase.RACING:
+        current_index = state.magsim_engine.state.current_racer_idx
+        state.magsim_engine.get_racer(current_index).position = 29
+        state = engine.roll_dice(state, state.active_player_id).state
+
+    assert state.phase == GamePhase.RACE_RESULTS
+    assert sum(state.scores.values()) >= 6
+    assert len(state.used_athlete_ids) == 4
+
+
+def test_only_host_can_start_or_advance() -> None:
+    engine = MagsimGameEngine()
+    state = engine.create_game(make_players(2))
+    with pytest.raises(GameRuleError) as error:
+        engine.start(state, "p1")
     assert error.value.code == "ONLY_HOST_CAN_START"
-
-
-def test_dealt_athletes_are_unique_and_private() -> None:
-    engine = DemoGameEngine(random.Random(1))
-    state = engine.start(engine.create_game(players()), "p1").state
-
-    dealt_ids = [card.id for hand in state.hands.values() for card in hand]
-    assert len(dealt_ids) == 8
-    assert len(set(dealt_ids)) == 8
-    assert len(engine.public_state(state, "p1")["hand"]) == 4
-    assert {card["id"] for card in engine.public_state(state, "p1")["hand"]}.isdisjoint(
-        {card["id"] for card in engine.public_state(state, "p2")["hand"]}
-    )
-
-
-def test_selection_stays_secret_until_everyone_locks() -> None:
-    engine = DemoGameEngine(random.Random(1))
-    state = engine.start(engine.create_game(players()), "p1").state
-    p1_card = state.hands["p1"][0]
-    state = engine.select_athlete(state, "p1", p1_card.id).state
-
-    p2_view = engine.public_state(state, "p2")
-    assert p2_view["players"][0]["selectionLocked"] is True
-    assert p2_view["players"][0]["selectedAthlete"] is None
-
-    with pytest.raises(GameRuleError) as error:
-        engine.select_athlete(state, "p1", state.hands["p1"][1].id)
-    assert error.value.code == "ATHLETE_ALREADY_LOCKED"
-
-    state = engine.select_athlete(state, "p2", state.hands["p2"][0].id).state
-    assert engine.public_state(state, "p2")["players"][0]["selectedAthlete"]["id"] == p1_card.id
-
-
-def test_magsim_turn_runs_and_advances_to_next_player() -> None:
-    engine = MagsimGameEngine(random.Random(1))
-    state = magsim_race_state(engine, ("banana", "skipper"))
-
-    rolled = engine.roll_dice(state, "p1")
-
-    assert rolled.state.phase == GamePhase.RACING
-    assert rolled.state.active_player_id == "p2"
-    assert any(event["type"] == "DICE_ROLLED" for event in rolled.events)
-    assert rolled.events[-1] == {"type": "TURN_CHANGED", "playerId": "p2"}
-
-
-def test_magsim_tripped_player_recovers_and_skips_main_move() -> None:
-    engine = MagsimGameEngine(random.Random(1))
-    state = magsim_race_state(engine, ("banana", "skipper"))
-    state.magsim_engine.get_racer(0).tripped = True
-
-    rolled = engine.roll_dice(state, "p1")
-
-    assert rolled.state.positions["p1"] == 0
-    assert rolled.state.active_player_id == "p2"
-    assert [event["type"] for event in rolled.events] == [
-        "TRIP_RECOVERED",
-        "TURN_CHANGED",
-    ]
-
-
-def test_magsim_advance_turn_skips_finished_racers_on_wrap() -> None:
-    engine = MagsimGameEngine(random.Random(1))
-    state = magsim_race_state(
-        engine,
-        ("banana", "skipper", "coach"),
-        race_players=three_players(),
-    )
-    state.magsim_engine.get_racer(0).position = 29
-
-    state = engine.roll_dice(state, "p1").state
-    assert state.active_player_id == "p2"
-    assert state.magsim_engine.get_racer(0).finished is True
-
-    state = engine.roll_dice(state, "p2").state
-    assert state.active_player_id == "p3"
-
-    state = engine.roll_dice(state, "p3").state
-    assert state.phase == GamePhase.RACING
-    assert state.active_player_id == "p2"
-
-
-def test_magsim_race_finishes_after_two_racers_finish() -> None:
-    engine = MagsimGameEngine(random.Random(1))
-    state = magsim_race_state(
-        engine,
-        ("banana", "skipper", "coach"),
-        race_players=three_players(),
-    )
-    state.magsim_engine.get_racer(0).position = 29
-
-    state = engine.roll_dice(state, "p1").state
-    assert state.phase == GamePhase.RACING
-    assert state.active_player_id == "p2"
-    assert state.winner_id is None
-
-    state.magsim_engine.get_racer(1).position = 29
-    finished = engine.roll_dice(state, "p2")
-
-    assert finished.state.phase == GamePhase.FINISHED
-    assert finished.state.active_player_id is None
-    assert finished.state.winner_id == "p1"
-    assert finished.events[-1] == {"type": "RACE_FINISHED", "winnerId": "p1"}

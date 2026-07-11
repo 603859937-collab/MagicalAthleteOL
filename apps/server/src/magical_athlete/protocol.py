@@ -16,19 +16,48 @@ class StartGameIntent(BaseModel):
     action_id: str = Field(alias="actionId", min_length=1, max_length=64)
 
 
+class SetVariantIntent(BaseModel):
+    type: Literal["SET_VARIANT"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+    double_racer: bool = Field(alias="doubleRacer")
+
+
 class RollDiceIntent(BaseModel):
     type: Literal["ROLL_DICE"]
     action_id: str = Field(alias="actionId", min_length=1, max_length=64)
 
 
-class SelectAthleteIntent(BaseModel):
-    type: Literal["SELECT_ATHLETE"]
+class RollStartIntent(BaseModel):
+    type: Literal["ROLL_START"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+
+
+class DraftAthleteIntent(BaseModel):
+    type: Literal["DRAFT_ATHLETE"]
     action_id: str = Field(alias="actionId", min_length=1, max_length=64)
     athlete_id: str = Field(alias="athleteId", min_length=1, max_length=64)
 
 
+class SelectRacersIntent(BaseModel):
+    type: Literal["SELECT_RACERS"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+    athlete_ids: tuple[str, ...] = Field(alias="athleteIds", min_length=1, max_length=2)
+
+
+class AdvanceRaceIntent(BaseModel):
+    type: Literal["ADVANCE_RACE"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+
+
 ClientIntent = Annotated[
-    JoinRoomIntent | StartGameIntent | SelectAthleteIntent | RollDiceIntent,
+    JoinRoomIntent
+    | StartGameIntent
+    | SetVariantIntent
+    | RollStartIntent
+    | DraftAthleteIntent
+    | SelectRacersIntent
+    | RollDiceIntent
+    | AdvanceRaceIntent,
     Field(discriminator="type"),
 ]
 

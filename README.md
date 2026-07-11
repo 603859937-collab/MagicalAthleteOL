@@ -1,6 +1,6 @@
 # Magical Athlete Online
 
-Magical Athlete 的多人网页版本骨架。它把浏览器当作“玩家意图输入 + 状态展示”，所有掷骰、移动、能力触发和回合推进都由服务端权威状态机决定。
+Magical Athlete 的 2–6 人多人网页版本。浏览器只提交玩家意图，所有掷骰、移动、能力触发、计分和阶段推进都由服务端权威状态机决定。
 
 ## 架构
 
@@ -20,7 +20,9 @@ apps/server (FastAPI)
 - `docs/rules.md`：项目实现必须固化遵守的实体规则常量。
 - `infra/Caddyfile`：生产环境同域反向代理，避免额外的跨域配置。
 
-当前规则由服务端 `MagsimGameEngine` 驱动，底层复用 `apps/server/src/magsim` 中 vendored 的 Magical Athlete 模拟器实现。2–4 人加入后由房主开局，服务端为每人无重复发放四张角色牌，所有人秘密锁定本场角色后同时揭示。玩家发起一次 `ROLL_DICE` 会执行当前角色在 magsim 中的完整 turn，包括掷骰、移动、反应事件、回合结束和下一位 active racer 推进。
+正式规则由服务端 `MagsimGameEngine` 驱动，底层复用 `apps/server/src/magsim` 中 vendored 的 36 角色规则。游戏包含公开蛇形招募、四场秘密选将、`Standard, Standard, WildWilds, WildWilds` 固定赛程和逐场累计积分。两人使用官方双赛车手规则；三人可由房主选择标准或双赛车手变体。
+
+玩家发起一次 `ROLL_DICE` 会执行当前赛车手在 magsim 中的完整回合，包括主要移动、能力、反应、赛道格效果、回合结束和下一位 active racer 推进。第二名冲线后该场立即结束。
 
 ## 本地运行
 
