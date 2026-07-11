@@ -173,6 +173,13 @@ export default function App() {
       const diceValues = message.events
         .filter((event) => event.type === "DICE_ROLLED" && typeof event.value === "number")
         .map((event) => event.value as number);
+      if (diceValues.length === 0 && (localRollPendingRef.current || rollingPlayerRef.current !== null)) {
+        localRollPendingRef.current = false;
+        rollingPlayerRef.current = null;
+        setLocalRollPending(false);
+        setRollingPlayerId(null);
+        setDiceResetKey((value) => value + 1);
+      }
       if (visibleSnapshot.current?.game.phase === "RACING" && diceValues.length > 0) {
         const diceWasAlreadyRolling = localRollPendingRef.current || rollingPlayerRef.current !== null;
         pendingRollSnapshot.current = message;

@@ -70,3 +70,46 @@ async def test_race_roll_broadcasts_started_before_authoritative_result() -> Non
             event["type"] == "DICE_ROLLED"
             for event in socket.messages[1]["events"]
         )
+
+
+@pytest.mark.anyio
+async def test_tripped_turn_does_not_start_a_dice_animation() -> None:
+    engine = MagsimGameEngine(random.Random(9))
+    players = (Player("p0", "Alice"), Player("p1", "Bob"))
+    teams = {
+        "p0": (ATHLETE_BY_ID["banana"], ATHLETE_BY_ID["skipper"]),
+        "p1": (ATHLETE_BY_ID["coach"], ATHLETE_BY_ID["alchemist"]),
+    }
+    state = replace(
+        engine.create_game(players),
+        phase=GamePhase.CHARACTER_SELECTION,
+        teams=teams,
+        first_turn_player_id="p0",
+    )
+    state = engine.select_racers(state, "p0", ("banana", "skipper")).state
+    state = engine.select_racers(state, "p1", ("coach", "alchemist")).state
+    state.magsim_engine.get_racer(state.magsim_engine.state.current_racer_idx).tripped = True
+    active_player_id = state.active_player_id
+    assert active_player_id is not None
+
+    sockets = {player.id: RecordingSocket() for player in players}
+    room = Room(
+        id="TEST",
+        engine=engine,
+        game_state=state,
+        players={
+            player.id: RoomPlayer(player, "token", socket=sockets[player.id])
+            for player in players
+        },
+    )
+
+    await RoomManager(InMemoryRoomRepository()).handle_intent(
+        room,
+        active_player_id,
+        RollDiceIntent(type="ROLL_DICE", actionId="recover-1"),
+    )
+
+    for socket in sockets.values():
+        assert [message["type"] for message in socket.messages] == ["STATE_UPDATED"]
+        assert any(event["type"] == "TRIP_RECOVERED" for event in socket.messages[0]["events"])
+        assert not any(event["type"] == "DICE_ROLLED" for event in socket.messages[0]["events"])
