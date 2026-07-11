@@ -1,6 +1,6 @@
-import { Container, Graphics, Stage, Text } from "@pixi/react";
-import { useCallback, useMemo } from "react";
-import { TextStyle, type Graphics as PixiGraphics } from "pixi.js";
+import { Container, Graphics, Sprite, Stage, Text } from "@pixi/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Assets, ColorMatrixFilter, TextStyle, Texture, type Graphics as PixiGraphics } from "pixi.js";
 import type { PlayerState } from "../protocol";
 
 interface RaceTrackProps {
@@ -17,6 +17,10 @@ const ink = 0x171719;
 const paper = 0xf7f4e9;
 const tileColors = [0xad5aa5, 0xf2b91b, 0x387b38, 0x4f83ce, 0xe63a24];
 const playerColors = [0xeb3e27, 0x4b8bd2, 0xf2bd27, 0x48a657, 0xd968a9, 0x8b5eb2];
+const outlineOffsets = [
+  [-2, -2], [0, -3], [2, -2], [3, 0],
+  [2, 2], [0, 3], [-2, 2], [-3, 0],
+] as const;
 
 const wildTiles: Record<number, { label: string; kind: "star" | "trip" | "move" }> = {
   1: { label: "1", kind: "star" }, 5: { label: "绊倒!", kind: "trip" },
@@ -64,6 +68,55 @@ function drawTree(g: PixiGraphics, x: number, y: number, scale = 1) {
   g.lineStyle(2, 0x102f25, .8);
   g.moveTo(x, y - 32 * scale); g.lineTo(x - 15 * scale, y + 11 * scale);
   g.moveTo(x, y - 26 * scale); g.lineTo(x + 17 * scale, y + 14 * scale);
+}
+
+function FallbackToken({ name, color, finished }: { name: string; color: number; finished: boolean }) {
+  return <>
+    <Graphics draw={(g) => {
+      g.clear(); g.beginFill(paper); g.lineStyle(3, ink); g.drawCircle(0, 0, finished ? 18 : 15); g.endFill();
+      g.beginFill(color); g.drawCircle(0, 0, finished ? 13 : 10); g.endFill();
+    }} />
+    <Text text={name.slice(0, 1)} x={0} y={-1} anchor={0.5}
+      style={new TextStyle({ fill: ink, fontSize: 11, fontWeight: "900" })} />
+  </>;
+}
+
+function RacerToken({ id, name, color, finished }: { id: string; name: string; color: number; finished: boolean }) {
+  const [texture, setTexture] = useState<Texture | null>(null);
+  const [failed, setFailed] = useState(false);
+  const size = finished ? 48 : 42;
+  const outlineFilter = useMemo(() => {
+    const filter = new ColorMatrixFilter();
+    const red = ((color >> 16) & 0xff) / 255;
+    const green = ((color >> 8) & 0xff) / 255;
+    const blue = (color & 0xff) / 255;
+    filter.matrix = [
+      0, 0, 0, 0, red,
+      0, 0, 0, 0, green,
+      0, 0, 0, 0, blue,
+      0, 0, 0, 1, 0,
+    ];
+    return filter;
+  }, [color]);
+
+  useEffect(() => {
+    let active = true;
+    setTexture(null);
+    setFailed(false);
+    Assets.load<Texture>(`/assets/racer-tokens/${id}.webp`)
+      .then((loaded) => { if (active) setTexture(loaded); })
+      .catch(() => { if (active) setFailed(true); });
+    return () => { active = false; };
+  }, [id]);
+
+  if (!texture || failed) return <FallbackToken name={name} color={color} finished={finished} />;
+  return <>
+    {outlineOffsets.map(([x, y]) => (
+      <Sprite key={`${x}-${y}`} texture={texture} x={x} y={y} width={size} height={size}
+        anchor={0.5} filters={[outlineFilter]} />
+    ))}
+    <Sprite texture={texture} width={size} height={size} anchor={0.5} />
+  </>;
 }
 
 export function RaceTrack({ players, finishLine, trackName }: RaceTrackProps) {
@@ -161,13 +214,9 @@ export function RaceTrack({ players, finishLine, trackName }: RaceTrackProps) {
         const offsetY = Math.floor(stackIndex / 3) * 17 - 7;
         return (
           <Container key={`${racer.playerName}-${racer.id}`} x={point.x + offsetX} y={point.y + offsetY} alpha={racer.eliminated ? .4 : 1}>
-            <Graphics draw={(g) => {
-              g.clear(); g.beginFill(paper); g.lineStyle(3, ink); g.drawCircle(0, 0, racer.finished ? 18 : 15); g.endFill();
-              g.beginFill(playerColors[racer.ownerIndex % playerColors.length]); g.drawCircle(0, 0, racer.finished ? 13 : 10); g.endFill();
-            }} />
-            <Text text={racer.nameZh.slice(0, 1)} x={0} y={-1} anchor={0.5}
-              style={new TextStyle({ fill: ink, fontSize: 11, fontWeight: "900" })} />
-            {(racer.tripped || racer.finished) && <Text text={racer.tripped ? "×" : "★"} x={11} y={-18} anchor={0.5}
+            <RacerToken id={racer.id} name={racer.nameZh} color={playerColors[racer.ownerIndex % playerColors.length]}
+              finished={racer.finished} />
+            {(racer.tripped || racer.finished) && <Text text={racer.tripped ? "×" : "★"} x={15} y={-23} anchor={0.5}
               style={new TextStyle({ fill: racer.tripped ? 0xe63a24 : 0xf2bd27, fontSize: 16, fontWeight: "900", stroke: ink, strokeThickness: 2 })} />}
           </Container>
         );
