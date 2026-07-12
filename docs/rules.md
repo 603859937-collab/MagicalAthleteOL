@@ -12,6 +12,9 @@ This document locks the rules and product requirements for this implementation o
 - 中文：服务端是权威状态机。客户端只发送玩家意图，不发送骰子点数、移动终点、名次或胜负结果。
 - English: The server is authoritative. Clients send player intents only, never die values, movement destinations, placements, or results.
 
+- 中文：客户端物理模拟只负责表现。骰子或棋子之间的碰撞不得改变规则位置、绊倒状态、骰子点数、名次或积分。
+- English: Client-side physics is presentation only. Collisions between dice or racers must not change logical positions, trip state, die values, placements, or points.
+
 - 中文：必须支持完整角色池。规则书包含 36 名 racers，所有角色都应能进入招募、比赛和公开状态。
 - English: Support the complete racer pool. The rulebook contains 36 racers, and every racer must be available for recruiting, racing, and public state.
 
@@ -213,10 +216,7 @@ This document locks the rules and product requirements for this implementation o
 - 中文：星星：停在星星格上时，获得 1 分铜色积分。
 - English: Stars: when stopped on a star space, take a bronze 1 point chip.
 
-## 当前实现差距 / Current Implementation Gap
+## 实施状态 / Implementation Status
 
-- 中文：截至本文档写入时，现有代码仍包含旧的单场演示流程特征：每人随机 4 张、秘密选 1 张、只跑一场。
-- English: As of this document, the code still contains old single-race demo assumptions: randomly deal 4 cards per player, secretly pick 1, and run only one race.
-
-- 中文：后续实现应以本文档为目标，移除演示假设，并把协议、状态机、前端流程和测试全部对齐到四场正式规则。
-- English: Future implementation should use this document as the target, remove demo assumptions, and align the protocol, state machine, frontend flow, and tests with the four-race official rules.
+- 中文：本文档是规则与产品要求的目标真值，不维护容易过时的代码完成度清单。当前架构以 `README.md` 为准，全 3D 表现路线以 `docs/3d-race-plan.md` 为准，具体行为由自动化测试验证。
+- English: This document is the source of truth for target rules and product requirements; it does not maintain an implementation checklist that can become stale. See `README.md` for the current architecture, `docs/3d-race-plan.md` for the full-3D presentation roadmap, and automated tests for verified behavior.
