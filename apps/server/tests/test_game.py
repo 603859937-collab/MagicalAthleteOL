@@ -1,4 +1,6 @@
 import random
+import subprocess
+import sys
 from dataclasses import replace
 
 import pytest
@@ -27,11 +29,44 @@ def complete_draft(engine: MagsimGameEngine, state):
     return state
 
 
-def test_complete_catalog_matches_vendored_rules() -> None:
+def test_complete_catalog_matches_vendored_rules(monkeypatch: pytest.MonkeyPatch) -> None:
+    import pkgutil
+
     from magsim.core.registry import RACER_ABILITIES
+    from magsim.racers import get_ability_classes
 
     assert len(ATHLETE_CATALOG) == 36
     assert {card.engine_name for card in ATHLETE_CATALOG} == set(RACER_ABILITIES)
+
+    monkeypatch.setattr(
+        pkgutil,
+        "iter_modules",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("ability registration must not scan the runtime filesystem")
+        ),
+    )
+    get_ability_classes.cache_clear()
+    ability_classes = get_ability_classes()
+
+    assert set().union(*RACER_ABILITIES.values()) <= set(ability_classes)
+
+
+def test_core_engine_import_does_not_require_rich() -> None:
+    code = """
+import builtins
+
+original_import = builtins.__import__
+
+def import_without_rich(name, *args, **kwargs):
+    if name == "rich" or name.startswith("rich."):
+        raise ModuleNotFoundError("rich is unavailable in the Worker runtime")
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = import_without_rich
+from magsim.engine.game_engine import GameEngine
+assert GameEngine is not None
+"""
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 @pytest.mark.parametrize(

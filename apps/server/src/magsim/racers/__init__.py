@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import functools
-import importlib
 import json
-import pkgutil
 from importlib.resources import files
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from magsim.core.abilities import Ability
@@ -23,14 +20,51 @@ INTERNAL_STATS_PATH = files("magsim.data").joinpath(
 )
 
 
+@functools.cache
 def _import_modules() -> None:
-    for _, module_name, _ in pkgutil.iter_modules([str(Path(__file__).parent)]):
-        _ = importlib.import_module(f"{__name__}.{module_name}")
+    # Keep imports explicit so Workers can bundle them without scanning Pyodide's filesystem.
+    from magsim.racers import (  # noqa: F401
+        alchemist,
+        baba_yaga,
+        banana,
+        blimp,
+        centaur,
+        cheerleader,
+        coach,
+        copycat,
+        dicemonger,
+        duelist,
+        egg,
+        flip_flop,
+        genius,
+        gunk,
+        hare,
+        heckler,
+        huge_baby,
+        hypnotist,
+        inchworm,
+        lackey,
+        leaptoad,
+        legs,
+        lovable_loser,
+        magician,
+        mastermind,
+        mouth,
+        party_animal,
+        rocket_scientist,
+        romantic,
+        scoocher,
+        sisyphus,
+        skipper,
+        stickler,
+        suckerfish,
+        third_wheel,
+        twin,
+    )
 
 
 @functools.cache
 def get_ability_classes() -> dict[AbilityName, type[Ability]]:
-    # Dynamically import all modules in this package
     _import_modules()
     return {cls.name: cls for cls in Ability.__subclasses__()}
 

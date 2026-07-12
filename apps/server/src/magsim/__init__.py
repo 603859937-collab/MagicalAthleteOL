@@ -1,3 +1,1 @@
-from magsim.engine.logging import configure_logging
-
-configure_logging()
+"""Magical Athlete simulation engine."""

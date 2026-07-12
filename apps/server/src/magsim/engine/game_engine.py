@@ -43,7 +43,7 @@ from magsim.core.registry import (
 )
 from magsim.core.state import ActiveRacerState, RollState, is_active
 from magsim.core.interactive import DecisionRequired
-from magsim.engine.logging import ContextFilter
+from magsim.engine.log_context import ContextFilter
 from magsim.engine.loop_detection import LoopDetector
 from magsim.engine.movement import (
     handle_move_cmd,

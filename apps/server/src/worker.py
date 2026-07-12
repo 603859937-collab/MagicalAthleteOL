@@ -218,6 +218,16 @@ class RoomDurableObject(DurableObject):
         except RoomError as error:
             await socket.send_json(ErrorMessage(code=error.code, message=str(error)).model_dump(by_alias=True))
             await socket.close(1008, str(error))
+        except Exception as error:
+            print(json.dumps({
+                "level": "error",
+                "message": "websocket intent failed",
+                "error": repr(error),
+                "roomId": room_id,
+            }))
+            await socket.send_json(
+                ErrorMessage(code="INTERNAL_ERROR", message="服务器处理行动失败，请重试").model_dump(by_alias=True)
+            )
 
     async def webSocketClose(self, websocket, code, reason, was_clean) -> None:
         if self.room is None:

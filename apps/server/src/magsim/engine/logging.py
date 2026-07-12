@@ -18,7 +18,6 @@ from magsim.core.types import (
 if TYPE_CHECKING:
     from rich.text import Text
 
-    from magsim.engine.game_engine import GameEngine
 
 RACER_NAMES = set(get_args(RacerName))
 ABILITY_NAMES = set(get_args(AbilityName))
@@ -55,25 +54,6 @@ COLOR = {
     "dice_roll": "bold #f5f543",  # yellow
     "base_value_override": "bold #43f59c",  # yellow
 }
-
-
-class ContextFilter(logging.Filter):
-    """Inject per-engine runtime context into every log record."""
-
-    def __init__(self, engine: GameEngine, name: str = "") -> None:
-        super().__init__(name)
-        self.engine: GameEngine = engine
-
-    @override
-    def filter(self, record: logging.LogRecord) -> bool:
-        logctx = self.engine.log_context
-        record.total_turn = logctx.total_turn
-        record.turn_log_count = logctx.turn_log_count
-        record.racer_repr = logctx.current_racer_repr
-        record.engine_id = logctx.engine_id
-        record.engine_level = logctx.engine_level
-        logctx.inc_log_count()
-        return True
 
 
 class RichMarkupFormatter(logging.Formatter):

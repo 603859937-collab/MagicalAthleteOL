@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import cappa
 
+from magsim.engine.logging import configure_logging
 from magsim.cli.commands.batch import BatchCommand  # noqa: TC001
 from magsim.cli.commands.compare import CompareCommand  # noqa: TC001
 from magsim.cli.commands.game import (
@@ -23,6 +24,7 @@ class Main:
 
 
 def main():
+    configure_logging()
     cappa.invoke(Main)
 
 
