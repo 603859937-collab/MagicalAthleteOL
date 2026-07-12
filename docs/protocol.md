@@ -70,7 +70,11 @@ LOBBY
 }
 ```
 
-比赛事件包括 `ABILITY_TRIGGERED`、`DECISION_REQUIRED`、`DECISION_RESOLVED`、`DECISION_TIMED_OUT`、`RACER_MOVED`、`RACER_TRIPPED`、`RACER_WARPED`、`RACERS_SWAPPED` 和 `RACER_FINISHED`。客户端按数组顺序播放，最后以同一消息中的 `game` 快照对齐。
+比赛事件包括 `DICE_ROLLED`、`ABILITY_TRIGGERED`、`DECISION_REQUIRED`、`DECISION_RESOLVED`、`DECISION_TIMED_OUT`、`RACER_MOVED`、`RACER_TRIPPED`、`TRIP_RECOVERED`、`RACER_WARPED`、`RACERS_SWAPPED`、`RACER_FINISHED`、`RACER_ELIMINATED` 和 `TURN_CHANGED`。客户端按数组顺序播放，最后以同一消息中的 `game` 快照对齐。
+
+`RACER_MOVED.movementKind` 区分 `FORWARD`、`BACKWARD` 和 `PUSH`；`RACER_WARPED.movementKind` 可为 `WARP`、`SWAP` 或 `PUSH`。这些字段描述规则动作的种类，客户端物理碰撞不能据此反向修改游戏状态。`TRIP_RECOVERED` 表示该赛车手跳过本次主要移动并恢复正常状态，因此同一回合不会伴随 `DICE_ROLLED`。
+
+全 3D 表现所需的事件归一化、同时事件分组和当前赛车手契约记录在 `docs/3d-race-plan.md`。这些目标字段完成服务端实现和测试前，不视为当前协议已经提供。
 
 ## 错误
 

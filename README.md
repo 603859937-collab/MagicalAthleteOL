@@ -5,7 +5,7 @@ Magical Athlete 的 2–6 人多人网页版本。浏览器只提交玩家意图
 ## 架构
 
 ```text
-apps/web (React + TypeScript + PixiJS)
+apps/web (React + TypeScript + PixiJS / R3F + Rapier)
     │  JSON / WebSocket
     ▼
 apps/server (FastAPI)
@@ -14,10 +14,11 @@ apps/server (FastAPI)
           └── MagsimGameEngine（复用 vendored magsim 规则）
 ```
 
-- `apps/web`：房间 UI 使用 React/HTML/CSS，跑道动画由 PixiJS 渲染。
+- `apps/web`：房间 UI 使用 React/HTML/CSS；当前跑道由 PixiJS 渲染，比赛骰子由独立的 React Three Fiber + Rapier 场景渲染。
 - `apps/server`：WebSocket 接收玩家意图，串行修改房间状态并广播事件。
 - `docs/protocol.md`：连接、消息和版本约定。
 - `docs/rules.md`：项目实现必须固化遵守的实体规则常量。
+- `docs/3d-race-plan.md`：已确认的全 3D 比赛桌目标架构、实施阶段和验收标准；实现完成前不代表当前渲染状态。
 - `infra/Caddyfile`：生产环境同域反向代理，避免额外的跨域配置。
 
 正式规则由服务端 `MagsimGameEngine` 驱动，底层复用 `apps/server/src/magsim` 中 vendored 的 36 角色规则。游戏包含公开蛇形招募、四场秘密选将、`Standard, Standard, WildWilds, WildWilds` 固定赛程和逐场累计积分。两人使用官方双赛车手规则；三人可由房主选择标准或双赛车手变体。
