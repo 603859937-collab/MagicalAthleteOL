@@ -8,7 +8,7 @@ Magical Athlete 的 2–6 人多人网页版本。浏览器只提交玩家意图
 apps/web (React + TypeScript + PixiJS / R3F + Rapier)
     │  JSON / WebSocket
     ▼
-apps/server (FastAPI)
+apps/server (FastAPI 本地 / Cloudflare Worker 生产)
     ├── RoomManager：连接、重连、广播、房间生命周期
     └── GameEngine：纯状态转换端口
           └── MagsimGameEngine（复用 vendored magsim 规则）
@@ -55,4 +55,69 @@ docker compose up --build
 
 `apps/server/src/magsim` 是从上游 `magsim` 包 vendored 进来的普通 Python 模块，服务端代码直接 `import magsim`。更新上游规则时，重新同步该目录和 `apps/server/THIRD_PARTY_LICENSES/magsim-LICENSE`，再跑 server 测试确认 adapter 事件映射没有回归。
 
-房间管理、WebSocket、断线重连和前端协议仍然隔离在 `RoomManager` 和 `GameEngine` 协议之后。生产阶段再把 `InMemoryRoomRepository` 换成 Redis/PostgreSQL 实现。
+本地 FastAPI 使用进程内房间仓库。生产环境的 Cloudflare Worker 将请求按四位房间号路由到 Durable Object；每个对象串行执行房间行动，以带 `schemaVersion` 的服务端二进制快照保存游戏状态、重连身份和 `actionId` 去重集合。Durable Object alarm 恢复 60 秒技能选择超时，并在最后活动 24 小时后清理无连接、无待决策的房间。
+
+## Cloudflare 与 GitHub Pages 部署
+
+首次部署前，在 Cloudflare 创建仅用于此仓库的 API Token。最小权限为账户的 Workers Scripts 编辑、Workers Durable Objects 编辑；若账户界面把 Durable Objects 权限包含在 Workers Scripts 中，则不需要额外扩大权限。确认账户已启用 Python Workers、Durable Objects、WebSocket hibernation 和 alarms。
+
+GitHub 仓库需要以下配置：
+
+- Actions secrets：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`
+- Actions variable：`CLOUDFLARE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev`
+- Settings > Pages > Source：`GitHub Actions`
+
+推送 `main` 后，[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 会先运行 Python/前端测试与生产构建，再发布 Worker（首次发布同时应用 Durable Object `v1` migration），最后部署 `apps/web/dist`。站点地址为 `https://xeonliu.github.io/MagicalAthleteOL/`，分享链接格式为 `https://xeonliu.github.io/MagicalAthleteOL/#/room/ABCD`。
+
+### 本地调试和发布 Cloudflare Worker
+
+Pywrangler 当前需要 `uv >= 0.8.10`、Python 3.13 和 Node 20/22 LTS。不要使用 Node 26：Pyodide 3.13.2 会传入 Node 26 已移除的 `--experimental-wasm-stack-switching` 参数。macOS 可以并行安装 Node 22，而不必卸载现有 Node：
+
+```bash
+brew install node@22
+export PATH="$(brew --prefix node@22)/bin:$PATH"
+node --version  # 应为 v22.x
+```
+
+在仓库根目录安装锁定依赖，然后启动本地 Worker：
+
+```bash
+uv sync
+uv run pywrangler dev
+curl http://localhost:8787/api/health
+```
+
+首次从本机发布时，可以在浏览器登录 Cloudflare：
+
+```bash
+export PATH="$(brew --prefix node@22)/bin:$PATH"
+uv run pywrangler login
+uv run pywrangler deploy --dry-run
+uv run pywrangler deploy
+```
+
+也可以使用和 GitHub Actions 相同的 API Token，适合无浏览器或自动化环境：
+
+```bash
+export PATH="$(brew --prefix node@22)/bin:$PATH"
+export CLOUDFLARE_ACCOUNT_ID="<account-id>"
+export CLOUDFLARE_API_TOKEN="<api-token>"
+uv run pywrangler deploy --dry-run
+uv run pywrangler deploy
+```
+
+首次正式发布会创建 `RoomDurableObject` 的 `v1` migration。发布后用命令输出的 `workers.dev` 地址验证接口：
+
+```bash
+curl https://<worker>.<subdomain>.workers.dev/api/health
+curl -X POST https://<worker>.<subdomain>.workers.dev/api/rooms
+```
+
+前端生产构建使用同一个 Worker 地址：
+
+```bash
+cd apps/web
+VITE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev npm run build
+```
+
+回滚 Worker 时用 Cloudflare Dashboard 的 Workers & Pages > Deployments 选择上一版本；Pages 可在 GitHub Actions 中重新运行先前成功提交。不要删除或回退 `wrangler.toml` 中已经应用的 migration tag。快照格式升级必须先增加兼容读取或显式迁移，不能直接覆盖 `schemaVersion`。

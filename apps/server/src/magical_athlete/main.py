@@ -35,6 +35,10 @@ async def create_room() -> dict[str, str]:
 
 @app.websocket("/ws")
 async def room_socket(websocket: WebSocket) -> None:
+    origin = websocket.headers.get("origin")
+    if origin not in settings.allowed_origins:
+        await websocket.close(code=1008, reason="origin not allowed")
+        return
     await websocket.accept()
     room = None
     player_id = None
@@ -76,4 +80,3 @@ async def room_socket(websocket: WebSocket) -> None:
     finally:
         if room is not None and player_id is not None:
             await rooms.disconnect(room, player_id, websocket)
-

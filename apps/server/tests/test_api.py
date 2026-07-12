@@ -7,7 +7,7 @@ def test_create_room_and_join() -> None:
     client = TestClient(app)
     room_id = client.post("/api/rooms").json()["roomId"]
 
-    with client.websocket_connect("/ws") as socket:
+    with client.websocket_connect("/ws", headers={"origin": "http://localhost:5173"}) as socket:
         socket.send_json({"type": "JOIN_ROOM", "roomId": room_id, "playerName": "Alice"})
         welcome = socket.receive_json()
 
@@ -21,7 +21,8 @@ def test_players_start_with_public_roll_off() -> None:
     client = TestClient(app)
     room_id = client.post("/api/rooms").json()["roomId"]
 
-    with client.websocket_connect("/ws") as alice, client.websocket_connect("/ws") as bob:
+    headers = {"origin": "http://localhost:5173"}
+    with client.websocket_connect("/ws", headers=headers) as alice, client.websocket_connect("/ws", headers=headers) as bob:
         alice.send_json({"type": "JOIN_ROOM", "roomId": room_id, "playerName": "Alice"})
         alice_welcome = alice.receive_json()
         bob.send_json({"type": "JOIN_ROOM", "roomId": room_id, "playerName": "Bob"})
