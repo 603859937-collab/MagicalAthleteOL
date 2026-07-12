@@ -10,7 +10,6 @@ import {
   FINISH_BADGE_RECT,
   RACER_PIECE_DIMENSIONS,
   racerPieceScale,
-  TRACK_LENGTH,
   trackPose,
 } from "./trackLayout";
 
@@ -78,46 +77,6 @@ function drawTile(context: CanvasRenderingContext2D, x: number, y: number, width
   context.strokeStyle = INK;
   context.lineWidth = 3;
   context.strokeRect(x + 1.5, y + 1.5, width - 3, height - 3);
-}
-
-function drawFlower(context: CanvasRenderingContext2D, x: number, y: number, color: string, scale = 1) {
-  context.save();
-  context.strokeStyle = "#347b38";
-  context.lineWidth = 3 * scale;
-  context.beginPath();
-  context.moveTo(x, y + 5 * scale);
-  context.lineTo(x - 5 * scale, y + 30 * scale);
-  context.stroke();
-  context.fillStyle = color;
-  for (let index = 0; index < 6; index += 1) {
-    const angle = index * Math.PI / 3;
-    context.beginPath();
-    context.arc(x + Math.cos(angle) * 8 * scale, y + Math.sin(angle) * 8 * scale, 7 * scale, 0, Math.PI * 2);
-    context.fill();
-  }
-  context.fillStyle = "#f2bd27";
-  context.beginPath();
-  context.arc(x, y, 5 * scale, 0, Math.PI * 2);
-  context.fill();
-  context.restore();
-}
-
-function drawCreature(context: CanvasRenderingContext2D, x: number, y: number, mirror = false) {
-  context.save();
-  context.translate(x, y);
-  context.scale(mirror ? -1 : 1, 1);
-  context.fillStyle = "#4f94d5";
-  context.beginPath();
-  context.ellipse(0, 0, 27, 11, 0, 0, Math.PI * 2);
-  context.fill();
-  context.beginPath();
-  context.arc(21, -6, 9, 0, Math.PI * 2);
-  context.fill();
-  context.fillStyle = PAPER;
-  context.beginPath();
-  context.arc(24, -8, 2.5, 0, Math.PI * 2);
-  context.fill();
-  context.restore();
 }
 
 function drawFinishPodium(context: CanvasRenderingContext2D) {
