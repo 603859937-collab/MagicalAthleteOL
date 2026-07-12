@@ -22,4 +22,13 @@ describe("canRollRaceDice", () => {
     expect(canRollRaceDice({ ...game, pendingDecision: {} as GameState["pendingDecision"] }, "p0", false)).toBe(false);
     expect(canRollRaceDice(game, "p0", true)).toBe(false);
   });
+
+  it("hands an ability roll to the pending participant without changing the turn owner", () => {
+    const duel = {
+      ...game,
+      pendingRoll: { nextPlayerId: "p1" } as GameState["pendingRoll"],
+    };
+    expect(canRollRaceDice(duel, "p0", false)).toBe(false);
+    expect(canRollRaceDice(duel, "p1", false)).toBe(true);
+  });
 });

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Self, override
+from typing import TYPE_CHECKING, ClassVar, Self, override
 
 from magsim.ai.evaluation import (
     get_benefit_at,
@@ -11,16 +11,11 @@ from magsim.ai.evaluation import (
 from magsim.core.abilities import Ability
 from magsim.core.agent import (
     Agent,
-    BooleanDecisionMixin,
-    BooleanInteractive,
-    DecisionContext,
+    SelectionDecisionContext,
+    SelectionDecisionMixin,
+    SelectionInteractive,
 )
-from magsim.core.events import (
-    AbilityTriggeredEvent,
-    AbilityTriggeredEventOrSkipped,
-    GameEvent,
-    TurnStartEvent,
-)
+from magsim.core.events import GameEvent
 
 if TYPE_CHECKING:
     from magsim.core.state import ActiveRacerState
@@ -29,68 +24,54 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class LegsMoveAbility(Ability, BooleanDecisionMixin):
+class LegsMoveAbility(Ability, SelectionDecisionMixin[int]):
     name: AbilityName = "LongLegs"
-    triggers: tuple[type[GameEvent], ...] = (TurnStartEvent,)
+    triggers: tuple[type[GameEvent], ...] = ()
+    choice_type: ClassVar[str] = "DIE"
 
-    @override
-    def execute(
+    def choose_roll(
         self,
         event: GameEvent,
         owner: ActiveRacerState,
         engine: GameEngine,
         agent: Agent,
-    ) -> AbilityTriggeredEventOrSkipped:
-        if not isinstance(event, TurnStartEvent) or event.target_racer_idx != owner.idx:
-            return "skip_trigger"
-
-        ctx = DecisionContext[BooleanInteractive](
-            source=self,
-            event=event,
-            game_state=engine.state,
-            source_racer_idx=owner.idx,
+        values: tuple[int, ...],
+    ) -> int:
+        return agent.make_selection_decision(
+            engine,
+            SelectionDecisionContext[SelectionInteractive[int], int](
+                source=self,
+                event=event,
+                game_state=engine.state,
+                source_racer_idx=owner.idx,
+                options=values,
+            ),
         )
-        if agent.make_boolean_decision(engine, ctx):
-            owner.roll_override = (self.name, 5)
-            return AbilityTriggeredEvent(
-                responsible_racer_idx=owner.idx,
-                source=self.name,
-                phase=event.phase,
-                target_racer_idx=owner.idx,
+
+    @override
+    def get_baseline_selection_decision(
+        self,
+        engine: GameEngine,
+        ctx: SelectionDecisionContext[Self, int],
+    ) -> int | None:
+        return max(ctx.options, default=None)
+
+    @override
+    def get_auto_selection_decision(
+        self,
+        engine: GameEngine,
+        ctx: SelectionDecisionContext[Self, int],
+    ) -> int | None:
+        if (me := engine.get_active_racer(ctx.source_racer_idx)) is None:
+            return max(ctx.options, default=None)
+        mods = get_current_modifiers(engine, me.idx)
+
+        def score(value: int) -> tuple[bool, bool, int]:
+            destination = me.position + value + mods
+            return (
+                get_benefit_at(engine, destination) is not None,
+                get_hazard_at(engine, destination) is None,
+                value,
             )
 
-        return "skip_trigger"
-
-    @override
-    def get_baseline_boolean_decision(
-        self,
-        engine: GameEngine,
-        ctx: DecisionContext[Self],
-    ) -> bool:
-        return True
-
-    @override
-    def get_auto_boolean_decision(
-        self,
-        engine: GameEngine,
-        ctx: DecisionContext[Self],
-    ) -> bool:
-        if (me := engine.get_active_racer(ctx.source_racer_idx)) is None:
-            return True
-
-        # Calculate where "Move 5" lands us
-        mods = get_current_modifiers(engine, me.idx)
-        target_5 = me.position + 5 + mods
-
-        # 1. PRIORITY: If 5 is amazing, take it!
-        if benefit := get_benefit_at(engine, target_5):
-            engine.log_info(f"{me.repr} uses {self.name} to reach {benefit}!")
-            return True
-
-        # 2. SAFETY CHECK: If 5 trips us, avoid it.
-        if hazard := get_hazard_at(engine, target_5):
-            engine.log_info(f"{me.repr} avoids {self.name} because of {hazard}!")
-            return False
-
-        # 3. DEFAULT: Speed is king (5 > 3.5)
-        return True
+        return max(ctx.options, key=score, default=None)

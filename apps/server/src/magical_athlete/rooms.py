@@ -57,6 +57,8 @@ class Room:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     decision_task: asyncio.Task[None] | None = None
     decision_deadline: datetime | None = None
+    roll_task: asyncio.Task[None] | None = None
+    roll_deadline: datetime | None = None
 
     def public_state(self, viewer_id: str | None = None) -> dict[str, Any]:
         if self.game_state is None:
@@ -67,6 +69,11 @@ class Room:
             game["pendingDecision"] = {
                 **game["pendingDecision"],
                 "deadlineAt": self.decision_deadline.isoformat(),
+            }
+        if game.get("pendingRoll") is not None and self.roll_deadline is not None:
+            game["pendingRoll"] = {
+                **game["pendingRoll"],
+                "deadlineAt": self.roll_deadline.isoformat(),
             }
         connected = {player_id: member.connected for player_id, member in self.players.items()}
         for player in game["players"]:
@@ -196,9 +203,15 @@ class RoomManager:
                         room.game_state, player_id, intent.athlete_ids
                     )
                 elif isinstance(intent, RollDiceIntent):
+                    pending_roll = room.game_state.pending_roll
+                    rolling_player_id = (
+                        pending_roll.get("nextPlayerId")
+                        if pending_roll is not None
+                        else room.game_state.active_player_id
+                    )
                     if (
                         room.game_state.phase == "RACING"
-                        and room.game_state.active_player_id == player_id
+                        and rolling_player_id == player_id
                         and room.game_state.magsim_engine is not None
                         and room.game_state.pending_decision is None
                         and room.game_state.resolution_status == "WAITING_FOR_ROLL"
@@ -237,6 +250,7 @@ class RoomManager:
             room.game_state = transition.state
             room.revision += 1
             self._sync_decision_timer_locked(room)
+            self._sync_roll_timer_locked(room)
             roll_results = self._roll_results(transition, room.revision)
             await self._broadcast_locked(
                 room,
@@ -264,6 +278,62 @@ class RoomManager:
             name=f"decision-timeout-{room.id}",
         )
 
+    def _sync_roll_timer_locked(self, room: Room) -> None:
+        pending = room.game_state.pending_roll if room.game_state else None
+        if room.roll_task is not None:
+            room.roll_task.cancel()
+            room.roll_task = None
+        room.roll_deadline = None
+        if pending is None:
+            return
+        room.roll_deadline = datetime.now(UTC) + timedelta(seconds=60)
+        if not self.local_timers:
+            return
+        room.roll_task = asyncio.create_task(
+            self._roll_timeout(room, pending["id"], pending["throwIndex"]),
+            name=f"roll-timeout-{room.id}",
+        )
+
+    async def _roll_timeout(
+        self,
+        room: Room,
+        roll_id: str,
+        throw_index: int,
+    ) -> None:
+        try:
+            await asyncio.sleep(60)
+            async with room.lock:
+                state = room.game_state
+                pending = state.pending_roll if state else None
+                if (
+                    state is None
+                    or pending is None
+                    or pending["id"] != roll_id
+                    or pending["throwIndex"] != throw_index
+                ):
+                    return
+                transition = room.engine.roll_dice(
+                    state,
+                    pending["nextPlayerId"],
+                    timed_out=True,
+                )
+                room.game_state = transition.state
+                room.revision += 1
+                room.roll_task = None
+                room.roll_deadline = None
+                self._sync_decision_timer_locked(room)
+                self._sync_roll_timer_locked(room)
+                await self._broadcast_locked(
+                    room,
+                    {
+                        "type": "STATE_UPDATED",
+                        "events": list(transition.events),
+                        "rollResults": self._roll_results(transition, room.revision),
+                    },
+                )
+        except asyncio.CancelledError:
+            return
+
     async def _decision_timeout(self, room: Room, decision_id: str) -> None:
         try:
             await asyncio.sleep(60)
@@ -281,6 +351,7 @@ class RoomManager:
                 room.decision_deadline = None
                 if transition.state.pending_decision is not None:
                     self._sync_decision_timer_locked(room)
+                self._sync_roll_timer_locked(room)
                 await self._broadcast_locked(
                     room,
                     {
@@ -311,6 +382,36 @@ class RoomManager:
             room.decision_deadline = None
             if transition.state.pending_decision is not None:
                 self._sync_decision_timer_locked(room)
+            self._sync_roll_timer_locked(room)
+            await self._broadcast_locked(room, {
+                "type": "STATE_UPDATED",
+                "events": list(transition.events),
+                "rollResults": self._roll_results(transition, room.revision),
+            })
+            return True
+
+    async def resolve_expired_roll(self, room: Room, now: datetime | None = None) -> bool:
+        async with room.lock:
+            state = room.game_state
+            current_time = now or datetime.now(UTC)
+            if (
+                state is None
+                or state.pending_roll is None
+                or room.roll_deadline is None
+                or room.roll_deadline > current_time
+            ):
+                return False
+            pending = state.pending_roll
+            transition = room.engine.roll_dice(
+                state,
+                pending["nextPlayerId"],
+                timed_out=True,
+            )
+            room.game_state = transition.state
+            room.revision += 1
+            room.roll_deadline = None
+            self._sync_decision_timer_locked(room)
+            self._sync_roll_timer_locked(room)
             await self._broadcast_locked(room, {
                 "type": "STATE_UPDATED",
                 "events": list(transition.events),
@@ -358,47 +459,78 @@ class RoomManager:
     def _roll_results(transition: GameTransition, revision: int) -> list[dict[str, Any]]:
         race_number = transition.state.race_number
         results: list[dict[str, Any]] = []
+        results_by_id: dict[str, dict[str, Any]] = {}
         seen_serials: set[int] = set()
         for index, event in enumerate(transition.events):
             if event.get("type") == "START_DICE_ROLLED":
-                results.append(
-                    {
-                        "id": f"revision:{revision}:event:{index}",
-                        "playerId": event.get("playerId"),
-                        "values": list(event.get("values", [])),
-                    }
-                )
+                result = {
+                    "id": f"revision:{revision}:event:{index}",
+                    "kind": "ROLL_OFF",
+                    "playerId": event.get("playerId"),
+                    "values": list(event.get("values", [])),
+                }
+                results.append(result)
+                results_by_id[result["id"]] = result
+            elif event.get("type") in {"DIE_ROLLED", "ABILITY_DICE_ROLLED"}:
+                result_id = event.get("rollResultId") or f"revision:{revision}:event:{index}"
+                participant = {
+                    "playerId": event.get("playerId"),
+                    "athleteId": event.get("athleteId"),
+                }
+                result = {
+                    "id": result_id,
+                    "kind": event.get("kind"),
+                    "playerId": event.get("playerId"),
+                    "athleteId": event.get("athleteId"),
+                    "values": [event["value"]],
+                    "participants": [participant],
+                    "abilityName": event.get("abilityName"),
+                    "rollSessionId": event.get("rollSessionId"),
+                    "throwIndex": event.get("throwIndex"),
+                    "throwCount": event.get("throwCount"),
+                }
+                results.append(result)
+                results_by_id[result_id] = result
             elif event.get("type") == "DICE_ROLLED" and isinstance(event.get("value"), int):
                 serial = event.get("rollSerial")
-                result_id = (
-                    f"race:{race_number}:serial:{serial}"
-                    if isinstance(serial, int)
-                    else f"revision:{revision}:event:{index}"
-                )
+                result_id = event.get("rollResultId")
+                if not result_id:
+                    result_id = (
+                        f"race:{race_number}:serial:{serial}"
+                        if isinstance(serial, int)
+                        else f"revision:{revision}:event:{index}"
+                    )
                 if isinstance(serial, int):
                     seen_serials.add(serial)
-                results.append(
-                    {
+                result = results_by_id.get(result_id)
+                if result is None:
+                    result = {
                         "id": result_id,
+                        "kind": "MAIN_ROLL",
                         "playerId": event.get("playerId"),
                         "athleteId": event.get("athleteId"),
                         "values": [event["value"]],
-                        "baseValue": event.get("baseValue"),
-                        "finalValue": event.get("finalValue"),
-                        "rollSerial": serial,
+                        "rollSessionId": event.get("rollSessionId"),
                     }
-                )
+                    results.append(result)
+                    results_by_id[result_id] = result
+                result.update({
+                    "baseValue": event.get("baseValue"),
+                    "finalValue": event.get("finalValue"),
+                    "rollSerial": serial,
+                })
 
         pending = transition.state.pending_decision
         preview = pending.get("rollPreview") if pending else None
         if preview and preview["rollSerial"] not in seen_serials:
-            results.append(
-                {
-                    "id": f"race:{race_number}:serial:{preview['rollSerial']}",
+            result_id = preview.get("rollResultId") or f"race:{race_number}:serial:{preview['rollSerial']}"
+            if result_id not in results_by_id:
+                results.append({
+                    "id": result_id,
+                    "kind": "MAIN_ROLL",
                     "playerId": pending.get("playerId"),
                     "athleteId": pending.get("athleteId"),
                     "values": [preview["value"]],
                     **preview,
-                }
-            )
+                })
         return results

@@ -27,7 +27,7 @@ WebSocket 建立后第一条消息必须是 `JOIN_ROOM`：
 { "type": "ADVANCE_RACE", "actionId": "a8" }
 ```
 
-`SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。比赛轮次由服务端自动推进到技能选择或 `WAITING_FOR_ROLL`；`ROLL_DICE` 只在后者有效，并从服务端生成骰点后执行到本回合结束或下一个技能选择，不接受客户端点数或移动终点。`RESOLVE_DECISION` 只接受公开候选项中的 ID，且只能由 `pendingDecision.playerId` 提交。
+`SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。比赛轮次由服务端自动推进到技能选择或 `WAITING_FOR_ROLL`；`ROLL_DICE` 只在后者有效，并且只能由 `pendingRoll.nextPlayerId`（没有 `pendingRoll` 时为 `activePlayerId`）提交。每次意图只生成当前步骤的一颗权威骰，不接受客户端点数或移动终点。`RESOLVE_DECISION` 只接受公开候选项中的 ID，且只能由 `pendingDecision.playerId` 提交。
 
 重复的 `actionId` 不会重复执行，服务端返回 `ACTION_ACK`。
 
@@ -45,11 +45,11 @@ LOBBY
 
 `DRAFTING` 公开 `draftPool`、`activePlayerId`、各玩家 `team` 与招募轮次。`CHARACTER_SELECTION` 只公开 `selectionLocked`；全部玩家锁定后，`activeRacers` 同时揭示。`raceNumber` 为 1–4，`trackName`、`raceRewards` 和 `scores` 始终来自服务端。
 
-比赛状态还包含 `pendingDecision`、`raceLog` 和 `resolutionStatus`。`resolutionStatus` 在轮次等待玩家掷骰时为 `WAITING_FOR_ROLL`，技能选择期间为 `WAITING_FOR_DECISION`。候选项对房间内所有玩家公开；待选状态包含 60 秒的 `deadlineAt`，超时后服务端采用该能力的 SmartAgent 推荐并继续。重连会恢复同一个决策 ID 和截止时间。
+比赛状态还包含 `pendingDecision`、`pendingRoll`、`raceLog` 和 `resolutionStatus`。`resolutionStatus` 在轮次等待玩家掷骰时为 `WAITING_FOR_ROLL`，技能选择期间为 `WAITING_FOR_DECISION`。`pendingRoll.nextPlayerId` 是当前唯一可以提交 `ROLL_DICE` 的玩家，不一定等于回合的 `activePlayerId`；Long Legs 会连续建立两个同玩家步骤，Duelist 会依次把投骰权交给挑战者和目标。待选和分步投骰状态均包含 60 秒的 `deadlineAt`，超时后由服务端自动选择或投骰并继续。重连会恢复同一个流程 ID、已投点数和截止时间。
 
 ## 状态广播
 
-有效行动产生 `STATE_UPDATED`。`events` 用于移动动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。骰子结果通过 `rollResults` 明确广播给房间内所有客户端，每个结果带全局一致的 `id`，客户端必须以此字段中的 `values` 为权威点数。`rollSerial` 在单场比赛内单调递增；一次待决策预览及其最终事件共享同一个序号和结果 ID。
+有效行动产生 `STATE_UPDATED`。`events` 用于移动动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。骰子结果通过 `rollResults` 明确广播给房间内所有客户端，每个结果带全局一致的 `id`，客户端必须以此字段中的 `values` 为权威点数。分步投骰的每颗骰子拥有独立结果 ID，并以 `rollSessionId` 分组；`kind` 区分 `MAIN_ROLL`、`ABILITY_ROLL` 和 `ROLL_OFF`，`participants` 标识该颗骰子的玩家及赛车手。`rollSerial` 在单场比赛内单调递增；一次待决策预览及其最终事件引用同一个结果 ID。
 
 比赛掷骰被服务端确认后，会先广播不改变 revision 的 `ROLL_STARTED`，供所有客户端同步启动投掷动画；实际点数仍只在随后的 `STATE_UPDATED.events` 中公布。
 
@@ -70,7 +70,7 @@ LOBBY
 }
 ```
 
-比赛事件包括 `DICE_ROLLED`、`ABILITY_TRIGGERED`、`DECISION_REQUIRED`、`DECISION_RESOLVED`、`DECISION_TIMED_OUT`、`RACER_MOVED`、`RACER_TRIPPED`、`TRIP_RECOVERED`、`RACER_WARPED`、`RACERS_SWAPPED`、`RACER_FINISHED`、`RACER_ELIMINATED` 和 `TURN_CHANGED`。客户端按数组顺序播放，最后以同一消息中的 `game` 快照对齐。
+比赛事件包括 `DIE_ROLLED`、`DICE_ROLLED`、`ABILITY_DICE_ROLLED`、`ABILITY_ROLL_RESOLVED`、`ABILITY_TRIGGERED`、`DECISION_REQUIRED`、`DECISION_RESOLVED`、`DECISION_TIMED_OUT`、`RACER_MOVED`、`RACER_TRIPPED`、`TRIP_RECOVERED`、`RACER_WARPED`、`RACERS_SWAPPED`、`RACER_FINISHED`、`RACER_ELIMINATED` 和 `TURN_CHANGED`。`DIE_ROLLED` / `ABILITY_DICE_ROLLED` 表示一次玩家实际投骰，`DICE_ROLLED` 表示主要移动最终选中并完成修正的结果。客户端按数组顺序播放，最后以同一消息中的 `game` 快照对齐。
 
 `RACER_MOVED.movementKind` 区分 `FORWARD`、`BACKWARD` 和 `PUSH`；`RACER_WARPED.movementKind` 可为 `WARP`、`SWAP` 或 `PUSH`。这些字段描述规则动作的种类，客户端物理碰撞不能据此反向修改游戏状态。`TRIP_RECOVERED` 表示该赛车手跳过本次主要移动并恢复正常状态，因此同一回合不会伴随 `DICE_ROLLED`。
 

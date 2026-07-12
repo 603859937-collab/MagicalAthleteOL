@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from magsim.ai.smart_agent import SmartAgent
 from magsim.core.events import (
     AbilityTriggeredEvent,
+    AbilityRollResultEvent,
     EmitsAbilityTriggeredEvent,
     ExecuteMainMoveEvent,
     GameEvent,
@@ -42,7 +43,14 @@ from magsim.core.registry import (
     RACER_ABILITIES,
 )
 from magsim.core.state import ActiveRacerState, RollState, is_active
-from magsim.core.interactive import DecisionRequired
+from magsim.core.interactive import (
+    CompletedRoll,
+    DecisionRequired,
+    RollBroker,
+    RollKind,
+    RollRequired,
+    SubmittedRoll,
+)
 from magsim.engine.log_context import ContextFilter
 from magsim.engine.loop_detection import LoopDetector
 from magsim.engine.movement import (
@@ -100,6 +108,7 @@ class GameEngine:
     subscribers: dict[type[GameEvent], list[Subscriber]] = field(default_factory=dict)
     agents: dict[int, Agent] = field(default_factory=dict)
     defer_setup: bool = False
+    roll_broker: RollBroker = field(default_factory=RollBroker)
 
     # Errors and loop detection
     bug_reason: ErrorCode | None = None
@@ -187,7 +196,10 @@ class GameEngine:
         while True:
             progress = self.continue_turn()
             if progress is TurnProgress.WAITING_FOR_ROLL:
-                self.request_main_roll()
+                if self.roll_broker.pending is not None:
+                    self.submit_pending_roll()
+                else:
+                    self.request_main_roll()
                 continue
             if progress is TurnProgress.WAITING_FOR_DECISION:
                 raise RuntimeError("run_turn cannot pause; use start_turn/continue_turn")
@@ -345,8 +357,40 @@ class GameEngine:
             except DecisionRequired:
                 self._restore_transaction(snapshot)
                 return TurnProgress.WAITING_FOR_DECISION
+            except RollRequired:
+                self._restore_transaction(snapshot)
+                return TurnProgress.WAITING_FOR_ROLL
+            else:
+                self._commit_interactions()
         self._turn_in_progress = False
         return TurnProgress.TURN_COMPLETE
+
+    def request_roll_sequence(
+        self,
+        *,
+        key: tuple[Any, ...],
+        kind: RollKind,
+        participants: tuple[int, ...],
+        ability_name: str | None = None,
+    ) -> CompletedRoll:
+        return self.roll_broker.request(
+            key=key,
+            kind=kind,
+            participants=participants,
+            ability_name=ability_name,
+        )
+
+    def submit_pending_roll(self) -> SubmittedRoll:
+        return self.roll_broker.submit(self.rng.randint(1, 6))
+
+    def _commit_interactions(self) -> None:
+        self.roll_broker.commit()
+        seen_brokers: set[int] = set()
+        for agent in self.agents.values():
+            broker = getattr(agent, "broker", None)
+            if broker is not None and id(broker) not in seen_brokers:
+                broker.commit()
+                seen_brokers.add(id(broker))
 
     def _calculate_board_hash(self) -> int:
         racer_states = tuple(
@@ -542,6 +586,7 @@ class GameEngine:
         match event:
             case (
                 AbilityTriggeredEvent()
+                | AbilityRollResultEvent()
                 | PreTurnStartEvent()
                 | TurnStartEvent()
                 | TurnEndEvent()

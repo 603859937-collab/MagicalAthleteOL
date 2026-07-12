@@ -1,4 +1,7 @@
+import pytest
+
 from magsim.core.events import MoveCmdEvent, Phase
+from magsim.core.interactive import RollRequired
 from magsim.engine.movement import handle_move_cmd
 from magsim.engine.scenario import GameScenario, RacerConfig
 
@@ -42,9 +45,10 @@ def test_duelist_triggers_when_racer_moves_onto_duelist_space() -> None:
         defer_setup=True,
     )
 
-    handle_move_cmd(scenario.engine, _move(racer_idx=1, distance=2))
+    with pytest.raises(RollRequired):
+        handle_move_cmd(scenario.engine, _move(racer_idx=1, distance=2))
 
-    assert any(
-        getattr(scheduled.event, "source", None) == "DuelistDuel"
-        for scheduled in scenario.engine.state.queue
-    )
+    pending = scenario.engine.roll_broker.pending
+    assert pending is not None
+    assert pending.ability_name == "DuelistDuel"
+    assert pending.participants == (0, 1)

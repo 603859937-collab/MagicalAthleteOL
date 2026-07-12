@@ -12,7 +12,8 @@ export function latestAuthoritativeRollValue(snapshot: RoomSnapshot): number | n
 
   for (let index = snapshot.game.raceLog.length - 1; index >= 0; index -= 1) {
     const event = snapshot.game.raceLog[index];
-    if (event.type === "DICE_ROLLED" && isDieValue(event.value)) return event.value;
+    if (["DICE_ROLLED", "DIE_ROLLED", "ABILITY_DICE_ROLLED"].includes(event.type)
+      && isDieValue(event.value)) return event.value;
   }
   return null;
 }
@@ -29,10 +30,11 @@ export function collectUnseenRollValues(message: RollUpdate, shownRolls: Set<str
   const raceKey = message.game.raceNumber;
   const newlyShown = new Set<string>();
   const values = message.events.flatMap((event, index) => {
-    if (event.type !== "DICE_ROLLED" || typeof event.value !== "number") return [];
-    const key = typeof event.rollSerial === "number"
+    if (!["DICE_ROLLED", "DIE_ROLLED", "ABILITY_DICE_ROLLED"].includes(event.type)
+      || typeof event.value !== "number") return [];
+    const key = event.rollResultId ?? (typeof event.rollSerial === "number"
       ? `${raceKey}:${event.rollSerial}`
-      : `${raceKey}:${message.revision}:event:${index}`;
+      : `${raceKey}:${message.revision}:event:${index}`);
     if (shownRolls.has(key) || newlyShown.has(key)) return [];
     newlyShown.add(key);
     return [event.value];
@@ -40,7 +42,7 @@ export function collectUnseenRollValues(message: RollUpdate, shownRolls: Set<str
 
   const preview = message.game.pendingDecision?.rollPreview;
   if (preview) {
-    const key = `${raceKey}:${preview.rollSerial}`;
+    const key = preview.rollResultId ?? `${raceKey}:${preview.rollSerial}`;
     if (!shownRolls.has(key) && !newlyShown.has(key)) {
       newlyShown.add(key);
       values.push(preview.value);

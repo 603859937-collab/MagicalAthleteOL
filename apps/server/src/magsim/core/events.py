@@ -125,8 +125,19 @@ class RollResultEvent(GameEvent, HasTargetRacer):
     base_value: int
     final_value: int
     roll_serial: int
+    dice_values: tuple[int, ...] = ()
+    roll_session_id: str | None = None
+    roll_result_id: str | None = None
     phase: Phase = Phase.MAIN_ACT
     modifier_breakdown: list[RollData] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class AbilityRollResultEvent(GameEvent):
+    participant_racer_indices: tuple[int, ...]
+    values: tuple[int, ...]
+    winner_racer_idx: int
+    roll_session_id: str
 
 
 @dataclass(frozen=True, kw_only=True)

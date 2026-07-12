@@ -54,6 +54,8 @@ export interface RollPreview {
   value: number;
   baseValue: number;
   finalValue: number;
+  rollSessionId?: string;
+  rollResultId?: string;
 }
 export interface PendingDecision {
   id: string;
@@ -65,6 +67,27 @@ export interface PendingDecision {
   choiceType: "BOOLEAN" | "RACER" | "TILE" | "DIE";
   options: DecisionOption[];
   rollPreview?: RollPreview;
+  deadlineAt?: string;
+}
+
+export interface RollParticipant {
+  playerId: string;
+  athleteId: string;
+  athleteName?: string;
+  value?: number;
+}
+
+export interface PendingRoll {
+  id: string;
+  kind: "MAIN_ROLL" | "ABILITY_ROLL";
+  abilityName?: string | null;
+  participants: RollParticipant[];
+  values: number[];
+  nextPlayerId: string;
+  nextAthleteId: string;
+  nextAthleteName: string;
+  throwIndex: number;
+  throwCount: number;
   deadlineAt?: string;
 }
 
@@ -87,6 +110,7 @@ export interface GameState {
   rollCandidateIds: string[];
   raceResults: RaceResult[];
   pendingDecision: PendingDecision | null;
+  pendingRoll: PendingRoll | null;
   raceLog: GameEvent[];
   resolutionStatus: "IDLE" | "ANIMATING" | "WAITING_FOR_DECISION" | "WAITING_FOR_ROLL";
 }
@@ -105,6 +129,12 @@ export interface DiceRollResult {
   baseValue?: number;
   finalValue?: number;
   rollSerial?: number;
+  kind?: "MAIN_ROLL" | "ABILITY_ROLL" | "ROLL_OFF";
+  participants?: RollParticipant[];
+  abilityName?: string | null;
+  rollSessionId?: string;
+  throwIndex?: number;
+  throwCount?: number;
 }
 
 export type ServerMessage =
@@ -139,6 +169,14 @@ export type GameEvent = {
   optionId?: string;
   automatic?: boolean;
   sequence?: number;
+  kind?: "MAIN_ROLL" | "ABILITY_ROLL" | "ROLL_OFF";
+  rollSessionId?: string;
+  rollResultId?: string;
+  throwIndex?: number;
+  throwCount?: number;
+  participants?: RollParticipant[];
+  winnerPlayerId?: string;
+  winnerAthleteId?: string;
 };
 
 export type ClientIntent =

@@ -6,7 +6,7 @@ from datetime import datetime
 
 from .game import GameState, Player
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class IncompatibleSnapshotError(ValueError):
@@ -27,6 +27,7 @@ class RoomSnapshot:
     game_state: GameState | None
     revision: int
     decision_deadline: datetime | None
+    roll_deadline: datetime | None
     last_active_at: datetime
 
 

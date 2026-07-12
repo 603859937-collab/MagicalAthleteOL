@@ -6,7 +6,7 @@ export function canRollRaceDice(
   blocked: boolean,
 ): boolean {
   return game?.phase === "RACING"
-    && game.activePlayerId === playerId
+    && (game.pendingRoll?.nextPlayerId ?? game.activePlayerId) === playerId
     && game.resolutionStatus === "WAITING_FOR_ROLL"
     && game.pendingDecision === null
     && !blocked;

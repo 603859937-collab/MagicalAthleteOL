@@ -111,6 +111,7 @@ class RoomDurableObject(DurableObject):
             game_state=snapshot.game_state,
             revision=snapshot.revision,
             decision_deadline=snapshot.decision_deadline,
+            roll_deadline=snapshot.roll_deadline,
             players={
                 player_id: RoomPlayer(
                     player=item.player,
@@ -155,12 +156,17 @@ class RoomDurableObject(DurableObject):
             game_state=self.room.game_state,
             revision=self.room.revision,
             decision_deadline=self.room.decision_deadline,
+            roll_deadline=self.room.roll_deadline,
             last_active_at=self.last_active_at,
         )
         await self.ctx.storage.put("snapshot", encode_snapshot(snapshot))
-        deadline = self.room.decision_deadline or (self.last_active_at + ROOM_TTL)
         expiry = self.last_active_at + ROOM_TTL
-        alarm_at = min(deadline, expiry)
+        deadlines = [expiry]
+        if self.room.decision_deadline is not None:
+            deadlines.append(self.room.decision_deadline)
+        if self.room.roll_deadline is not None:
+            deadlines.append(self.room.roll_deadline)
+        alarm_at = min(deadlines)
         await self.ctx.storage.setAlarm(int(alarm_at.timestamp() * 1000))
 
     async def fetch(self, request):
@@ -256,7 +262,13 @@ class RoomDurableObject(DurableObject):
         assert self.room is not None
         now = datetime.now(UTC)
         await self.manager.resolve_expired_decision(self.room, now)
-        if not self.ctx.getWebSockets() and self.room.decision_deadline is None and now >= self.last_active_at + ROOM_TTL:
+        await self.manager.resolve_expired_roll(self.room, now)
+        if (
+            not self.ctx.getWebSockets()
+            and self.room.decision_deadline is None
+            and self.room.roll_deadline is None
+            and now >= self.last_active_at + ROOM_TTL
+        ):
             await self.ctx.storage.deleteAll()
             self.room = None
             return

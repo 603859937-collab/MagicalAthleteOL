@@ -25,6 +25,7 @@ def test_snapshot_round_trip_preserves_game_and_action_deduplication() -> None:
         game_state=state,
         revision=7,
         decision_deadline=None,
+        roll_deadline=None,
         last_active_at=datetime.now(UTC),
     )
 

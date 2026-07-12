@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, override
+from typing import Any, Literal, override
 from uuid import uuid4
 
 from magsim.core.agent import Agent, DecisionContext, SelectionDecisionContext
@@ -9,6 +9,112 @@ from magsim.core.agent import Agent, DecisionContext, SelectionDecisionContext
 
 class DecisionRequired(Exception):
     """Control-flow signal used to pause resolution at an interactive choice."""
+
+
+class RollRequired(Exception):
+    """Control-flow signal used to pause resolution until the next die is thrown."""
+
+
+RollKind = Literal["MAIN_ROLL", "ABILITY_ROLL"]
+
+
+@dataclass(slots=True)
+class CompletedRoll:
+    id: str
+    kind: RollKind
+    ability_name: str | None
+    participants: tuple[int, ...]
+    values: tuple[int, ...]
+
+    def result_id(self, index: int) -> str:
+        return f"{self.id}:throw:{index}"
+
+
+@dataclass(slots=True)
+class SubmittedRoll:
+    session_id: str
+    result_id: str
+    kind: RollKind
+    ability_name: str | None
+    participant_racer_idx: int
+    throw_index: int
+    throw_count: int
+    value: int
+
+
+@dataclass(slots=True)
+class PendingRoll:
+    id: str
+    key: tuple[Any, ...]
+    kind: RollKind
+    ability_name: str | None
+    participants: tuple[int, ...]
+    values: list[int] = field(default_factory=list)
+
+    @property
+    def next_index(self) -> int:
+        return len(self.values)
+
+    @property
+    def complete(self) -> bool:
+        return len(self.values) == len(self.participants)
+
+
+@dataclass(slots=True)
+class RollBroker:
+    pending: PendingRoll | None = None
+
+    def request(
+        self,
+        *,
+        key: tuple[Any, ...],
+        kind: RollKind,
+        participants: tuple[int, ...],
+        ability_name: str | None = None,
+    ) -> CompletedRoll:
+        if self.pending is None:
+            self.pending = PendingRoll(
+                id=uuid4().hex,
+                key=key,
+                kind=kind,
+                ability_name=ability_name,
+                participants=participants,
+            )
+            raise RollRequired
+
+        pending = self.pending
+        if pending.key != key:
+            raise RuntimeError("a different roll session is already pending")
+        if not pending.complete:
+            raise RollRequired
+        return CompletedRoll(
+            id=pending.id,
+            kind=pending.kind,
+            ability_name=pending.ability_name,
+            participants=pending.participants,
+            values=tuple(pending.values),
+        )
+
+    def submit(self, value: int) -> SubmittedRoll:
+        pending = self.pending
+        if pending is None or pending.complete:
+            raise ValueError("NO_PENDING_ROLL")
+        index = pending.next_index
+        pending.values.append(value)
+        return SubmittedRoll(
+            session_id=pending.id,
+            result_id=f"{pending.id}:throw:{index}",
+            kind=pending.kind,
+            ability_name=pending.ability_name,
+            participant_racer_idx=pending.participants[index],
+            throw_index=index,
+            throw_count=len(pending.participants),
+            value=value,
+        )
+
+    def commit(self) -> None:
+        if self.pending is not None and self.pending.complete:
+            self.pending = None
 
 
 def _choice_label(value: Any) -> str:
@@ -28,7 +134,7 @@ class PendingChoice:
     choice_type: str
     options: tuple[Any, ...]
     option_labels: tuple[str, ...]
-    roll_preview: dict[str, int] | None = None
+    roll_preview: dict[str, Any] | None = None
     answer_index: int | None = None
     auto_answer: bool = False
 
@@ -53,6 +159,17 @@ class DecisionBroker:
     ) -> Any:
         ability_name = str(getattr(ctx.source, "name", type(ctx.source).__name__))
         signature = (ctx.source_racer_idx, ability_name, choice_type)
+        if self.pending is None and self.last_resolved is not None:
+            resolved = self.last_resolved
+            if signature == (
+                resolved.racer_idx,
+                resolved.ability_name,
+                resolved.choice_type,
+            ):
+                if resolved.answer_index == -2:
+                    return None
+                if resolved.answer_index is not None:
+                    return options[resolved.answer_index]
         if self.pending is None:
             roll_state = ctx.game_state.roll_state
             roll_serial = getattr(ctx.event, "roll_serial", None)
@@ -63,6 +180,8 @@ class DecisionBroker:
                     "value": roll_state.dice_value or roll_state.base_value,
                     "baseValue": roll_state.base_value,
                     "finalValue": roll_state.final_value,
+                    "rollSessionId": roll_state.roll_session_id,
+                    "rollResultId": roll_state.roll_result_id,
                 }
             self.pending = PendingChoice(
                 id=uuid4().hex,
@@ -103,6 +222,9 @@ class DecisionBroker:
         self.last_resolved = resolved
         self.pending = None
         return options[index]
+
+    def commit(self) -> None:
+        self.last_resolved = None
 
     def choose(self, decision_id: str, option_id: str) -> PendingChoice:
         pending = self.pending
@@ -171,9 +293,15 @@ class InteractiveAgent(Agent):
                 pending.answer_index = options.index(recommended)
             except ValueError:
                 pending.answer_index = 0
-        choice_type = "RACER"
+        choice_type = str(getattr(ctx.source, "choice_type", "RACER"))
         if options and all(isinstance(option, int) for option in options):
-            choice_type = "DIE" if "Genius" in str(getattr(ctx.source, "name", "")) else "TILE"
+            choice_type = str(
+                getattr(
+                    ctx.source,
+                    "choice_type",
+                    "DIE" if "Genius" in str(getattr(ctx.source, "name", "")) else "TILE",
+                )
+            )
         return self.broker.request(
             ctx,
             options,

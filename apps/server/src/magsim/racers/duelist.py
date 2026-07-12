@@ -10,6 +10,7 @@ from magsim.core.agent import (
     SelectionInteractive,
 )
 from magsim.core.events import (
+    AbilityRollResultEvent,
     AbilityTriggeredEventOrSkipped,
     GameEvent,
     Phase,
@@ -133,11 +134,33 @@ class DuelistAbility(
             f"{owner.repr} challenges {target.repr} to a {self.name}!",
         )
 
-        owner_roll = engine.rng.randint(1, 6)
-        target_roll = engine.rng.randint(1, 6)
+        scheduled_serial = (
+            engine.current_processing_event.serial
+            if engine.current_processing_event is not None
+            else engine.state.serial
+        )
+        completed_roll = engine.request_roll_sequence(
+            key=("duel", scheduled_serial, owner.idx, target.idx),
+            kind="ABILITY_ROLL",
+            participants=(owner.idx, target.idx),
+            ability_name=self.name,
+        )
+        owner_roll, target_roll = completed_roll.values
         winner = owner if owner_roll >= target_roll else target
         engine.log_info(
             f"{self.name}: {owner.repr} rolls a {owner_roll}, {target.repr} rolls a {target_roll} - {winner.repr} wins!",
+        )
+
+        engine.push_event(
+            AbilityRollResultEvent(
+                responsible_racer_idx=owner.idx,
+                source=self.name,
+                phase=phase,
+                participant_racer_indices=(owner.idx, target.idx),
+                values=completed_roll.values,
+                winner_racer_idx=winner.idx,
+                roll_session_id=completed_roll.id,
+            ),
         )
 
         push_move(

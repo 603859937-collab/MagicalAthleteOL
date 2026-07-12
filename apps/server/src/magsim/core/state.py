@@ -31,6 +31,12 @@ class RollState:
     dice_value: D6Values | None = None
     base_value: int = 0
     final_value: int = 0
+    dice_values: tuple[D6Values, ...] = ()
+    dice_result_ids: tuple[str, ...] = ()
+    reroll_prefix: tuple[D6Values, ...] = ()
+    reroll_prefix_result_ids: tuple[str, ...] = ()
+    roll_session_id: str | None = None
+    roll_result_id: str | None = None
 
 
 @runtime_checkable

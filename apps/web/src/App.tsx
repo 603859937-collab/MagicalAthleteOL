@@ -50,6 +50,12 @@ function eventText(event: GameEvent, players: PlayerState[]): string {
   if (event.type === "ATHLETE_DRAFTED") return `${player?.name ?? "玩家"} 完成一次招募`;
   if (event.type === "RACERS_LOCKED") return `${player?.name ?? "玩家"} 已锁定阵容`;
   if (event.type === "DICE_ROLLED") return `${player?.name ?? "玩家"} 掷出 ${event.value}`;
+  if (event.type === "DIE_ROLLED") return `${player?.name ?? "玩家"} 掷出第 ${(event.throwIndex ?? 0) + 1} 颗骰子：${event.value}`;
+  if (event.type === "ABILITY_DICE_ROLLED") return `${player?.name ?? "玩家"} 在决斗中掷出 ${event.value}`;
+  if (event.type === "ABILITY_ROLL_RESOLVED") {
+    const winner = players.find((item) => item.id === event.winnerPlayerId);
+    return `${winner?.name ?? "玩家"} 赢得决斗`;
+  }
   if (event.type === "RACER_MOVED") return `赛车手从 ${event.from} 移动到 ${event.to}`;
   if (event.type === "RACER_WARPED") return `赛车手从 ${event.from} 传送到 ${event.to}`;
   if (event.type === "RACER_TRIPPED") return "赛车手被绊倒";
@@ -275,6 +281,7 @@ export default function App() {
     const restoredRolls = new Set<string>();
     const raceKey = message.game.raceNumber - 1;
     for (const event of message.game.raceLog) {
+      if (event.rollResultId) restoredRolls.add(event.rollResultId);
       if (event.type === "DICE_ROLLED" && typeof event.rollSerial === "number") {
         restoredRolls.add(`race:${raceKey}:serial:${event.rollSerial}`);
       }
@@ -615,7 +622,7 @@ export default function App() {
                 rollKey={rollAnimation?.throwKey ?? (rollingActionId ? `start-${rollingActionId}` : `idle-${game!.raceNumber}`)}
                 autoThrow={rollAnimation?.autoThrow ?? (rollingPlayerId !== null && !localRollPending)}
                 resetKey={diceResetKey}
-                activePlayerName={game!.players.find((player) => player.id === game!.activePlayerId)?.name ?? "其他玩家"}
+                activePlayerName={game!.players.find((player) => player.id === (game!.pendingRoll?.nextPlayerId ?? game!.activePlayerId))?.name ?? "其他玩家"}
                 onThrow={throwRaceDice}
                 onSettled={() => finishDiceAnimation(`${rollAnimation?.revision}-${rollAnimation?.index}`)}
               />

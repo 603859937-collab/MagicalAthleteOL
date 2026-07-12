@@ -61,6 +61,7 @@ class GameState:
     race_results: tuple[dict[str, Any], ...] = ()
     magsim_engine: Any | None = None
     pending_decision: dict[str, Any] | None = None
+    pending_roll: dict[str, Any] | None = None
     race_log: tuple[dict[str, Any], ...] = ()
     resolution_status: str = "IDLE"
 
@@ -78,7 +79,7 @@ class GameEngine(Protocol):
     def roll_start(self, state: GameState, player_id: str) -> GameTransition: ...
     def draft_athlete(self, state: GameState, player_id: str, athlete_id: str) -> GameTransition: ...
     def select_racers(self, state: GameState, player_id: str, athlete_ids: tuple[str, ...]) -> GameTransition: ...
-    def roll_dice(self, state: GameState, player_id: str) -> GameTransition: ...
+    def roll_dice(self, state: GameState, player_id: str, timed_out: bool = False) -> GameTransition: ...
     def resolve_decision(self, state: GameState, player_id: str, decision_id: str, option_id: str, timed_out: bool = False) -> GameTransition: ...
     def advance_race(self, state: GameState, player_id: str) -> GameTransition: ...
     def public_state(self, state: GameState, viewer_id: str | None = None) -> dict[str, Any]: ...
@@ -334,11 +335,14 @@ class MagsimGameEngine:
             race_log=(),
         )
 
-    def roll_dice(self, state: GameState, player_id: str) -> GameTransition:
+    def roll_dice(
+        self,
+        state: GameState,
+        player_id: str,
+        timed_out: bool = False,
+    ) -> GameTransition:
         if state.phase != GamePhase.RACING or state.magsim_engine is None:
             raise GameRuleError("GAME_NOT_RUNNING", "比赛尚未开始")
-        if state.active_player_id != player_id:
-            raise GameRuleError("NOT_YOUR_TURN", "还没轮到你")
         if state.pending_decision is not None:
             raise GameRuleError("DECISION_PENDING", "请先完成当前技能选择")
         if state.resolution_status != "WAITING_FOR_ROLL":
@@ -346,8 +350,57 @@ class MagsimGameEngine:
 
         engine = state.magsim_engine
         events: list[dict[str, Any]] = []
-        engine.request_main_roll()
-        return self._advance_turn_flow(state, events)
+        pending = engine.roll_broker.pending
+        if pending is None:
+            if state.active_player_id != player_id:
+                raise GameRuleError("NOT_YOUR_TURN", "还没轮到你")
+            previous_callback = engine.on_event_processed
+            engine.on_event_processed = (
+                lambda _engine, event: self._append_public_event(events, state, event)
+            )
+            try:
+                engine.request_main_roll()
+                progress = engine.continue_turn()
+            finally:
+                engine.on_event_processed = previous_callback
+            pending = engine.roll_broker.pending
+            if pending is None:
+                return self._advance_turn_flow(
+                    replace(state, pending_roll=None),
+                    events,
+                    initial_progress=progress,
+                )
+        else:
+            next_racer_idx = pending.participants[pending.next_index]
+            if state.racer_owner_by_index[next_racer_idx] != player_id:
+                raise GameRuleError("NOT_ROLLING_PLAYER", "当前应由另一位玩家掷骰")
+
+        submitted = engine.submit_pending_roll()
+        events.append(self._submitted_roll_event(state, submitted, timed_out=timed_out))
+        return self._advance_turn_flow(replace(state, pending_roll=None), events)
+
+    def _submitted_roll_event(
+        self,
+        state: GameState,
+        submitted: Any,
+        *,
+        timed_out: bool,
+    ) -> dict[str, Any]:
+        racer_idx = submitted.participant_racer_idx
+        athlete = state.racer_athlete_by_index[racer_idx]
+        return {
+            "type": "ABILITY_DICE_ROLLED" if submitted.kind == "ABILITY_ROLL" else "DIE_ROLLED",
+            "playerId": state.racer_owner_by_index[racer_idx],
+            "athleteId": athlete.id,
+            "value": submitted.value,
+            "kind": submitted.kind,
+            "abilityName": submitted.ability_name,
+            "rollSessionId": submitted.session_id,
+            "rollResultId": submitted.result_id,
+            "throwIndex": submitted.throw_index,
+            "throwCount": submitted.throw_count,
+            "automatic": timed_out,
+        }
 
     def resolve_decision(
         self,
@@ -427,11 +480,42 @@ class MagsimGameEngine:
             public["rollPreview"] = pending.roll_preview
         return public
 
+    def _pending_roll(self, state: GameState, engine: Any) -> dict[str, Any] | None:
+        pending = engine.roll_broker.pending
+        if pending is None or pending.complete:
+            return None
+        participants = []
+        for index, racer_idx in enumerate(pending.participants):
+            athlete = state.racer_athlete_by_index[racer_idx]
+            participant = {
+                "playerId": state.racer_owner_by_index[racer_idx],
+                "athleteId": athlete.id,
+                "athleteName": athlete.name_zh,
+            }
+            if index < len(pending.values):
+                participant["value"] = pending.values[index]
+            participants.append(participant)
+        next_racer_idx = pending.participants[pending.next_index]
+        next_athlete = state.racer_athlete_by_index[next_racer_idx]
+        return {
+            "id": pending.id,
+            "kind": pending.kind,
+            "abilityName": pending.ability_name,
+            "participants": participants,
+            "values": list(pending.values),
+            "nextPlayerId": state.racer_owner_by_index[next_racer_idx],
+            "nextAthleteId": next_athlete.id,
+            "nextAthleteName": next_athlete.name_zh,
+            "throwIndex": pending.next_index,
+            "throwCount": len(pending.participants),
+        }
+
     def _transition_with_log(self, state: GameState, events: list[dict[str, Any]]) -> GameTransition:
         log = list(state.race_log)
         for event in events:
             if event.get("type") in {
-                "DICE_ROLLED", "RACER_MOVED", "RACER_WARPED", "RACERS_SWAPPED",
+                "DICE_ROLLED", "DIE_ROLLED", "ABILITY_DICE_ROLLED",
+                "ABILITY_ROLL_RESOLVED", "RACER_MOVED", "RACER_WARPED", "RACERS_SWAPPED",
                 "RACER_TRIPPED", "RACER_FINISHED", "ABILITY_TRIGGERED",
                 "DECISION_REQUIRED", "DECISION_RESOLVED", "DECISION_TIMED_OUT",
             }:
@@ -460,7 +544,7 @@ class MagsimGameEngine:
         scores = {player.id: state.scores[player.id] + race_points[player.id] for player in state.players}
         used = state.used_athlete_ids.union(athlete.id for selected in state.selections.values() for athlete in selected)
         events.append({"type": "RACE_FINISHED", "raceNumber": state.race_number + 1})
-        next_state = replace(state, phase=GamePhase.FINISHED if state.race_number == 3 else GamePhase.RACE_RESULTS, positions=positions, scores=scores, used_athlete_ids=frozenset(used), active_player_id=None, race_results=tuple(results), pending_decision=None, resolution_status="IDLE")
+        next_state = replace(state, phase=GamePhase.FINISHED if state.race_number == 3 else GamePhase.RACE_RESULTS, positions=positions, scores=scores, used_athlete_ids=frozenset(used), active_player_id=None, race_results=tuple(results), pending_decision=None, pending_roll=None, resolution_status="IDLE")
         return self._transition_with_log(next_state, events)
 
     def _advance_turn_flow(
@@ -469,6 +553,7 @@ class MagsimGameEngine:
         events: list[dict[str, Any]],
         *,
         start_turn: bool = False,
+        initial_progress: Any | None = None,
     ) -> GameTransition:
         from magsim.engine.game_engine import TurnProgress
 
@@ -481,7 +566,11 @@ class MagsimGameEngine:
             if start_turn:
                 engine.start_turn()
             while True:
-                progress = engine.continue_turn()
+                if initial_progress is None:
+                    progress = engine.continue_turn()
+                else:
+                    progress = initial_progress
+                    initial_progress = None
                 positions = self._positions(state)
                 if progress is TurnProgress.WAITING_FOR_DECISION:
                     pending = self._pending_decision(state, engine)
@@ -491,14 +580,17 @@ class MagsimGameEngine:
                         state,
                         positions=positions,
                         pending_decision=pending,
+                        pending_roll=None,
                         resolution_status="WAITING_FOR_DECISION",
                     )
                     return self._transition_with_log(next_state, events)
                 if progress is TurnProgress.WAITING_FOR_ROLL:
+                    pending_roll = self._pending_roll(state, engine)
                     next_state = replace(
                         state,
                         positions=positions,
                         pending_decision=None,
+                        pending_roll=pending_roll,
                         resolution_status="WAITING_FOR_ROLL",
                     )
                     return self._transition_with_log(next_state, events)
@@ -515,6 +607,7 @@ class MagsimGameEngine:
                     positions=positions,
                     active_player_id=active_player_id,
                     pending_decision=None,
+                    pending_roll=None,
                     resolution_status="IDLE",
                 )
                 engine.start_turn()
@@ -573,7 +666,39 @@ class MagsimGameEngine:
         athlete = state.racer_athlete_by_index.get(index)
         base = {"playerId": owner_id, "athleteId": athlete.id if athlete else None}
         if name == "RollResultEvent":
-            events.append({"type": "DICE_ROLLED", **base, "value": event.dice_value or event.base_value, "baseValue": event.base_value, "finalValue": event.final_value, "rollSerial": event.roll_serial})
+            events.append({
+                "type": "DICE_ROLLED",
+                **base,
+                "value": event.dice_value or event.base_value,
+                "values": list(event.dice_values),
+                "baseValue": event.base_value,
+                "finalValue": event.final_value,
+                "rollSerial": event.roll_serial,
+                "rollSessionId": event.roll_session_id,
+                "rollResultId": event.roll_result_id,
+            })
+        elif name == "AbilityRollResultEvent":
+            participants = [
+                {
+                    "playerId": state.racer_owner_by_index[racer_idx],
+                    "athleteId": state.racer_athlete_by_index[racer_idx].id,
+                    "value": value,
+                }
+                for racer_idx, value in zip(
+                    event.participant_racer_indices,
+                    event.values,
+                    strict=True,
+                )
+            ]
+            winner_idx = event.winner_racer_idx
+            events.append({
+                "type": "ABILITY_ROLL_RESOLVED",
+                "abilityName": str(event.source),
+                "rollSessionId": event.roll_session_id,
+                "participants": participants,
+                "winnerPlayerId": state.racer_owner_by_index[winner_idx],
+                "winnerAthleteId": state.racer_athlete_by_index[winner_idx].id,
+            })
         elif name == "PostMoveEvent":
             kind = "PUSH" if str(event.source) in {"CentaurTrample", "HugeBabyPush"} else ("FORWARD" if event.end_tile >= event.start_tile else "BACKWARD")
             events.append({"type": "RACER_MOVED", **base, "from": event.start_tile, "to": event.end_tile, "movementKind": kind, "source": str(event.source)})
@@ -658,6 +783,7 @@ class MagsimGameEngine:
             "rollCandidateIds": list(state.roll_candidates),
             "raceResults": list(state.race_results),
             "pendingDecision": state.pending_decision,
+            "pendingRoll": state.pending_roll,
             "raceLog": list(state.race_log),
             "resolutionStatus": state.resolution_status,
         }
