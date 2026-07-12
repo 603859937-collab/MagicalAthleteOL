@@ -65,17 +65,18 @@ function referenceRectForStep(step: number): ReferenceRect {
   if (step === 0) {
     return { x: 29, y: 28, width: 205, height: 78, tangent: { x: 1, z: 0 } };
   }
-  if (step <= 12) {
+  if (step <= 13) {
     return {
-      x: 234 + (step - 1) * (871 / 12), y: 28, width: 871 / 12, height: 78,
+      x: 234 + (step - 1) * (937 / 13), y: 28, width: 937 / 13, height: 78,
       tangent: { x: 1, z: 0 },
     };
   }
-  if (step <= 14) {
-    return { x: 1105, y: 106 + (step - 13) * 74, width: 66, height: 74, tangent: { x: 0, z: 1 } };
+  if (step <= 15) {
+    return { x: 1105, y: 106 + (step - 14) * 74, width: 66, height: 74, tangent: { x: 0, z: 1 } };
   }
   if (step <= 29) {
-    return { x: 1105 - (step - 15) * 70, y: 254, width: 70, height: 78, tangent: { x: -1, z: 0 } };
+    const width = 1046 / 14;
+    return { x: 1171 - (step - 15) * width, y: 254, width, height: 78, tangent: { x: -1, z: 0 } };
   }
   return { ...FINISH_BADGE_RECT, tangent: { x: 0, z: -1 } };
 }

@@ -36,14 +36,17 @@ describe("track layout", () => {
     expect(trackPose(0).position.x).toBeCloseTo(-9.37);
     expect(trackPose(0).position.z).toBeCloseTo(-2.26);
     expect(trackPose(0).size).toEqual([4.04, 1.5]);
-    expect(trackPose(1).position.x).toBeCloseTo(-6.5941666667);
-    expect(trackPose(12).position.x).toBeCloseTo(9.3741666667);
-    expect(trackPose(13).position.x).toBeCloseTo(10.76);
-    expect(trackPose(13).position.z).toBeCloseTo(-0.74);
-    expect(trackPose(13).size).toEqual([1.26, 1.42]);
-    expect(trackPose(15).position.x).toBeCloseTo(10.8);
-    expect(trackPose(15).position.z).toBeCloseTo(2.26);
-    expect(trackPose(29).position.x).toBeCloseTo(-8.8);
+    expect(trackPose(1).position.x).toBeCloseTo(-6.5992307692);
+    expect(trackPose(13).position.x).toBeCloseTo(10.6992307692);
+    expect(trackPose(13).position.z).toBeCloseTo(-2.26);
+    expect(trackPose(13).size[0]).toBeCloseTo(1.3815384615);
+    expect(trackPose(14).position.x).toBeCloseTo(10.76);
+    expect(trackPose(14).position.z).toBeCloseTo(-0.74);
+    expect(trackPose(14).size).toEqual([1.26, 1.42]);
+    expect(trackPose(16).position.x).toBeCloseTo(10.6728571429);
+    expect(trackPose(15).position.z).toBeCloseTo(0.74);
+    expect(trackPose(16).position.z).toBeCloseTo(2.26);
+    expect(trackPose(29).position.x).toBeCloseTo(-8.7528571429);
     expect(trackPose(29).position.z).toBeCloseTo(2.26);
     expect(trackPose(30).position.x).toBeCloseTo(-10.39);
     expect(trackPose(30).position.z).toBeCloseTo(0);
@@ -53,13 +56,13 @@ describe("track layout", () => {
 
   it("keeps every adjacent source cell edge aligned while reserving one consistent visible grid gap", () => {
     expect(leftEdge(trackPose(1))).toBeCloseTo(rightEdge(trackPose(0)));
-    expect(rightEdge(trackPose(12))).toBeCloseTo(leftEdge(trackPose(13)));
-    expect(bottomEdge(trackPose(12))).toBeCloseTo(topEdge(trackPose(13)));
+    expect(rightEdge(trackPose(13))).toBeCloseTo(rightEdge(trackPose(14)));
     expect(bottomEdge(trackPose(13))).toBeCloseTo(topEdge(trackPose(14)));
     expect(bottomEdge(trackPose(14))).toBeCloseTo(topEdge(trackPose(15)));
-    expect(rightEdge(trackPose(16))).toBeCloseTo(leftEdge(trackPose(15)));
+    expect(bottomEdge(trackPose(15))).toBeCloseTo(topEdge(trackPose(16)));
+    expect(rightEdge(trackPose(17))).toBeCloseTo(leftEdge(trackPose(16)));
     expect(leftEdge(trackPose(2)) - rightEdge(trackPose(1))).toBeCloseTo(0);
-    expect(topEdge(trackPose(14)) - bottomEdge(trackPose(13))).toBeCloseTo(0);
+    expect(topEdge(trackPose(15)) - bottomEdge(trackPose(14))).toBeCloseTo(0);
     expect(
       (trackPose(2).position.x - trackPose(2).size[0] / 2)
       - (trackPose(1).position.x + trackPose(1).size[0] / 2),

@@ -1,7 +1,7 @@
 import { Canvas, useThree } from "@react-three/fiber";
 import { CuboidCollider, Physics, RigidBody } from "@react-three/rapier";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { CanvasTexture, DoubleSide, SRGBColorSpace, TextureLoader } from "three";
+import { CanvasTexture, DoubleSide, PCFSoftShadowMap, SRGBColorSpace, TextureLoader } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { PlayerState } from "../../protocol";
 import {
@@ -37,9 +37,10 @@ function FixedCameraRig() {
   const { camera, size } = useThree();
   useLayoutEffect(() => {
     const aspect = size.width / Math.max(size.height, 1);
-    const horizontalFovSlope = Math.tan((42 * Math.PI) / 360);
-    const distance = Math.max(11.8, 13.25 / (horizontalFovSlope * aspect));
-    const elevation = Math.PI * (52 / 180);
+    const horizontalFovSlope = Math.tan((30 * Math.PI) / 360);
+    const desiredHalfWidth = aspect < 1.7 ? 14.5 : 13.25;
+    const distance = Math.max(15, desiredHalfWidth / (horizontalFovSlope * aspect));
+    const elevation = Math.PI * (66 / 180);
     camera.position.set(0, Math.sin(elevation) * distance, Math.cos(elevation) * distance);
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
@@ -169,17 +170,18 @@ function drawBoardArtwork(context: CanvasRenderingContext2D, trackName: RaceTabl
   context.strokeText("起点", 132, 67);
   context.fillText("起点", 132, 67);
 
-  for (let step = 1; step <= 12; step += 1) {
+  for (let step = 1; step <= 13; step += 1) {
     const feature = wild ? WILD_TILES[step] : undefined;
-    drawTile(context, 234 + (step - 1) * (871 / 12), 28, 871 / 12, 78, feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]);
+    drawTile(context, 234 + (step - 1) * (937 / 13), 28, 937 / 13, 78, feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]);
   }
-  for (let step = 13; step <= 14; step += 1) {
+  for (let step = 14; step <= 15; step += 1) {
     const feature = wild ? WILD_TILES[step] : undefined;
-    drawTile(context, 1105, 106 + (step - 13) * 74, 66, 74, feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]);
+    drawTile(context, 1105, 106 + (step - 14) * 74, 66, 74, feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]);
   }
-  for (let step = 15; step <= 29; step += 1) {
+  for (let step = 16; step <= 29; step += 1) {
     const feature = wild ? WILD_TILES[step] : undefined;
-    drawTile(context, 1105 - (step - 15) * 70, 254, 70, 78, feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]);
+    const width = 1046 / 14;
+    drawTile(context, 1171 - (step - 15) * width, 254, width, 78, feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]);
   }
 
   context.fillStyle = "#111116";
@@ -191,20 +193,6 @@ function drawBoardArtwork(context: CanvasRenderingContext2D, trackName: RaceTabl
   context.beginPath();
   context.ellipse(600, 223, 440, 16, 0, 0, Math.PI * 2);
   context.fill();
-
-  if (wild) {
-    drawFlower(context, 172, 185, "#b85fc1", 0.9);
-    drawFlower(context, 236, 172, "#e6d961", 0.78);
-    drawFlower(context, 972, 177, "#d94b9b", 0.94);
-    drawFlower(context, 1032, 188, "#f2f0dc", 0.74);
-  } else {
-    drawFlower(context, 165, 181, "#f2f0dc", 0.8);
-    drawFlower(context, 215, 166, "#d94b9b", 1.1);
-    drawFlower(context, 953, 175, "#e74a32", 1.2);
-    drawFlower(context, 1019, 182, "#e4d62b", 0.85);
-    drawCreature(context, 306, 205);
-    drawCreature(context, 892, 203, true);
-  }
 
   context.fillStyle = PAPER;
   context.strokeStyle = INK;
@@ -264,10 +252,74 @@ function useBoardTexture(trackName: RaceTableSceneProps["trackName"]) {
 
 function BoardArtwork({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
   const texture = useBoardTexture(trackName);
-  return <mesh position={[0, 0.255, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
+  return <mesh receiveShadow position={[0, 0.258, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
     <planeGeometry args={[BOARD_SIZE.width, BOARD_SIZE.depth]} />
-    <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped={false} />
+    <meshStandardMaterial map={texture} transparent roughness={0.86} metalness={0} polygonOffset polygonOffsetFactor={-1} />
   </mesh>;
+}
+
+function artworkPosition(x: number, y: number): [number, number, number] {
+  return [
+    (x / ARTBOARD.width - 0.5) * BOARD_SIZE.width,
+    0.34,
+    (y / ARTBOARD.height - 0.5) * BOARD_SIZE.depth,
+  ];
+}
+
+function FlowerModel({ x, y, color, scale = 1 }: { x: number; y: number; color: string; scale?: number }) {
+  return <group position={artworkPosition(x, y)} scale={scale}>
+    <mesh castShadow position={[-0.06, 0.035, 0.27]} rotation={[0, 0, 0.2]}>
+      <boxGeometry args={[0.055, 0.055, 0.52]} />
+      <meshStandardMaterial color="#347b38" roughness={0.82} />
+    </mesh>
+    {Array.from({ length: 6 }, (_, index) => {
+      const angle = index * Math.PI / 3;
+      return <mesh key={index} castShadow position={[Math.cos(angle) * 0.16, 0.075, Math.sin(angle) * 0.16]}
+        scale={[0.18, 0.08, 0.12]} rotation={[0, -angle, 0]}>
+        <sphereGeometry args={[1, 16, 10]} />
+        <meshStandardMaterial color={color} roughness={0.7} />
+      </mesh>;
+    })}
+    <mesh castShadow position={[0, 0.12, 0]} scale={[0.11, 0.07, 0.11]}>
+      <sphereGeometry args={[1, 18, 12]} />
+      <meshStandardMaterial color="#f2bd27" roughness={0.6} />
+    </mesh>
+  </group>;
+}
+
+function CreatureModel({ x, y, mirror = false }: { x: number; y: number; mirror?: boolean }) {
+  const direction = mirror ? -1 : 1;
+  return <group position={artworkPosition(x, y)} rotation={[0, mirror ? Math.PI : 0, 0]}>
+    <mesh castShadow position={[0, 0.13, 0]} scale={[0.5, 0.13, 0.2]}>
+      <sphereGeometry args={[1, 20, 12]} />
+      <meshStandardMaterial color="#4f94d5" roughness={0.58} />
+    </mesh>
+    <mesh castShadow position={[0.43, 0.18, -0.05]} scale={[0.18, 0.18, 0.18]}>
+      <sphereGeometry args={[1, 18, 12]} />
+      <meshStandardMaterial color="#4f94d5" roughness={0.58} />
+    </mesh>
+    <mesh castShadow position={[0.5, 0.27, -0.11]} scale={[0.055, 0.055, 0.055]}>
+      <sphereGeometry args={[1, 12, 8]} />
+      <meshStandardMaterial color={PAPER} roughness={0.5} />
+    </mesh>
+    <mesh position={[0.515, 0.28, -0.145 * direction]} scale={[0.022, 0.022, 0.022]}>
+      <sphereGeometry args={[1, 10, 8]} />
+      <meshStandardMaterial color={INK} />
+    </mesh>
+  </group>;
+}
+
+function RaisedBoardDecor({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
+  const flowers = trackName === "WildWilds"
+    ? [[172, 185, "#b85fc1", 0.9], [236, 172, "#e6d961", 0.78], [972, 177, "#d94b9b", 0.94], [1032, 188, "#f2f0dc", 0.74]] as const
+    : [[165, 181, "#f2f0dc", 0.8], [215, 166, "#d94b9b", 1.1], [953, 175, "#e74a32", 1.2], [1019, 182, "#e4d62b", 0.85]] as const;
+  return <group>
+    {flowers.map(([x, y, color, scale]) => <FlowerModel key={`${x}:${y}`} x={x} y={y} color={color} scale={scale} />)}
+    {trackName === "Standard" && <>
+      <CreatureModel x={306} y={205} />
+      <CreatureModel x={892} y={203} mirror />
+    </>}
+  </group>;
 }
 
 function BoardBase() {
@@ -283,6 +335,7 @@ function TrackBoard({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
     <BoardBase />
     <CuboidCollider args={[BOARD_SIZE.width / 2, 0.17, BOARD_SIZE.depth / 2]} position={[0, 0.08, 0]} />
     <BoardArtwork trackName={trackName} />
+    <RaisedBoardDecor trackName={trackName} />
   </RigidBody>;
 }
 
@@ -358,9 +411,12 @@ function Scene({ players, finishLine, trackName }: RaceTableSceneProps) {
   return <>
     <FixedCameraRig />
     <color attach="background" args={["#6e6b65"]} />
-    <hemisphereLight intensity={1.25} color="#fff9e9" groundColor="#625f59" />
-    <directionalLight castShadow position={[-8, 15, 10]} intensity={2.2} shadow-mapSize={[1536, 1536]}
-      shadow-camera-left={-14} shadow-camera-right={14} shadow-camera-top={9} shadow-camera-bottom={-9} />
+    <hemisphereLight intensity={0.58} color="#fff9e9" groundColor="#4b4945" />
+    <directionalLight castShadow position={[-7, 14, 8]} intensity={2.65} shadow-mapSize={[2048, 2048]}
+      shadow-bias={-0.00015} shadow-normalBias={0.025} shadow-radius={4}
+      shadow-camera-near={4} shadow-camera-far={32}
+      shadow-camera-left={-13} shadow-camera-right={13} shadow-camera-top={6} shadow-camera-bottom={-6} />
+    <directionalLight position={[9, 7, -7]} intensity={0.38} color="#dce8ff" />
     <Physics gravity={[0, -12, 0]}>
       <TableAndBounds />
       <TrackBoard trackName={trackName} />
@@ -387,8 +443,9 @@ export function RaceTableScene(props: RaceTableSceneProps) {
   });
   if (!webglAvailable) return <HtmlFallback players={props.players} finishLine={props.finishLine} />;
   return <section className="race-table-3d" aria-label="3D 比赛桌">
-    <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0, 19, 18], fov: 42, near: 0.1, far: 100 }}
-      gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}>
+    <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0, 19, 9], fov: 30, near: 0.1, far: 100 }}
+      gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
+      onCreated={({ gl }) => { gl.shadowMap.type = PCFSoftShadowMap; }}>
       <Scene {...props} />
     </Canvas>
   </section>;
