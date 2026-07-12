@@ -32,6 +32,7 @@ export const RACER_PIECE_DIMENSIONS = {
   portraitWidth: 0.62,
   portraitHeight: 0.9,
 } as const;
+export const FINISH_BADGE_RECT = { x: 38, y: 120, width: 85, height: 120 } as const;
 
 const REFERENCE_BOARD = { width: 1200, height: 360 } as const;
 const WORLD_SCALE = BOARD_SIZE.width / REFERENCE_BOARD.width;
@@ -76,7 +77,7 @@ function referenceRectForStep(step: number): ReferenceRect {
   if (step <= 29) {
     return { x: 1105 - (step - 15) * 70, y: 254, width: 70, height: 78, tangent: { x: -1, z: 0 } };
   }
-  return { x: 29, y: 254, width: 96, height: 78, tangent: { x: -1, z: 0 } };
+  return { ...FINISH_BADGE_RECT, tangent: { x: 0, z: -1 } };
 }
 
 const TRACK_POSES = Array.from(
@@ -85,9 +86,9 @@ const TRACK_POSES = Array.from(
 );
 
 const ELIMINATED_POSE: TrackPose = {
-  position: { x: 0, z: 4.25 },
+  position: { x: 0, z: 3.8 },
   tangent: { x: 1, z: 0 },
-  size: [5.6, 0.5],
+  size: [5.6, 0.35],
 };
 
 function clampSlotCount(slotCount: number): number {

@@ -45,10 +45,10 @@ describe("track layout", () => {
     expect(trackPose(15).position.z).toBeCloseTo(2.26);
     expect(trackPose(29).position.x).toBeCloseTo(-8.8);
     expect(trackPose(29).position.z).toBeCloseTo(2.26);
-    expect(trackPose(30).position.x).toBeCloseTo(-10.46);
-    expect(trackPose(30).position.z).toBeCloseTo(2.26);
-    expect(trackPose(30).size[0]).toBeCloseTo(1.86);
-    expect(trackPose(30).size[1]).toBeCloseTo(1.5);
+    expect(trackPose(30).position.x).toBeCloseTo(-10.39);
+    expect(trackPose(30).position.z).toBeCloseTo(0);
+    expect(trackPose(30).size[0]).toBeCloseTo(1.64);
+    expect(trackPose(30).size[1]).toBeCloseTo(2.34);
   });
 
   it("keeps every adjacent source cell edge aligned while reserving one consistent visible grid gap", () => {
@@ -58,8 +58,6 @@ describe("track layout", () => {
     expect(bottomEdge(trackPose(13))).toBeCloseTo(topEdge(trackPose(14)));
     expect(bottomEdge(trackPose(14))).toBeCloseTo(topEdge(trackPose(15)));
     expect(rightEdge(trackPose(16))).toBeCloseTo(leftEdge(trackPose(15)));
-    expect(rightEdge(trackPose(30))).toBeCloseTo(leftEdge(trackPose(29)));
-
     expect(leftEdge(trackPose(2)) - rightEdge(trackPose(1))).toBeCloseTo(0);
     expect(topEdge(trackPose(14)) - bottomEdge(trackPose(13))).toBeCloseTo(0);
     expect(

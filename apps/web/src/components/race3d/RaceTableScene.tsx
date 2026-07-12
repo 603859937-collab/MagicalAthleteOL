@@ -2,10 +2,12 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { CuboidCollider, Physics, RigidBody } from "@react-three/rapier";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { CanvasTexture, DoubleSide, SRGBColorSpace, TextureLoader } from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { PlayerState } from "../../protocol";
 import {
   assignRacerPlacements,
   BOARD_SIZE,
+  FINISH_BADGE_RECT,
   RACER_PIECE_DIMENSIONS,
   racerPieceScale,
   TRACK_LENGTH,
@@ -18,8 +20,11 @@ interface RaceTableSceneProps {
   trackName: "Standard" | "WildWilds";
 }
 
-const TILE_COLORS = ["#b652a1", "#efbd25", "#39804a", "#4a83c5", "#e34a32"];
+const TILE_COLORS = ["#ba64af", "#efbd27", "#4b8c46", "#568bd1", "#e2503b"];
 const PLAYER_COLORS = ["#e8422e", "#4386c6", "#efbd25", "#43a45c", "#d45f9d", "#855ab0"];
+const INK = "#171719";
+const PAPER = "#f7f4e9";
+const ARTBOARD = { width: 1200, height: 360 } as const;
 const WILD_TILES: Record<number, { label: string; color: string }> = {
   1: { label: "1", color: "#efbd25" }, 5: { label: "!", color: "#e4482c" },
   7: { label: "+3", color: "#4f7fb9" }, 11: { label: "+1", color: "#4f7fb9" },
@@ -32,7 +37,8 @@ function FixedCameraRig() {
   const { camera, size } = useThree();
   useLayoutEffect(() => {
     const aspect = size.width / Math.max(size.height, 1);
-    const distance = aspect < 1.2 ? 36 : aspect < 1.7 ? 30 : 18.5;
+    const horizontalFovSlope = Math.tan((42 * Math.PI) / 360);
+    const distance = Math.max(11.8, 13.25 / (horizontalFovSlope * aspect));
     const elevation = Math.PI * (52 / 180);
     camera.position.set(0, Math.sin(elevation) * distance, Math.cos(elevation) * distance);
     camera.lookAt(0, 0, 0);
@@ -41,151 +47,242 @@ function FixedCameraRig() {
   return null;
 }
 
-function useLabelTexture(label: string, color = "#171719", fontSize = 72, background = "") {
+function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  const r = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.lineTo(x + width - r, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + r);
+  context.lineTo(x + width, y + height - r);
+  context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  context.lineTo(x + r, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - r);
+  context.lineTo(x, y + r);
+  context.quadraticCurveTo(x, y, x + r, y);
+  context.closePath();
+}
+
+function fillRoundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number, color: string, stroke = INK) {
+  roundedRect(context, x, y, width, height, radius);
+  context.fillStyle = color;
+  context.fill();
+  context.strokeStyle = stroke;
+  context.lineWidth = 3;
+  context.stroke();
+}
+
+function drawTile(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, color: string) {
+  context.fillStyle = color;
+  context.fillRect(x, y, width, height);
+  context.strokeStyle = INK;
+  context.lineWidth = 3;
+  context.strokeRect(x + 1.5, y + 1.5, width - 3, height - 3);
+}
+
+function drawFlower(context: CanvasRenderingContext2D, x: number, y: number, color: string, scale = 1) {
+  context.save();
+  context.strokeStyle = "#347b38";
+  context.lineWidth = 3 * scale;
+  context.beginPath();
+  context.moveTo(x, y + 5 * scale);
+  context.lineTo(x - 5 * scale, y + 30 * scale);
+  context.stroke();
+  context.fillStyle = color;
+  for (let index = 0; index < 6; index += 1) {
+    const angle = index * Math.PI / 3;
+    context.beginPath();
+    context.arc(x + Math.cos(angle) * 8 * scale, y + Math.sin(angle) * 8 * scale, 7 * scale, 0, Math.PI * 2);
+    context.fill();
+  }
+  context.fillStyle = "#f2bd27";
+  context.beginPath();
+  context.arc(x, y, 5 * scale, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
+}
+
+function drawCreature(context: CanvasRenderingContext2D, x: number, y: number, mirror = false) {
+  context.save();
+  context.translate(x, y);
+  context.scale(mirror ? -1 : 1, 1);
+  context.fillStyle = "#4f94d5";
+  context.beginPath();
+  context.ellipse(0, 0, 27, 11, 0, 0, Math.PI * 2);
+  context.fill();
+  context.beginPath();
+  context.arc(21, -6, 9, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = PAPER;
+  context.beginPath();
+  context.arc(24, -8, 2.5, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
+}
+
+function drawFinishPodium(context: CanvasRenderingContext2D) {
+  const { x, y, width, height } = FINISH_BADGE_RECT;
+  fillRoundedRect(context, x, y, width, height, 24, PAPER);
+  fillRoundedRect(context, x + 8, y + 8, width - 16, height - 16, 14, INK, PAPER);
+  context.fillStyle = "#f2bd27";
+  context.beginPath();
+  context.arc(x + width / 2, y + 35, 18, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = PAPER;
+  context.lineWidth = 3;
+  context.stroke();
+  context.fillStyle = "#4f83ce";
+  context.beginPath();
+  context.arc(x + width / 2, y + 79, 17, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = PAPER;
+  context.stroke();
+  for (let row = 0; row < 2; row += 1) {
+    for (let column = 0; column < 6; column += 1) {
+      context.fillStyle = (row + column) % 2 === 0 ? PAPER : INK;
+      context.fillRect(x + 14 + column * 9, y + height - 19 + row * 7, 9, 7);
+    }
+  }
+  context.fillStyle = INK;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.font = "900 17px Impact, Arial Black, sans-serif";
+  context.fillText("1", x + width / 2, y + 35);
+  context.font = "900 20px Impact, Arial Black, sans-serif";
+  context.fillText("2", x + width / 2, y + 79);
+}
+
+function drawBoardArtwork(context: CanvasRenderingContext2D, trackName: RaceTableSceneProps["trackName"]) {
+  const wild = trackName === "WildWilds";
+  context.clearRect(0, 0, ARTBOARD.width, ARTBOARD.height);
+
+  roundedRect(context, 4, 4, 1192, 352, 42); context.fillStyle = INK; context.fill();
+  roundedRect(context, 12, 12, 1176, 336, 34); context.fillStyle = PAPER; context.fill();
+  roundedRect(context, 20, 20, 1160, 320, 28); context.fillStyle = INK; context.fill();
+
+  fillRoundedRect(context, 29, 28, 205, 78, 28, "#5b8fda");
+  context.fillStyle = "#e34a32";
+  context.strokeStyle = INK;
+  context.lineWidth = 3;
+  context.font = "900 34px Impact, Arial Black, PingFang SC, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.strokeText("起点", 132, 67);
+  context.fillText("起点", 132, 67);
+
+  for (let step = 1; step <= 12; step += 1) {
+    const feature = wild ? WILD_TILES[step] : undefined;
+    drawTile(context, 234 + (step - 1) * (871 / 12), 28, 871 / 12, 78, feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]);
+  }
+  for (let step = 13; step <= 14; step += 1) {
+    const feature = wild ? WILD_TILES[step] : undefined;
+    drawTile(context, 1105, 106 + (step - 13) * 74, 66, 74, feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]);
+  }
+  for (let step = 15; step <= 29; step += 1) {
+    const feature = wild ? WILD_TILES[step] : undefined;
+    drawTile(context, 1105 - (step - 15) * 70, 254, 70, 78, feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]);
+  }
+
+  context.fillStyle = "#111116";
+  context.fillRect(78, 113, 1027, 134);
+  context.strokeStyle = PAPER;
+  context.lineWidth = 3;
+  context.strokeRect(78, 113, 1027, 134);
+  context.fillStyle = wild ? "#6d3d94" : "#d97825";
+  context.beginPath();
+  context.ellipse(600, 223, 440, 16, 0, 0, Math.PI * 2);
+  context.fill();
+
+  if (wild) {
+    drawFlower(context, 172, 185, "#b85fc1", 0.9);
+    drawFlower(context, 236, 172, "#e6d961", 0.78);
+    drawFlower(context, 972, 177, "#d94b9b", 0.94);
+    drawFlower(context, 1032, 188, "#f2f0dc", 0.74);
+  } else {
+    drawFlower(context, 165, 181, "#f2f0dc", 0.8);
+    drawFlower(context, 215, 166, "#d94b9b", 1.1);
+    drawFlower(context, 953, 175, "#e74a32", 1.2);
+    drawFlower(context, 1019, 182, "#e4d62b", 0.85);
+    drawCreature(context, 306, 205);
+    drawCreature(context, 892, 203, true);
+  }
+
+  context.fillStyle = PAPER;
+  context.strokeStyle = INK;
+  context.lineWidth = 3;
+  context.font = "900 72px Impact, Arial Black, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.strokeText(wild ? "WILD WILDS" : "MILD MILE", 600, 172);
+  context.fillText(wild ? "WILD WILDS" : "MILD MILE", 600, 172);
+
+  const standardLabels = [5, 10, 15, 20, 25];
+  for (const step of standardLabels) {
+    const pose = trackPose(step);
+    const x = (pose.position.x / BOARD_SIZE.width + 0.5) * ARTBOARD.width;
+    const y = (pose.position.z / BOARD_SIZE.depth + 0.5) * ARTBOARD.height;
+    context.fillStyle = INK;
+    context.strokeStyle = PAPER;
+    context.lineWidth = 2;
+    context.font = "900 20px Impact, Arial Black, sans-serif";
+    context.strokeText(String(step), x, y);
+    context.fillText(String(step), x, y);
+  }
+  if (wild) {
+    for (const [stepText, feature] of Object.entries(WILD_TILES)) {
+      const pose = trackPose(Number(stepText));
+      const x = (pose.position.x / BOARD_SIZE.width + 0.5) * ARTBOARD.width;
+      const y = (pose.position.z / BOARD_SIZE.depth + 0.5) * ARTBOARD.height;
+      context.fillStyle = feature.color === "#e4482c" ? PAPER : INK;
+      context.strokeStyle = feature.color === "#e4482c" ? INK : PAPER;
+      context.lineWidth = 2;
+      context.font = "900 19px Impact, Arial Black, sans-serif";
+      context.strokeText(feature.label, x, y);
+      context.fillText(feature.label, x, y);
+    }
+  }
+  drawFinishPodium(context);
+}
+
+function useBoardTexture(trackName: RaceTableSceneProps["trackName"]) {
   const texture = useMemo(() => {
+    const scale = 2;
     const canvas = document.createElement("canvas");
-    canvas.width = 512;
-    canvas.height = 128;
+    canvas.width = ARTBOARD.width * scale;
+    canvas.height = ARTBOARD.height * scale;
     const context = canvas.getContext("2d");
     if (context) {
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      if (background) {
-        context.fillStyle = background;
-        context.fillRect(0, 0, canvas.width, canvas.height);
-      }
-      context.fillStyle = color;
-      context.font = `900 ${fontSize}px "Arial Black", "PingFang SC", Arial`;
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.fillText(label, canvas.width / 2, canvas.height / 2);
+      context.scale(scale, scale);
+      drawBoardArtwork(context, trackName);
     }
     const next = new CanvasTexture(canvas);
     next.colorSpace = SRGBColorSpace;
     return next;
-  }, [background, color, fontSize, label]);
+  }, [trackName]);
   useEffect(() => () => texture.dispose(), [texture]);
   return texture;
 }
 
-function TrackTile({ step, wild }: { step: number; wild: boolean }) {
-  const pose = trackPose(step);
-  const feature = wild ? WILD_TILES[step] : undefined;
-  const label = feature?.label ?? (!wild && step % 5 === 0 ? String(step) : "");
-  const texture = useLabelTexture(label, "#171719", feature ? 108 : 116);
-  return <group position={[pose.position.x, 0.38, pose.position.z]}>
-    <mesh castShadow receiveShadow>
-      <boxGeometry args={[pose.size[0], 0.18, pose.size[1]]} />
-      <meshStandardMaterial color={feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]} roughness={0.72} />
-    </mesh>
-    {label && <mesh position={[0, 0.096, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[Math.min(1.12, pose.size[0] * 0.86), 0.56]} />
-      <meshBasicMaterial map={texture} transparent depthWrite={false} />
-    </mesh>}
-  </group>;
-}
-
-function ThemeTitle({ text }: { text: string }) {
-  const texture = useLabelTexture(text, "#f8f7f1", 76);
-  return <mesh position={[0, 0.39, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-    <planeGeometry args={[8.5, 1.52]} />
-    <meshBasicMaterial map={texture} transparent depthWrite={false} />
+function BoardArtwork({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
+  const texture = useBoardTexture(trackName);
+  return <mesh position={[0, 0.255, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
+    <planeGeometry args={[BOARD_SIZE.width, BOARD_SIZE.depth]} />
+    <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped={false} />
   </mesh>;
 }
 
-function Flower({ x, z, color, scale = 1 }: { x: number; z: number; color: string; scale?: number }) {
-  return <group position={[x, 0.4, z]} scale={scale}>
-    <mesh position={[0, 0.35, 0]}><cylinderGeometry args={[0.035, 0.045, 0.7, 10]} /><meshStandardMaterial color="#3c944b" /></mesh>
-    {Array.from({ length: 6 }, (_, index) => {
-      const angle = index * Math.PI / 3;
-      return <mesh key={index} position={[Math.cos(angle) * 0.2, 0.76, Math.sin(angle) * 0.2]} castShadow>
-        <sphereGeometry args={[0.16, 12, 8]} /><meshStandardMaterial color={color} roughness={0.72} />
-      </mesh>;
-    })}
-    <mesh position={[0, 0.77, 0]}><sphereGeometry args={[0.12, 12, 8]} /><meshStandardMaterial color="#efbd25" /></mesh>
-  </group>;
-}
-
-function Pine({ x, z, scale = 1 }: { x: number; z: number; scale?: number }) {
-  return <group position={[x, 0.35, z]} scale={scale}>
-    <mesh position={[0, 0.38, 0]}><cylinderGeometry args={[0.09, 0.13, 0.76, 8]} /><meshStandardMaterial color="#755133" /></mesh>
-    <mesh position={[0, 0.76, 0]} castShadow><coneGeometry args={[0.48, 0.9, 10]} /><meshStandardMaterial color="#247044" roughness={0.86} /></mesh>
-    <mesh position={[0, 1.12, 0]} castShadow><coneGeometry args={[0.36, 0.74, 10]} /><meshStandardMaterial color="#318452" roughness={0.86} /></mesh>
-  </group>;
-}
-
-function CenterTheme({ wild }: { wild: boolean }) {
-  return <group>
-    <mesh position={[-0.17, 0.3, 0]} receiveShadow>
-      <boxGeometry args={[20.64, 0.07, 2.78]} />
-      <meshStandardMaterial color="#161619" roughness={0.9} />
-    </mesh>
-    <mesh position={[-0.17, 0.345, 0]} receiveShadow>
-      <boxGeometry args={[20.24, 0.025, 2.38]} />
-      <meshStandardMaterial color={wild ? "#563071" : "#5eaa62"} roughness={0.92} />
-    </mesh>
-    <ThemeTitle text={wild ? "WILD WILDS" : "MILD MILE"} />
-    {wild ? <>
-      <Pine x={-4.8} z={0.7} scale={0.92} /><Pine x={-4} z={0.48} scale={0.7} />
-      <Pine x={4.65} z={0.6} scale={0.95} /><Pine x={3.85} z={0.45} scale={0.68} />
-      <mesh position={[-4.35, 0.43, -0.75]} castShadow><dodecahedronGeometry args={[0.35]} /><meshStandardMaterial color="#a7a49b" roughness={1} /></mesh>
-      <group position={[4.5, 0.32, -0.78]}>
-        <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.1, 0.14, 0.5, 12]} /><meshStandardMaterial color="#eee4cb" /></mesh>
-        <mesh position={[0, 0.55, 0]} castShadow><sphereGeometry args={[0.34, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} /><meshStandardMaterial color="#e34832" /></mesh>
-      </group>
-    </> : <>
-      <Flower x={-4.75} z={0.45} color="#d45f9d" scale={0.85} />
-      <Flower x={4.75} z={0.45} color="#e34832" scale={0.9} />
-      <Flower x={-4.1} z={-0.65} color="#f7f4e9" scale={0.62} />
-      <mesh position={[-4.8, 0.47, -0.7]} castShadow><sphereGeometry args={[0.5, 16, 10]} /><meshStandardMaterial color="#4386c6" roughness={0.84} /></mesh>
-      <mesh position={[4.15, 0.43, -0.72]} castShadow><sphereGeometry args={[0.42, 16, 10]} /><meshStandardMaterial color="#efbd25" roughness={0.84} /></mesh>
-    </>}
-  </group>;
-}
-
-function StartAndFinish() {
-  const startTexture = useLabelTexture("起点", "#e34832", 108);
-  const finishTexture = useLabelTexture("终点", "#f8f7f1", 96, "#171719");
-  const firstTexture = useLabelTexture("1st", "#171719", 100, "#efbd25");
-  const secondTexture = useLabelTexture("2nd", "#f8f7f1", 92, "#4a83c5");
-  const start = trackPose(0);
-  const finish = trackPose(TRACK_LENGTH);
-  return <group>
-    <mesh position={[start.position.x, 0.38, start.position.z]} receiveShadow>
-      <boxGeometry args={[start.size[0], 0.18, start.size[1]]} />
-      <meshStandardMaterial color="#4a83c5" roughness={0.78} />
-    </mesh>
-    <mesh position={[start.position.x, 0.476, start.position.z]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[Math.min(2.45, start.size[0] * 0.66), 0.62]} /><meshBasicMaterial map={startTexture} transparent depthWrite={false} />
-    </mesh>
-    <mesh position={[finish.position.x, 0.38, finish.position.z]} receiveShadow>
-      <boxGeometry args={[finish.size[0], 0.18, finish.size[1]]} /><meshStandardMaterial color="#171719" roughness={0.88} />
-    </mesh>
-    <mesh position={[finish.position.x, 0.476, finish.position.z - finish.size[1] * 0.28]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[finish.size[0] * 0.76, 0.34]} /><meshBasicMaterial map={finishTexture} />
-    </mesh>
-    <mesh position={[finish.position.x, 0.476, finish.position.z]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[finish.size[0] * 0.76, 0.38]} /><meshBasicMaterial map={firstTexture} />
-    </mesh>
-    <mesh position={[finish.position.x, 0.476, finish.position.z + finish.size[1] * 0.28]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[finish.size[0] * 0.76, 0.34]} /><meshBasicMaterial map={secondTexture} />
-    </mesh>
-  </group>;
+function BoardBase() {
+  const geometry = useMemo(() => new RoundedBoxGeometry(BOARD_SIZE.width, 0.34, BOARD_SIZE.depth, 8, 0.72), []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <mesh geometry={geometry} receiveShadow position={[0, 0.08, 0]}>
+    <meshStandardMaterial color={INK} roughness={0.9} />
+  </mesh>;
 }
 
 function TrackBoard({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
-  const wild = trackName === "WildWilds";
   return <RigidBody type="fixed" colliders={false} friction={0.9} restitution={0.25}>
-    <mesh receiveShadow position={[0, 0.08, 0]}>
-      <boxGeometry args={[BOARD_SIZE.width, 0.34, BOARD_SIZE.depth]} />
-      <meshStandardMaterial color={wild ? "#dce9d8" : "#f4edda"} roughness={0.88} />
-    </mesh>
+    <BoardBase />
     <CuboidCollider args={[BOARD_SIZE.width / 2, 0.17, BOARD_SIZE.depth / 2]} position={[0, 0.08, 0]} />
-    <mesh position={[0, 0.275, 0]} receiveShadow>
-      <boxGeometry args={[22.96, 0.07, 6.18]} /><meshStandardMaterial color="#171719" roughness={0.9} />
-    </mesh>
-    {Array.from({ length: TRACK_LENGTH - 1 }, (_, index) => <TrackTile key={index + 1} step={index + 1} wild={wild} />)}
-    <StartAndFinish />
-    <CenterTheme wild={wild} />
+    <BoardArtwork trackName={trackName} />
   </RigidBody>;
 }
 
@@ -204,7 +301,7 @@ function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finishe
   const portraitWidth = RACER_PIECE_DIMENSIONS.portraitWidth * scale;
   const portraitHeight = RACER_PIECE_DIMENSIONS.portraitHeight * scale;
   const lean = tripped ? -Math.PI / 2 : 0;
-  return <RigidBody type="kinematicPosition" colliders={false} position={[world.x, 0.475, world.z]}>
+  return <RigidBody type="kinematicPosition" colliders={false} position={[world.x, 0.285, world.z]}>
     <CuboidCollider args={[portraitWidth / 2, (baseHeight + portraitHeight) / 2, 0.06 * scale]}
       position={[0, (baseHeight + portraitHeight) / 2, 0]} friction={0.7} restitution={0.45} />
     <group rotation={[lean, 0, 0]} position={[0, tripped ? baseHeight / 2 : 0, 0]}>
@@ -245,24 +342,24 @@ function RacerFleet({ players, finishLine }: Pick<RaceTableSceneProps, "players"
 
 function TableAndBounds() {
   return <RigidBody type="fixed" colliders={false}>
-    <mesh receiveShadow position={[0, -0.23, 0]}>
-      <boxGeometry args={[26, 0.34, 9.6]} />
-      <meshStandardMaterial color="#242326" roughness={0.86} />
+    <mesh receiveShadow position={[0, -0.12, 0]}>
+      <boxGeometry args={[25.2, 0.2, 8.1]} />
+      <meshStandardMaterial color="#79756d" roughness={1} />
     </mesh>
-    <CuboidCollider args={[13, 0.17, 4.8]} position={[0, -0.23, 0]} />
-    <CuboidCollider args={[13, 0.8, 0.12]} position={[0, 0.4, -4.8]} />
-    <CuboidCollider args={[13, 0.8, 0.12]} position={[0, 0.4, 4.8]} />
-    <CuboidCollider args={[0.12, 0.8, 4.8]} position={[-13, 0.4, 0]} />
-    <CuboidCollider args={[0.12, 0.8, 4.8]} position={[13, 0.4, 0]} />
+    <CuboidCollider args={[12.6, 0.1, 4.05]} position={[0, -0.12, 0]} />
+    <CuboidCollider args={[12.6, 0.8, 0.1]} position={[0, 0.4, -4.05]} />
+    <CuboidCollider args={[12.6, 0.8, 0.1]} position={[0, 0.4, 4.05]} />
+    <CuboidCollider args={[0.1, 0.8, 4.05]} position={[-12.6, 0.4, 0]} />
+    <CuboidCollider args={[0.1, 0.8, 4.05]} position={[12.6, 0.4, 0]} />
   </RigidBody>;
 }
 
 function Scene({ players, finishLine, trackName }: RaceTableSceneProps) {
   return <>
     <FixedCameraRig />
-    <color attach="background" args={["#242326"]} />
-    <hemisphereLight intensity={1.15} color="#fff9e9" groundColor="#4b5052" />
-    <directionalLight castShadow position={[-8, 15, 10]} intensity={2.6} shadow-mapSize={[1536, 1536]}
+    <color attach="background" args={["#6e6b65"]} />
+    <hemisphereLight intensity={1.25} color="#fff9e9" groundColor="#625f59" />
+    <directionalLight castShadow position={[-8, 15, 10]} intensity={2.2} shadow-mapSize={[1536, 1536]}
       shadow-camera-left={-14} shadow-camera-right={14} shadow-camera-top={9} shadow-camera-bottom={-9} />
     <Physics gravity={[0, -12, 0]}>
       <TableAndBounds />
