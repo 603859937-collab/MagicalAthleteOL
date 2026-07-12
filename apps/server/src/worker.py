@@ -132,6 +132,8 @@ class RoomDurableObject(DurableObject):
             return
         for websocket in self.ctx.getWebSockets():
             player_id = websocket.deserializeAttachment()
+            if not player_id:
+                continue
             member = self.room.players.get(player_id)
             if member is not None:
                 member.connected = True
@@ -192,7 +194,8 @@ class RoomDurableObject(DurableObject):
             raw = json.loads(message.decode() if isinstance(message, bytes) else message)
             intent = intent_adapter.validate_python(raw)
             player_id = websocket.deserializeAttachment()
-            if player_id is None:
+            # An unset attachment is JavaScript `undefined`, not Python `None`.
+            if not player_id:
                 if not isinstance(intent, JoinRoomIntent):
                     await socket.send_json(ErrorMessage(code="JOIN_REQUIRED", message="第一条消息必须加入房间").model_dump(by_alias=True))
                     await socket.close(1008, "join required")
