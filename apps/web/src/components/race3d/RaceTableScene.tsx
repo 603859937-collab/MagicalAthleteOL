@@ -3,7 +3,14 @@ import { CuboidCollider, Physics, RigidBody } from "@react-three/rapier";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { CanvasTexture, DoubleSide, SRGBColorSpace, TextureLoader } from "three";
 import type { PlayerState } from "../../protocol";
-import { assignRacerPlacements, BOARD_SIZE, TRACK_LENGTH, trackPose } from "./trackLayout";
+import {
+  assignRacerPlacements,
+  BOARD_SIZE,
+  RACER_PIECE_DIMENSIONS,
+  racerPieceScale,
+  TRACK_LENGTH,
+  trackPose,
+} from "./trackLayout";
 
 interface RaceTableSceneProps {
   players: PlayerState[];
@@ -25,8 +32,9 @@ function FixedCameraRig() {
   const { camera, size } = useThree();
   useLayoutEffect(() => {
     const aspect = size.width / Math.max(size.height, 1);
-    const distance = aspect < 1.2 ? 32 : aspect < 1.7 ? 23 : 19;
-    camera.position.set(0, distance, distance * 0.92);
+    const distance = aspect < 1.2 ? 36 : aspect < 1.7 ? 30 : 18.5;
+    const elevation = Math.PI * (52 / 180);
+    camera.position.set(0, Math.sin(elevation) * distance, Math.cos(elevation) * distance);
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
   }, [camera, size.height, size.width]);
@@ -62,14 +70,14 @@ function useLabelTexture(label: string, color = "#171719", fontSize = 72, backgr
 function TrackTile({ step, wild }: { step: number; wild: boolean }) {
   const pose = trackPose(step);
   const feature = wild ? WILD_TILES[step] : undefined;
-  const label = feature?.label ?? (!wild && step < TRACK_LENGTH && step % 5 === 0 ? String(step) : "");
+  const label = feature?.label ?? (!wild && step % 5 === 0 ? String(step) : "");
   const texture = useLabelTexture(label, "#171719", feature ? 108 : 116);
-  return <group position={[pose.position.x, 0.34, pose.position.z]}>
+  return <group position={[pose.position.x, 0.38, pose.position.z]}>
     <mesh castShadow receiveShadow>
-      <boxGeometry args={[pose.size[0], 0.2, pose.size[1]]} />
+      <boxGeometry args={[pose.size[0], 0.18, pose.size[1]]} />
       <meshStandardMaterial color={feature?.color ?? TILE_COLORS[(step - 1) % TILE_COLORS.length]} roughness={0.72} />
     </mesh>
-    {label && <mesh position={[0, 0.106, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+    {label && <mesh position={[0, 0.096, 0]} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[Math.min(1.12, pose.size[0] * 0.86), 0.56]} />
       <meshBasicMaterial map={texture} transparent depthWrite={false} />
     </mesh>}
@@ -79,7 +87,7 @@ function TrackTile({ step, wild }: { step: number; wild: boolean }) {
 function ThemeTitle({ text }: { text: string }) {
   const texture = useLabelTexture(text, "#f8f7f1", 76);
   return <mesh position={[0, 0.39, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-    <planeGeometry args={[9.5, 2.35]} />
+    <planeGeometry args={[8.5, 1.52]} />
     <meshBasicMaterial map={texture} transparent depthWrite={false} />
   </mesh>;
 }
@@ -107,12 +115,12 @@ function Pine({ x, z, scale = 1 }: { x: number; z: number; scale?: number }) {
 
 function CenterTheme({ wild }: { wild: boolean }) {
   return <group>
-    <mesh position={[0, 0.255, 0]} receiveShadow>
-      <boxGeometry args={[12.2, 0.06, 3.75]} />
+    <mesh position={[-0.17, 0.3, 0]} receiveShadow>
+      <boxGeometry args={[20.64, 0.07, 2.78]} />
       <meshStandardMaterial color="#161619" roughness={0.9} />
     </mesh>
-    <mesh position={[0, 0.292, 0]} receiveShadow>
-      <boxGeometry args={[11.75, 0.025, 3.28]} />
+    <mesh position={[-0.17, 0.345, 0]} receiveShadow>
+      <boxGeometry args={[20.24, 0.025, 2.38]} />
       <meshStandardMaterial color={wild ? "#563071" : "#5eaa62"} roughness={0.92} />
     </mesh>
     <ThemeTitle text={wild ? "WILD WILDS" : "MILD MILE"} />
@@ -136,21 +144,30 @@ function CenterTheme({ wild }: { wild: boolean }) {
 
 function StartAndFinish() {
   const startTexture = useLabelTexture("起点", "#e34832", 108);
-  const finishTexture = useLabelTexture("终点  FINISH", "#f8f7f1", 82, "#e34832");
+  const finishTexture = useLabelTexture("终点", "#f8f7f1", 96, "#171719");
+  const firstTexture = useLabelTexture("1st", "#171719", 100, "#efbd25");
+  const secondTexture = useLabelTexture("2nd", "#f8f7f1", 92, "#4a83c5");
+  const start = trackPose(0);
+  const finish = trackPose(TRACK_LENGTH);
   return <group>
-    <mesh position={[-10.45, 0.33, -3.25]} receiveShadow>
-      <boxGeometry args={[1.35, 0.18, 1.45]} /><meshStandardMaterial color="#4a83c5" roughness={0.78} />
+    <mesh position={[start.position.x, 0.38, start.position.z]} receiveShadow>
+      <boxGeometry args={[start.size[0], 0.18, start.size[1]]} />
+      <meshStandardMaterial color="#4a83c5" roughness={0.78} />
     </mesh>
-    <mesh position={[-10.45, 0.43, -3.25]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[1.28, 0.58]} /><meshBasicMaterial map={startTexture} transparent depthWrite={false} />
+    <mesh position={[start.position.x, 0.476, start.position.z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[Math.min(2.45, start.size[0] * 0.66), 0.62]} /><meshBasicMaterial map={startTexture} transparent depthWrite={false} />
     </mesh>
-    {[-0.34, 0.34].flatMap((xOffset) => [-0.34, 0.34].map((zOffset, index) => <mesh key={`${xOffset}:${zOffset}`} position={[-10.45 + xOffset, 0.43, 3.25 + zOffset]}>
-      <boxGeometry args={[0.67, 0.2, 0.72]} /><meshStandardMaterial color={(xOffset > 0) === (index > 0) ? "#f8f7f1" : "#171719"} />
-    </mesh>))}
-    <mesh position={[-11.25, 1.12, 3.25]}><cylinderGeometry args={[0.07, 0.09, 1.65, 10]} /><meshStandardMaterial color="#f8f7f1" /></mesh>
-    <mesh position={[-9.65, 1.12, 3.25]}><cylinderGeometry args={[0.07, 0.09, 1.65, 10]} /><meshStandardMaterial color="#f8f7f1" /></mesh>
-    <mesh position={[-10.45, 1.62, 3.3]}>
-      <planeGeometry args={[1.72, 0.58]} /><meshBasicMaterial map={finishTexture} side={DoubleSide} />
+    <mesh position={[finish.position.x, 0.38, finish.position.z]} receiveShadow>
+      <boxGeometry args={[finish.size[0], 0.18, finish.size[1]]} /><meshStandardMaterial color="#171719" roughness={0.88} />
+    </mesh>
+    <mesh position={[finish.position.x, 0.476, finish.position.z - finish.size[1] * 0.28]} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[finish.size[0] * 0.76, 0.34]} /><meshBasicMaterial map={finishTexture} />
+    </mesh>
+    <mesh position={[finish.position.x, 0.476, finish.position.z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[finish.size[0] * 0.76, 0.38]} /><meshBasicMaterial map={firstTexture} />
+    </mesh>
+    <mesh position={[finish.position.x, 0.476, finish.position.z + finish.size[1] * 0.28]} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[finish.size[0] * 0.76, 0.34]} /><meshBasicMaterial map={secondTexture} />
     </mesh>
   </group>;
 }
@@ -163,35 +180,44 @@ function TrackBoard({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
       <meshStandardMaterial color={wild ? "#dce9d8" : "#f4edda"} roughness={0.88} />
     </mesh>
     <CuboidCollider args={[BOARD_SIZE.width / 2, 0.17, BOARD_SIZE.depth / 2]} position={[0, 0.08, 0]} />
-    {Array.from({ length: TRACK_LENGTH }, (_, index) => <TrackTile key={index + 1} step={index + 1} wild={wild} />)}
+    <mesh position={[0, 0.275, 0]} receiveShadow>
+      <boxGeometry args={[22.96, 0.07, 6.18]} /><meshStandardMaterial color="#171719" roughness={0.9} />
+    </mesh>
+    {Array.from({ length: TRACK_LENGTH - 1 }, (_, index) => <TrackTile key={index + 1} step={index + 1} wild={wild} />)}
     <StartAndFinish />
     <CenterTheme wild={wild} />
   </RigidBody>;
 }
 
-function RacerPiece({ athleteId, name, color, world, tripped, finished, eliminated }: {
+function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finished, eliminated }: {
   athleteId: string; name: string; color: string; world: { x: number; z: number };
-  tripped: boolean; finished: boolean; eliminated: boolean;
+  slotCount: number; tripped: boolean; finished: boolean; eliminated: boolean;
 }) {
   const texture = useMemo(() => {
     const next = new TextureLoader().load(`/assets/racer-tokens/${athleteId}.webp`);
     next.colorSpace = SRGBColorSpace;
     return next;
   }, [athleteId]);
+  const scale = racerPieceScale(slotCount);
+  const baseHeight = 0.18 * scale;
+  const baseRadius = RACER_PIECE_DIMENSIONS.baseRadius * scale;
+  const portraitWidth = RACER_PIECE_DIMENSIONS.portraitWidth * scale;
+  const portraitHeight = RACER_PIECE_DIMENSIONS.portraitHeight * scale;
   const lean = tripped ? -Math.PI / 2 : 0;
-  return <RigidBody type="kinematicPosition" colliders={false} position={[world.x, 0.39, world.z]}>
-    <CuboidCollider args={[0.3, 0.55, 0.1]} position={[0, 0.55, 0]} friction={0.7} restitution={0.45} />
-    <group rotation={[lean, 0, 0]} position={[0, tripped ? 0.14 : 0, 0]}>
-      <mesh castShadow receiveShadow position={[0, 0.13, 0]}>
-        <cylinderGeometry args={[0.42, 0.48, 0.22, 24]} />
+  return <RigidBody type="kinematicPosition" colliders={false} position={[world.x, 0.475, world.z]}>
+    <CuboidCollider args={[portraitWidth / 2, (baseHeight + portraitHeight) / 2, 0.06 * scale]}
+      position={[0, (baseHeight + portraitHeight) / 2, 0]} friction={0.7} restitution={0.45} />
+    <group rotation={[lean, 0, 0]} position={[0, tripped ? baseHeight / 2 : 0, 0]}>
+      <mesh castShadow receiveShadow position={[0, baseHeight / 2, 0]}>
+        <cylinderGeometry args={[baseRadius * 0.88, baseRadius, baseHeight, 24]} />
         <meshStandardMaterial color={eliminated ? "#777777" : color} roughness={0.62} />
       </mesh>
-      <mesh castShadow position={[0, 0.82, 0]}>
-        <planeGeometry args={[0.92, 1.35]} />
+      <mesh castShadow position={[0, baseHeight + portraitHeight / 2 - 0.035 * scale, 0]}>
+        <planeGeometry args={[portraitWidth, portraitHeight]} />
         <meshStandardMaterial map={texture} transparent alphaTest={0.08} side={DoubleSide} roughness={0.7} opacity={eliminated ? 0.55 : 1} />
       </mesh>
-      {finished && <mesh position={[0, 0.18, 0.46]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.25, 0.34, 24]} /><meshBasicMaterial color="#efbd25" />
+      {finished && <mesh position={[0, baseHeight + 0.01, baseRadius * 1.1]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[baseRadius * 0.52, baseRadius * 0.72, 24]} /><meshBasicMaterial color="#efbd25" />
       </mesh>}
     </group>
     <mesh visible={false} name={name} />
@@ -212,7 +238,7 @@ function RacerFleet({ players, finishLine }: Pick<RaceTableSceneProps, "players"
     const player = players[placement.playerIndex];
     const racer = player.activeRacers.find((item) => item.id === placement.athleteId)!;
     return <RacerPiece key={`${player.id}:${racer.id}`} athleteId={racer.id} name={racer.nameZh}
-      color={PLAYER_COLORS[placement.playerIndex]} world={placement.world} tripped={racer.tripped}
+      color={PLAYER_COLORS[placement.playerIndex]} world={placement.world} slotCount={placement.slotCount} tripped={racer.tripped}
       finished={racer.finished} eliminated={racer.eliminated} />;
   })}</>;
 }
@@ -220,14 +246,14 @@ function RacerFleet({ players, finishLine }: Pick<RaceTableSceneProps, "players"
 function TableAndBounds() {
   return <RigidBody type="fixed" colliders={false}>
     <mesh receiveShadow position={[0, -0.23, 0]}>
-      <boxGeometry args={[26, 0.34, 11]} />
+      <boxGeometry args={[26, 0.34, 9.6]} />
       <meshStandardMaterial color="#242326" roughness={0.86} />
     </mesh>
-    <CuboidCollider args={[13, 0.17, 5.5]} position={[0, -0.23, 0]} />
-    <CuboidCollider args={[13, 0.8, 0.12]} position={[0, 0.4, -5.5]} />
-    <CuboidCollider args={[13, 0.8, 0.12]} position={[0, 0.4, 5.5]} />
-    <CuboidCollider args={[0.12, 0.8, 5.5]} position={[-13, 0.4, 0]} />
-    <CuboidCollider args={[0.12, 0.8, 5.5]} position={[13, 0.4, 0]} />
+    <CuboidCollider args={[13, 0.17, 4.8]} position={[0, -0.23, 0]} />
+    <CuboidCollider args={[13, 0.8, 0.12]} position={[0, 0.4, -4.8]} />
+    <CuboidCollider args={[13, 0.8, 0.12]} position={[0, 0.4, 4.8]} />
+    <CuboidCollider args={[0.12, 0.8, 4.8]} position={[-13, 0.4, 0]} />
+    <CuboidCollider args={[0.12, 0.8, 4.8]} position={[13, 0.4, 0]} />
   </RigidBody>;
 }
 
