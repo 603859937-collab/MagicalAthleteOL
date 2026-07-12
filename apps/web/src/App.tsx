@@ -24,6 +24,8 @@ type ViewState = {
 };
 
 const RaceDice = lazy(() => import("./components/RaceDice").then((module) => ({ default: module.RaceDice })));
+const RaceTableScene = lazy(() => import("./components/race3d/RaceTableScene").then((module) => ({ default: module.RaceTableScene })));
+const use3DRaceTable = new URLSearchParams(window.location.search).get("race3d") !== "false";
 
 const playerColors = ["red", "blue", "yellow", "green", "pink", "purple"];
 const tracks = ["Mild Mile", "Mild Mile", "Wild Wilds", "Wild Wilds"];
@@ -594,7 +596,9 @@ export default function App() {
       {game!.phase === "RACING" && (
         <section className="race-stage stage">
           <div className="race-heading"><div><p className="kicker">RACE {game!.raceNumber} / 4</p><h2>{tracks[game!.raceNumber - 1]}</h2></div><div className="reward"><span>🏆 {game!.raceRewards[0]}</span><span>◉ {game!.raceRewards[1]}</span></div></div>
-          <div className="track-wrap"><RaceTrack players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} /></div>
+          {use3DRaceTable ? <Suspense fallback={<div className="race-table-loading" aria-label="正在加载 3D 比赛桌" />}>
+            <RaceTableScene players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} />
+          </Suspense> : <div className="track-wrap"><RaceTrack players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} /></div>}
           <div className="race-console">
             <div className="score-strip">{game!.players.map((player, index) => <div className={game!.activePlayerId === player.id ? "active" : ""} key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><small>{player.score} 分</small></div>)}</div>
             <Suspense fallback={<div className="dice-loading" aria-label="正在加载比赛骰子" />}>
