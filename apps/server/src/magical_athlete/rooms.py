@@ -5,10 +5,8 @@ import secrets
 import string
 from datetime import UTC, datetime, timedelta
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 from uuid import uuid4
-
-from fastapi import WebSocket
 
 from .game import GameEngine, GameRuleError, GameState, GameTransition, MagsimGameEngine, Player
 from .protocol import (
@@ -34,12 +32,18 @@ class RoomError(Exception):
         self.code = code
 
 
+class RoomSocket(Protocol):
+    async def send_json(self, message: dict[str, Any]) -> None: ...
+
+    async def close(self, code: int = 1000, reason: str = "") -> None: ...
+
+
 @dataclass(slots=True)
 class RoomPlayer:
     player: Player
     reconnect_token: str
     connected: bool = True
-    socket: WebSocket | None = None
+    socket: RoomSocket | None = None
     seen_action_ids: set[str] = field(default_factory=set)
 
 
@@ -92,10 +96,11 @@ class InMemoryRoomRepository:
 
 
 class RoomManager:
-    def __init__(self, repository: InMemoryRoomRepository) -> None:
+    def __init__(self, repository: InMemoryRoomRepository, *, local_timers: bool = True) -> None:
         self.repository = repository
+        self.local_timers = local_timers
 
-    async def join(self, websocket: WebSocket, intent: JoinRoomIntent) -> tuple[Room, str]:
+    async def join(self, websocket: RoomSocket, intent: JoinRoomIntent) -> tuple[Room, str]:
         room = await self.repository.get(intent.room_id)
         if room is None:
             raise RoomError("ROOM_NOT_FOUND", "房间不存在")
@@ -252,6 +257,8 @@ class RoomManager:
         if pending is None:
             return
         room.decision_deadline = datetime.now(UTC) + timedelta(seconds=60)
+        if not self.local_timers:
+            return
         room.decision_task = asyncio.create_task(
             self._decision_timeout(room, pending["id"]),
             name=f"decision-timeout-{room.id}",
@@ -285,7 +292,33 @@ class RoomManager:
         except asyncio.CancelledError:
             return
 
-    async def disconnect(self, room: Room, player_id: str, websocket: WebSocket) -> None:
+    async def resolve_expired_decision(self, room: Room, now: datetime | None = None) -> bool:
+        async with room.lock:
+            state = room.game_state
+            current_time = now or datetime.now(UTC)
+            if (
+                state is None
+                or state.pending_decision is None
+                or room.decision_deadline is None
+                or room.decision_deadline > current_time
+            ):
+                return False
+            decision_id = state.pending_decision["id"]
+            player_id = state.pending_decision["playerId"]
+            transition = room.engine.resolve_decision(state, player_id, decision_id, "", timed_out=True)
+            room.game_state = transition.state
+            room.revision += 1
+            room.decision_deadline = None
+            if transition.state.pending_decision is not None:
+                self._sync_decision_timer_locked(room)
+            await self._broadcast_locked(room, {
+                "type": "STATE_UPDATED",
+                "events": list(transition.events),
+                "rollResults": self._roll_results(transition, room.revision),
+            })
+            return True
+
+    async def disconnect(self, room: Room, player_id: str, websocket: RoomSocket) -> None:
         async with room.lock:
             member = room.players.get(player_id)
             if member is None or member.socket is not websocket:
@@ -306,7 +339,7 @@ class RoomManager:
         self,
         room: Room,
         envelope: dict[str, Any],
-        exclude: WebSocket | None = None,
+        exclude: RoomSocket | None = None,
     ) -> None:
         failed: list[RoomPlayer] = []
         for recipient_id, member in room.players.items():

@@ -7,7 +7,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 h1, h2, h3, p { margin-top: 0; }
 .kicker { margin: 0 0 8px; color: #ee3825; font-size: .72rem; font-weight: 900; letter-spacing: .12em; }
 
-.entry { position: relative; display: grid; min-height: 100vh; padding: 8vh clamp(20px, 5vw, 72px) 6vh; align-content: space-between; overflow: hidden; color: white; background: #ef3824 url('/assets/rulebook-cover.jpg') center / cover no-repeat; }
+.entry { position: relative; display: grid; min-height: 100vh; padding: 8vh clamp(20px, 5vw, 72px) 6vh; align-content: space-between; overflow: hidden; color: white; background: #ef3824 url('/MagicalAthleteOL/assets/rulebook-cover.jpg') center / cover no-repeat; }
 .entry-shade { position: absolute; inset: 0; background: rgba(0, 0, 0, .14); }
 .entry-brand, .join-dock { position: relative; z-index: 1; }
 .entry-brand .kicker { color: white; }

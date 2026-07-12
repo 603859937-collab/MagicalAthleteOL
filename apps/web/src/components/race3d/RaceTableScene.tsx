@@ -4,6 +4,7 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { CanvasTexture, DoubleSide, PCFSoftShadowMap, SRGBColorSpace, TextureLoader } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { PlayerState } from "../../protocol";
+import { assetUrl } from "../../runtimeConfig";
 import {
   assignRacerPlacements,
   BOARD_SIZE,
@@ -303,7 +304,7 @@ function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finishe
   slotCount: number; tripped: boolean; finished: boolean; eliminated: boolean;
 }) {
   const texture = useMemo(() => {
-    const next = new TextureLoader().load(`/assets/racer-tokens/${athleteId}.webp`);
+    const next = new TextureLoader().load(assetUrl(`assets/racer-tokens/${athleteId}.webp`));
     next.colorSpace = SRGBColorSpace;
     return next;
   }, [athleteId]);

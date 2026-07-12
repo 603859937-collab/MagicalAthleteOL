@@ -4,6 +4,7 @@ import { actionId, GameClient, loadSession, roomFromPath, saveSession } from "./
 import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
 import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
 import { canRollRaceDice } from "./raceControls";
+import { apiUrl, assetUrl } from "./runtimeConfig";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
@@ -70,7 +71,7 @@ function RacerCard({ athlete, selected, disabled, used, compact, status, onClick
   const style = { "--card-accent": cardAccents[athlete.id] ?? "#f2bd27" } as CSSProperties;
   const face = <>
     <span className="racer-portrait">
-      <img src={`/assets/racers/${athlete.id}.webp`} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />
+      <img src={assetUrl(`assets/racers/${athlete.id}.webp`)} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />
       <strong className="racer-name">{athlete.nameZh}</strong>
     </span>
     <span className="ability-panel">{athlete.abilitySummary}</span>
@@ -162,10 +163,10 @@ export default function App() {
 
   async function createRoom() {
     setError("");
-    const response = await fetch("/api/rooms", { method: "POST" });
+    const response = await fetch(apiUrl("/api/rooms"), { method: "POST" });
     if (!response.ok) return setError("创建房间失败");
     const data = (await response.json()) as { roomId: string };
-    window.history.pushState({}, "", `/room/${data.roomId}`);
+    window.location.hash = `/room/${data.roomId}`;
     setRoomId(data.roomId);
   }
 

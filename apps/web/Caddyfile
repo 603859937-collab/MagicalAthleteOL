@@ -1,6 +1,10 @@
 :80 {
     root * /srv
     encode zstd gzip
+    handle_path /MagicalAthleteOL/* {
+        try_files {path} /index.html
+        file_server
+    }
     try_files {path} /index.html
     file_server
 }

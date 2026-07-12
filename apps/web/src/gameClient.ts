@@ -1,4 +1,5 @@
 import type { ClientIntent, ServerMessage } from "./protocol";
+import { websocketUrl } from "./runtimeConfig";
 
 export interface SessionIdentity {
   roomId: string;
@@ -25,7 +26,7 @@ export function saveSession(session: SessionIdentity): void {
 }
 
 export function roomFromPath(): string {
-  const match = window.location.pathname.match(/^\/room\/([A-Za-z]{4,8})\/?$/);
+  const match = window.location.hash.match(/^#\/room\/([A-Za-z]{4,8})\/?$/);
   return match?.[1]?.toUpperCase() ?? "";
 }
 
@@ -43,8 +44,7 @@ export class GameClient {
   ): void {
     this.close();
     onStatus("connecting");
-    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-    this.socket = new WebSocket(`${scheme}://${window.location.host}/ws`);
+    this.socket = new WebSocket(websocketUrl(intent.roomId));
     this.socket.addEventListener("open", () => {
       onStatus("connected");
       this.send(intent);

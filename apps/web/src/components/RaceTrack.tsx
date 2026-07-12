@@ -2,6 +2,7 @@ import { Container, Graphics, Sprite, Stage, Text } from "@pixi/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Assets, ColorMatrixFilter, TextStyle, Texture, type Graphics as PixiGraphics } from "pixi.js";
 import type { PlayerState } from "../protocol";
+import { assetUrl } from "../runtimeConfig";
 
 interface RaceTrackProps {
   players: PlayerState[];
@@ -103,7 +104,7 @@ function RacerToken({ id, name, color, finished }: { id: string; name: string; c
     let active = true;
     setTexture(null);
     setFailed(false);
-    Assets.load<Texture>(`/assets/racer-tokens/${id}.webp`)
+    Assets.load<Texture>(assetUrl(`assets/racer-tokens/${id}.webp`))
       .then((loaded) => { if (active) setTexture(loaded); })
       .catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
