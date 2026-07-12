@@ -124,20 +124,23 @@ class AbilityCopyLead(Ability, SelectionDecisionMixin[ActiveRacerState]):
         # Sort for deterministic behavior
         valid_targets.sort(key=lambda r: r.idx)
 
-        # 3. Ask the Agent which leader to copy
-        target = agent.make_selection_decision(
-            engine,
-            SelectionDecisionContext[
-                SelectionInteractive[ActiveRacerState],
-                ActiveRacerState,
-            ](
-                source=self,
-                event=event,
-                game_state=engine.state,
-                source_racer_idx=owner.idx,
-                options=valid_targets,
-            ),
-        )
+        # 3. Ask the Agent which leader to copy, unless there is no real choice.
+        if len(valid_targets) == 1:
+            target = valid_targets[0]
+        else:
+            target = agent.make_selection_decision(
+                engine,
+                SelectionDecisionContext[
+                    SelectionInteractive[ActiveRacerState],
+                    ActiveRacerState,
+                ](
+                    source=self,
+                    event=event,
+                    game_state=engine.state,
+                    source_racer_idx=owner.idx,
+                    options=valid_targets,
+                ),
+            )
 
         # Nothing new to copy
         if target is None:
