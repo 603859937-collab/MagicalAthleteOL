@@ -21,5 +21,15 @@ const trackTitle = trackName === "Standard" ? "Mild Mile" : "Wild Wilds";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<main className="table"><section className="stage">
   <div className="race-heading"><div><p className="kicker">RACE 3 / 4</p><h2>{trackTitle}</h2></div></div>
-  <RaceTableScene players={players} finishLine={30} trackName={trackName} />
+  <RaceTableScene players={players} finishLine={30} trackName={trackName} dice={{
+    enabled: false,
+    targetValue: null,
+    restingValue: 4,
+    rollKey: "preview",
+    autoThrow: false,
+    resetKey: 0,
+    activePlayerName: "玩家 1",
+    onThrow: () => undefined,
+    onSettled: () => undefined,
+  }} />
 </section></main>);

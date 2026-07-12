@@ -25,7 +25,6 @@ type ViewState = {
   playbackBusy: boolean;
 };
 
-const RaceDice = lazy(() => import("./components/RaceDice").then((module) => ({ default: module.RaceDice })));
 const RaceTableScene = lazy(() => import("./components/race3d/RaceTableScene").then((module) => ({ default: module.RaceTableScene })));
 const use3DRaceTable = new URLSearchParams(window.location.search).get("race3d") !== "false";
 
@@ -356,7 +355,7 @@ export default function App() {
           values: diceValues,
           events: message.events,
           finalSnapshot: message,
-          // A repeated launch with the same key is ignored by RaceDice. Keeping this true
+          // A repeated launch with the same key is ignored by the table dice. Keeping this true
           // gives remote clients a result-time retry if the start signal arrived before
           // their WebGL scene was ready.
           autoThrow: !localRollPendingRef.current,
@@ -606,27 +605,29 @@ export default function App() {
         <section className="race-stage stage">
           <div className="race-heading"><div><p className="kicker">RACE {game!.raceNumber} / 4</p><h2>{tracks[game!.raceNumber - 1]}</h2></div><div className="reward"><span>🏆 {game!.raceRewards[0]}</span><span>◉ {game!.raceRewards[1]}</span></div></div>
           {use3DRaceTable ? <Suspense fallback={<div className="race-table-loading" aria-label="正在加载 3D 比赛桌" />}>
-            <RaceTableScene players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} />
+            <RaceTableScene players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
+              enabled: canRollRaceDice(
+                controlGame,
+                playerId,
+                localRollPending || playbackBusy || !!rollAnimation || status !== "connected",
+              ),
+              targetValue: rollAnimation?.values[rollAnimation.index] ?? null,
+              restingValue: restingDiceValue,
+              rollKey: rollAnimation?.throwKey ?? (rollingActionId ? `start-${rollingActionId}` : `idle-${game!.raceNumber}`),
+              autoThrow: rollAnimation?.autoThrow ?? (rollingPlayerId !== null && !localRollPending),
+              resetKey: diceResetKey,
+              activePlayerName: game!.players.find((player) => player.id === (game!.pendingRoll?.nextPlayerId ?? game!.activePlayerId))?.name ?? "其他玩家",
+              onThrow: throwRaceDice,
+              onSettled: () => finishDiceAnimation(`${rollAnimation?.revision}-${rollAnimation?.index}`),
+            }} />
           </Suspense> : <div className="track-wrap"><RaceTrack players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} /></div>}
           <div className="race-console">
             <div className="score-strip">{game!.players.map((player, index) => <div className={game!.activePlayerId === player.id ? "active" : ""} key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><small>{player.score} 分</small></div>)}</div>
-            <Suspense fallback={<div className="dice-loading" aria-label="正在加载比赛骰子" />}>
-              <RaceDice
-                enabled={canRollRaceDice(
-                  controlGame,
-                  playerId,
-                  localRollPending || playbackBusy || !!rollAnimation || status !== "connected",
-                )}
-                targetValue={rollAnimation?.values[rollAnimation.index] ?? null}
-                restingValue={restingDiceValue}
-                rollKey={rollAnimation?.throwKey ?? (rollingActionId ? `start-${rollingActionId}` : `idle-${game!.raceNumber}`)}
-                autoThrow={rollAnimation?.autoThrow ?? (rollingPlayerId !== null && !localRollPending)}
-                resetKey={diceResetKey}
-                activePlayerName={game!.players.find((player) => player.id === (game!.pendingRoll?.nextPlayerId ?? game!.activePlayerId))?.name ?? "其他玩家"}
-                onThrow={throwRaceDice}
-                onSettled={() => finishDiceAnimation(`${rollAnimation?.revision}-${rollAnimation?.index}`)}
-              />
-            </Suspense>
+            {!use3DRaceTable && <button className="command dice-command" disabled={!canRollRaceDice(
+              controlGame,
+              playerId,
+              localRollPending || playbackBusy || !!rollAnimation || status !== "connected",
+            )} onClick={() => throwRaceDice(crypto.randomUUID())}>掷骰</button>}
           </div>
           <section className="race-roster" aria-label="本场角色卡牌">
             <div className="race-roster-heading"><p className="kicker">RACERS IN PLAY</p><h3>本场角色</h3></div>

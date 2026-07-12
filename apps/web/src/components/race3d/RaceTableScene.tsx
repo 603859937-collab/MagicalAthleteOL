@@ -1,6 +1,6 @@
 import { Canvas, useThree } from "@react-three/fiber";
 import { CuboidCollider, Physics, RigidBody } from "@react-three/rapier";
-import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CanvasTexture, DoubleSide, PCFSoftShadowMap, SRGBColorSpace, TextureLoader } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { PlayerState } from "../../protocol";
@@ -13,11 +13,23 @@ import {
   racerPieceScale,
   trackPose,
 } from "./trackLayout";
+import { TableDice, type DiceLauncher, type DiceThrowState } from "./TableDice";
 
-interface RaceTableSceneProps {
+export interface RaceTableSceneProps {
   players: PlayerState[];
   finishLine: number;
   trackName: "Standard" | "WildWilds";
+  dice: {
+    enabled: boolean;
+    targetValue: number | null;
+    restingValue: number;
+    rollKey: string;
+    autoThrow: boolean;
+    resetKey: number;
+    activePlayerName: string;
+    onThrow: (throwId: string) => void;
+    onSettled: () => void;
+  };
 }
 
 const TILE_COLORS = ["#ba64af", "#efbd27", "#4b8c46", "#568bd1", "#e2503b"];
@@ -367,7 +379,11 @@ function TableAndBounds() {
   </RigidBody>;
 }
 
-function Scene({ players, finishLine, trackName }: RaceTableSceneProps) {
+function Scene({ players, finishLine, trackName, dice, reducedMotion, onDiceStateChange, registerDiceLauncher }: RaceTableSceneProps & {
+  reducedMotion: boolean;
+  onDiceStateChange: (state: DiceThrowState) => void;
+  registerDiceLauncher: (launcher: DiceLauncher | null) => void;
+}) {
   return <>
     <FixedCameraRig />
     <color attach="background" args={["#6e6b65"]} />
@@ -381,32 +397,51 @@ function Scene({ players, finishLine, trackName }: RaceTableSceneProps) {
       <TableAndBounds />
       <TrackBoard trackName={trackName} />
       <Suspense fallback={null}><RacerFleet players={players} finishLine={finishLine} /></Suspense>
+      <TableDice {...dice} reducedMotion={reducedMotion} onStateChange={onDiceStateChange} registerLauncher={registerDiceLauncher} />
     </Physics>
   </>;
 }
 
-function HtmlFallback({ players, finishLine }: Pick<RaceTableSceneProps, "players" | "finishLine">) {
-  return <div className="race-table-fallback" role="img" aria-label="比赛位置">
-    {players.flatMap((player) => player.activeRacers.map((racer) => <div key={`${player.id}:${racer.id}`}>
-      <strong>{racer.nameZh}</strong>
-      <span>{racer.eliminated ? "已淘汰" : racer.finished ? "已完赛" : `${racer.position} / ${finishLine}`}{racer.tripped ? " · 已绊倒" : ""}</span>
-    </div>))}
-  </div>;
+function HtmlFallback({ players, finishLine, dice }: RaceTableSceneProps) {
+  return <section className="race-table-fallback" aria-label="比赛位置">
+    <div className="fallback-racers">
+      {players.flatMap((player) => player.activeRacers.map((racer) => <div key={`${player.id}:${racer.id}`}>
+        <strong>{racer.nameZh}</strong>
+        <span>{racer.eliminated ? "已淘汰" : racer.finished ? "已完赛" : `${racer.position} / ${finishLine}`}{racer.tripped ? " · 已绊倒" : ""}</span>
+      </div>))}
+    </div>
+    <div className={dice.targetValue ? "fallback-die landed" : "fallback-die"}>{dice.targetValue ?? dice.restingValue}</div>
+    <button className="dice-throw-button" disabled={!dice.enabled} onClick={() => dice.onThrow(crypto.randomUUID())}>掷骰</button>
+  </section>;
 }
 
 export function RaceTableScene(props: RaceTableSceneProps) {
+  const [diceState, setDiceState] = useState<DiceThrowState>("ready");
+  const diceLauncher = useRef<DiceLauncher | null>(null);
+  const registerDiceLauncher = useCallback((launcher: DiceLauncher | null) => { diceLauncher.current = launcher; }, []);
   const [webglAvailable] = useState(() => {
     try {
       const canvas = document.createElement("canvas");
       return Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
     } catch { return false; }
   });
-  if (!webglAvailable) return <HtmlFallback players={props.players} finishLine={props.finishLine} />;
-  return <section className="race-table-3d" aria-label="3D 比赛桌">
+  const [reducedMotion] = useState(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+  if (!webglAvailable) return <HtmlFallback {...props} />;
+  const status = diceState === "settled" && props.dice.targetValue ? `掷出 ${props.dice.targetValue}`
+    : diceState === "rolling" || diceState === "settling" ? `${props.dice.activePlayerName} 投掷中`
+      : props.dice.enabled ? "拖动骰子向内投掷" : `等待 ${props.dice.activePlayerName}`;
+  return <section className={`race-table-3d ${props.dice.enabled ? "dice-enabled" : ""}`} aria-label="3D 比赛桌">
     <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0, 19, 9], fov: 30, near: 0.1, far: 100 }}
       gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
       onCreated={({ gl }) => { gl.shadowMap.type = PCFSoftShadowMap; }}>
-      <Scene {...props} />
+      <Scene {...props} reducedMotion={reducedMotion} onDiceStateChange={setDiceState} registerDiceLauncher={registerDiceLauncher} />
     </Canvas>
+    <div className="table-dice-hud" aria-live="polite">
+      <strong>{status}</strong>
+      <button className="dice-throw-button" disabled={!props.dice.enabled || diceState !== "ready"} onClick={() => {
+        const throwId = crypto.randomUUID();
+        if (diceLauncher.current?.()) props.dice.onThrow(throwId);
+      }}>掷骰</button>
+    </div>
   </section>;
 }
