@@ -285,6 +285,8 @@ class MagsimGameEngine:
         else:
             next_state = replace(state, selections=selections)
         if next_state.phase == GamePhase.RACING:
+            if next_state.pending_decision is None:
+                return self._advance_turn_flow(next_state, events, start_turn=True)
             return self._transition_with_log(next_state, events)
         return GameTransition(next_state, tuple(events))
 
@@ -339,17 +341,13 @@ class MagsimGameEngine:
             raise GameRuleError("NOT_YOUR_TURN", "还没轮到你")
         if state.pending_decision is not None:
             raise GameRuleError("DECISION_PENDING", "请先完成当前技能选择")
+        if state.resolution_status != "WAITING_FOR_ROLL":
+            raise GameRuleError("ROLL_NOT_AVAILABLE", "当前不能掷骰")
 
         engine = state.magsim_engine
         events: list[dict[str, Any]] = []
-        previous_callback = engine.on_event_processed
-        engine.on_event_processed = lambda _engine, event: self._append_public_event(events, state, event)
-        try:
-            engine.start_turn()
-            complete = engine.continue_turn()
-        finally:
-            engine.on_event_processed = previous_callback
-        return self._finish_resolution(state, events, complete)
+        engine.request_main_roll()
+        return self._advance_turn_flow(state, events)
 
     def resolve_decision(
         self,
@@ -383,23 +381,23 @@ class MagsimGameEngine:
             "optionId": option_id,
             "automatic": timed_out,
         }]
-        previous_callback = engine.on_event_processed
-        engine.on_event_processed = lambda _engine, event: self._append_public_event(events, state, event)
-        try:
-            if not engine._setup_complete:
-                complete = engine.continue_setup()
-                turn_complete = False
-            else:
-                complete = engine.continue_turn()
-                turn_complete = complete
-        finally:
-            engine.on_event_processed = previous_callback
-        if not complete:
-            return self._finish_resolution(state, events, False)
-        if not turn_complete:
+        if not engine._setup_complete:
+            complete = engine.continue_setup()
+            if not complete:
+                pending = self._pending_decision(state, engine)
+                if pending is not None:
+                    events.append({"type": "DECISION_REQUIRED", **pending})
+                next_state = replace(
+                    state,
+                    pending_decision=pending,
+                    resolution_status="WAITING_FOR_DECISION",
+                )
+                return self._transition_with_log(next_state, events)
             next_state = replace(state, pending_decision=None, resolution_status="IDLE")
-            return self._transition_with_log(next_state, events)
-        return self._finish_resolution(state, events, True)
+            return self._advance_turn_flow(next_state, events, start_turn=True)
+        return self._advance_turn_flow(
+            replace(state, pending_decision=None), events
+        )
 
     def _pending_decision(
         self,
@@ -440,26 +438,18 @@ class MagsimGameEngine:
                 log.append({"sequence": len(log) + 1, **event})
         return GameTransition(replace(state, race_log=tuple(log)), tuple(events))
 
-    def _finish_resolution(self, state: GameState, events: list[dict[str, Any]], complete: bool) -> GameTransition:
+    def _positions(self, state: GameState) -> dict[str, int]:
         engine = state.magsim_engine
-        pending = self._pending_decision(state, engine)
-        positions = {
+        return {
             state.racer_athlete_by_index[racer.idx].id: racer.position or 0
             for racer in engine.state.racers
         }
-        if not complete:
-            if pending is not None:
-                events.append({"type": "DECISION_REQUIRED", **pending})
-            next_state = replace(state, positions=positions, pending_decision=pending, resolution_status="WAITING_FOR_DECISION")
-            return self._transition_with_log(next_state, events)
 
-        engine.advance_turn()
-        if engine.state.race_active:
-            active_player_id = state.racer_owner_by_index[engine.state.current_racer_idx]
-            events.append({"type": "TURN_CHANGED", "playerId": active_player_id})
-            next_state = replace(state, positions=positions, active_player_id=active_player_id, pending_decision=None, resolution_status="IDLE")
-            return self._transition_with_log(next_state, events)
-
+    def _finish_race(
+        self, state: GameState, events: list[dict[str, Any]]
+    ) -> GameTransition:
+        engine = state.magsim_engine
+        positions = self._positions(state)
         results = []
         race_points = {player.id: 0 for player in state.players}
         for racer in engine.state.racers:
@@ -472,6 +462,64 @@ class MagsimGameEngine:
         events.append({"type": "RACE_FINISHED", "raceNumber": state.race_number + 1})
         next_state = replace(state, phase=GamePhase.FINISHED if state.race_number == 3 else GamePhase.RACE_RESULTS, positions=positions, scores=scores, used_athlete_ids=frozenset(used), active_player_id=None, race_results=tuple(results), pending_decision=None, resolution_status="IDLE")
         return self._transition_with_log(next_state, events)
+
+    def _advance_turn_flow(
+        self,
+        state: GameState,
+        events: list[dict[str, Any]],
+        *,
+        start_turn: bool = False,
+    ) -> GameTransition:
+        from magsim.engine.game_engine import TurnProgress
+
+        engine = state.magsim_engine
+        previous_callback = engine.on_event_processed
+        engine.on_event_processed = (
+            lambda _engine, event: self._append_public_event(events, state, event)
+        )
+        try:
+            if start_turn:
+                engine.start_turn()
+            while True:
+                progress = engine.continue_turn()
+                positions = self._positions(state)
+                if progress is TurnProgress.WAITING_FOR_DECISION:
+                    pending = self._pending_decision(state, engine)
+                    if pending is not None:
+                        events.append({"type": "DECISION_REQUIRED", **pending})
+                    next_state = replace(
+                        state,
+                        positions=positions,
+                        pending_decision=pending,
+                        resolution_status="WAITING_FOR_DECISION",
+                    )
+                    return self._transition_with_log(next_state, events)
+                if progress is TurnProgress.WAITING_FOR_ROLL:
+                    next_state = replace(
+                        state,
+                        positions=positions,
+                        pending_decision=None,
+                        resolution_status="WAITING_FOR_ROLL",
+                    )
+                    return self._transition_with_log(next_state, events)
+
+                engine.advance_turn()
+                if not engine.state.race_active:
+                    return self._finish_race(state, events)
+                active_player_id = state.racer_owner_by_index[
+                    engine.state.current_racer_idx
+                ]
+                events.append({"type": "TURN_CHANGED", "playerId": active_player_id})
+                state = replace(
+                    state,
+                    positions=positions,
+                    active_player_id=active_player_id,
+                    pending_decision=None,
+                    resolution_status="IDLE",
+                )
+                engine.start_turn()
+        finally:
+            engine.on_event_processed = previous_callback
 
     def advance_race(self, state: GameState, player_id: str) -> GameTransition:
         if state.phase != GamePhase.RACE_RESULTS:

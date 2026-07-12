@@ -23,7 +23,7 @@ apps/server (FastAPI)
 
 正式规则由服务端 `MagsimGameEngine` 驱动，底层复用 `apps/server/src/magsim` 中 vendored 的 36 角色规则。游戏包含公开蛇形招募、四场秘密选将、`Standard, Standard, WildWilds, WildWilds` 固定赛程和逐场累计积分。两人使用官方双赛车手规则；三人可由房主选择标准或双赛车手变体。
 
-玩家发起一次 `ROLL_DICE` 会执行当前赛车手在 magsim 中的完整回合，包括主要移动、能力、反应、赛道格效果、回合结束和下一位 active racer 推进。第二名冲线后该场立即结束。
+服务端会在轮次到达时自动结算回合开始能力，并推进到技能选择或 `WAITING_FOR_ROLL`。只有当前玩家此时发起的 `ROLL_DICE` 才会生成骰点并继续执行主要移动、反应、赛道格效果和回合结束；摔倒恢复或已消耗主移动的轮次会自动换手。第二名冲线后该场立即结束。
 
 ## 本地运行
 

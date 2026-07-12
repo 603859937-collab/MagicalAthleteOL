@@ -27,7 +27,7 @@ WebSocket 建立后第一条消息必须是 `JOIN_ROOM`：
 { "type": "ADVANCE_RACE", "actionId": "a8" }
 ```
 
-`SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。`ROLL_DICE` 在服务端执行到本回合结束或下一个技能选择，不接受客户端点数或移动终点。`RESOLVE_DECISION` 只接受公开候选项中的 ID，且只能由 `pendingDecision.playerId` 提交。
+`SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。比赛轮次由服务端自动推进到技能选择或 `WAITING_FOR_ROLL`；`ROLL_DICE` 只在后者有效，并从服务端生成骰点后执行到本回合结束或下一个技能选择，不接受客户端点数或移动终点。`RESOLVE_DECISION` 只接受公开候选项中的 ID，且只能由 `pendingDecision.playerId` 提交。
 
 重复的 `actionId` 不会重复执行，服务端返回 `ACTION_ACK`。
 
@@ -45,7 +45,7 @@ LOBBY
 
 `DRAFTING` 公开 `draftPool`、`activePlayerId`、各玩家 `team` 与招募轮次。`CHARACTER_SELECTION` 只公开 `selectionLocked`；全部玩家锁定后，`activeRacers` 同时揭示。`raceNumber` 为 1–4，`trackName`、`raceRewards` 和 `scores` 始终来自服务端。
 
-比赛状态还包含 `pendingDecision`、`raceLog` 和 `resolutionStatus`。候选项对房间内所有玩家公开；待选状态包含 60 秒的 `deadlineAt`，超时后服务端采用该能力的 SmartAgent 推荐并继续。重连会恢复同一个决策 ID 和截止时间。
+比赛状态还包含 `pendingDecision`、`raceLog` 和 `resolutionStatus`。`resolutionStatus` 在轮次等待玩家掷骰时为 `WAITING_FOR_ROLL`，技能选择期间为 `WAITING_FOR_DECISION`。候选项对房间内所有玩家公开；待选状态包含 60 秒的 `deadlineAt`，超时后服务端采用该能力的 SmartAgent 推荐并继续。重连会恢复同一个决策 ID 和截止时间。
 
 ## 状态广播
 
