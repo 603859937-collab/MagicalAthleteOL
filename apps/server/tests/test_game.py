@@ -102,6 +102,8 @@ def test_selection_is_secret_and_requires_two_unique_racers_for_two_players() ->
     assert len(state.magsim_engine.state.racers) == 4
     assert [state.racer_owner_by_index[index] for index in range(4)] == ["p0", "p0", "p1", "p1"]
     assert all(engine.public_state(state, "p1")["players"][index]["activeRacers"] for index in range(2))
+    assert state.resolution_status == "WAITING_FOR_ROLL"
+    assert state.magsim_engine.state.roll_state.serial_id == 0
 
 
 def test_roll_serial_increases_across_turns() -> None:
@@ -206,6 +208,7 @@ def test_egg_setup_pauses_and_only_owner_can_resolve() -> None:
     )
     assert transition.state.pending_decision is None
     assert transition.state.magsim_engine._setup_complete is True
+    assert transition.state.resolution_status == "WAITING_FOR_ROLL"
     assert transition.events[0]["type"] == "DECISION_TIMED_OUT"
 
 

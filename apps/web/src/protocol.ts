@@ -88,7 +88,7 @@ export interface GameState {
   raceResults: RaceResult[];
   pendingDecision: PendingDecision | null;
   raceLog: GameEvent[];
-  resolutionStatus: "IDLE" | "ANIMATING" | "WAITING_FOR_DECISION";
+  resolutionStatus: "IDLE" | "ANIMATING" | "WAITING_FOR_DECISION" | "WAITING_FOR_ROLL";
 }
 
 export interface RoomSnapshot {

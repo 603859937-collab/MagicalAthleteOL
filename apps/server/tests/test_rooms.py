@@ -84,7 +84,7 @@ async def test_race_roll_broadcasts_started_before_authoritative_result() -> Non
 
 
 @pytest.mark.anyio
-async def test_tripped_turn_does_not_start_a_dice_animation() -> None:
+async def test_tripped_next_turn_recovers_without_an_extra_dice_animation() -> None:
     engine = MagsimGameEngine(random.Random(9))
     players = (Player("p0", "Alice"), Player("p1", "Bob"))
     teams = {
@@ -99,7 +99,9 @@ async def test_tripped_turn_does_not_start_a_dice_animation() -> None:
     )
     state = engine.select_racers(state, "p0", ("banana", "skipper")).state
     state = engine.select_racers(state, "p1", ("coach", "alchemist")).state
-    state.magsim_engine.get_racer(state.magsim_engine.state.current_racer_idx).tripped = True
+    current_idx = state.magsim_engine.state.current_racer_idx
+    next_idx = (current_idx + 1) % len(state.magsim_engine.state.racers)
+    state.magsim_engine.get_racer(next_idx).tripped = True
     active_player_id = state.active_player_id
     assert active_player_id is not None
 
@@ -121,9 +123,52 @@ async def test_tripped_turn_does_not_start_a_dice_animation() -> None:
     )
 
     for socket in sockets.values():
-        assert [message["type"] for message in socket.messages] == ["STATE_UPDATED"]
-        assert any(event["type"] == "TRIP_RECOVERED" for event in socket.messages[0]["events"])
-        assert not any(event["type"] == "DICE_ROLLED" for event in socket.messages[0]["events"])
+        assert [message["type"] for message in socket.messages] == [
+            "ROLL_STARTED",
+            "STATE_UPDATED",
+        ]
+        events = socket.messages[1]["events"]
+        assert any(event["type"] == "TRIP_RECOVERED" for event in events)
+        assert sum(event["type"] == "DICE_ROLLED" for event in events) == 1
+
+
+@pytest.mark.anyio
+async def test_invalid_roll_does_not_broadcast_roll_started() -> None:
+    engine = MagsimGameEngine(random.Random(9))
+    players = (Player("p0", "Alice"), Player("p1", "Bob"))
+    teams = {
+        "p0": (ATHLETE_BY_ID["banana"], ATHLETE_BY_ID["skipper"]),
+        "p1": (ATHLETE_BY_ID["coach"], ATHLETE_BY_ID["alchemist"]),
+    }
+    state = replace(
+        engine.create_game(players),
+        phase=GamePhase.CHARACTER_SELECTION,
+        teams=teams,
+        first_turn_player_id="p0",
+    )
+    state = engine.select_racers(state, "p0", ("banana", "skipper")).state
+    state = engine.select_racers(state, "p1", ("coach", "alchemist")).state
+    state = replace(state, resolution_status="IDLE")
+    sockets = {player.id: RecordingSocket() for player in players}
+    room = Room(
+        id="TEST",
+        engine=engine,
+        game_state=state,
+        players={
+            player.id: RoomPlayer(player, "token", socket=sockets[player.id])
+            for player in players
+        },
+    )
+
+    await RoomManager(InMemoryRoomRepository()).handle_intent(
+        room,
+        "p0",
+        RollDiceIntent(type="ROLL_DICE", actionId="invalid-roll"),
+    )
+
+    assert [message["type"] for message in sockets["p0"].messages] == ["ERROR"]
+    assert sockets["p0"].messages[0]["code"] == "ROLL_NOT_AVAILABLE"
+    assert sockets["p1"].messages == []
 
 
 def test_roll_preview_and_final_event_share_the_same_result_id() -> None:

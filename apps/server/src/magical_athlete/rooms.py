@@ -191,16 +191,12 @@ class RoomManager:
                         room.game_state, player_id, intent.athlete_ids
                     )
                 elif isinstance(intent, RollDiceIntent):
-                    current_racer = None
-                    if room.game_state.magsim_engine is not None:
-                        magsim_state = room.game_state.magsim_engine.state
-                        current_racer = magsim_state.racers[magsim_state.current_racer_idx]
                     if (
                         room.game_state.phase == "RACING"
                         and room.game_state.active_player_id == player_id
                         and room.game_state.magsim_engine is not None
-                        and current_racer is not None
-                        and not current_racer.tripped
+                        and room.game_state.pending_decision is None
+                        and room.game_state.resolution_status == "WAITING_FOR_ROLL"
                     ):
                         await self._broadcast_locked(
                             room,

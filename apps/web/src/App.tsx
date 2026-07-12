@@ -3,6 +3,7 @@ import { RaceTrack } from "./components/RaceTrack";
 import { actionId, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
 import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
 import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
+import { canRollRaceDice } from "./raceControls";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
@@ -599,7 +600,11 @@ export default function App() {
             <div className="score-strip">{game!.players.map((player, index) => <div className={game!.activePlayerId === player.id ? "active" : ""} key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><small>{player.score} 分</small></div>)}</div>
             <Suspense fallback={<div className="dice-loading" aria-label="正在加载比赛骰子" />}>
               <RaceDice
-                enabled={controlGame?.activePlayerId === playerId && !controlGame.pendingDecision && !localRollPending && !playbackBusy && !rollAnimation && status === "connected"}
+                enabled={canRollRaceDice(
+                  controlGame,
+                  playerId,
+                  localRollPending || playbackBusy || !!rollAnimation || status !== "connected",
+                )}
                 targetValue={rollAnimation?.values[rollAnimation.index] ?? null}
                 restingValue={restingDiceValue}
                 rollKey={rollAnimation?.throwKey ?? (rollingActionId ? `start-${rollingActionId}` : `idle-${game!.raceNumber}`)}

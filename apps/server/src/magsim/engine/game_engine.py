@@ -5,6 +5,7 @@ import logging
 import copy
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
 from magsim.ai.smart_agent import SmartAgent
@@ -78,6 +79,12 @@ if TYPE_CHECKING:
 AbilityCallback = Callable[[GameEvent, int, "GameEngine"], None]
 
 
+class TurnProgress(Enum):
+    WAITING_FOR_DECISION = auto()
+    WAITING_FOR_ROLL = auto()
+    TURN_COMPLETE = auto()
+
+
 @dataclass
 class Subscriber:
     callback: AbilityCallback
@@ -106,6 +113,7 @@ class GameEngine:
     _setup_complete: bool = field(default=False, init=False)
     _turn_in_progress: bool = field(default=False, init=False)
     _turn_end_triggered: bool = field(default=False, init=False)
+    _main_roll_requested: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
         """Assigns starting abilities to all racers and fires on_gain hooks."""
@@ -176,8 +184,14 @@ class GameEngine:
 
     def run_turn(self):
         self.start_turn()
-        if not self.continue_turn():
-            raise RuntimeError("run_turn cannot pause; use start_turn/continue_turn")
+        while True:
+            progress = self.continue_turn()
+            if progress is TurnProgress.WAITING_FOR_ROLL:
+                self.request_main_roll()
+                continue
+            if progress is TurnProgress.WAITING_FOR_DECISION:
+                raise RuntimeError("run_turn cannot pause; use start_turn/continue_turn")
+            return
 
     def start_turn(self) -> None:
         if self._turn_in_progress:
@@ -199,6 +213,7 @@ class GameEngine:
         self.log_info(f"=== START TURN: {racer.repr} ===")
         self._turn_in_progress = True
         self._turn_end_triggered = False
+        self._main_roll_requested = False
 
         # --- Pre-Turn Recording (for Heckler) ---
         self.push_event(
@@ -237,20 +252,32 @@ class GameEngine:
                     source="System",
                 ),
             )
-            self.push_event(
-                PerformMainRollEvent(
-                    target_racer_idx=cr,
-                    responsible_racer_idx=None,
-                    source="System",
-                ),
-            )
 
-    def continue_turn(self) -> bool:
-        """Resolve queued events until the turn ends or a choice is required."""
+    def request_main_roll(self) -> None:
+        """Resume a prepared turn by scheduling its authoritative main roll."""
+        if not self._turn_in_progress:
+            raise RuntimeError("start_turn must be called before request_main_roll")
+        racer = self.state.racers[self.state.current_racer_idx]
+        if self.state.queue or self._main_roll_requested or racer.main_move_consumed:
+            raise RuntimeError("main roll is not currently available")
+        self._main_roll_requested = True
+        self.push_event(
+            PerformMainRollEvent(
+                target_racer_idx=racer.idx,
+                responsible_racer_idx=None,
+                source="System",
+            ),
+        )
+
+    def continue_turn(self) -> TurnProgress:
+        """Resolve queued events until the turn ends or input is required."""
         if not self._turn_in_progress:
             raise RuntimeError("start_turn must be called before continue_turn")
         while self.state.race_active:
             if not self.state.queue:
+                racer = self.state.racers[self.state.current_racer_idx]
+                if not self._main_roll_requested and not racer.main_move_consumed:
+                    return TurnProgress.WAITING_FOR_ROLL
                 # If done with normal events, inject TurnEndEvent ONCE
                 if not self._turn_end_triggered:
                     self.push_event(
@@ -264,7 +291,7 @@ class GameEngine:
 
                 # If already triggered and still empty, we are truly done
                 self._turn_in_progress = False
-                return True
+                return TurnProgress.TURN_COMPLETE
             # -------------------------------
 
             # The detector mutates while checking. Include it in the event
@@ -317,9 +344,9 @@ class GameEngine:
                 self._handle_event(sched.event)
             except DecisionRequired:
                 self._restore_transaction(snapshot)
-                return False
+                return TurnProgress.WAITING_FOR_DECISION
         self._turn_in_progress = False
-        return True
+        return TurnProgress.TURN_COMPLETE
 
     def _calculate_board_hash(self) -> int:
         racer_states = tuple(

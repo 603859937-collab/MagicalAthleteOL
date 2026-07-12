@@ -1,4 +1,5 @@
 from magsim.core.interactive import DecisionBroker, InteractiveAgent
+from magsim.engine.game_engine import TurnProgress
 from magsim.engine.scenario import GameScenario, RacerConfig
 
 
@@ -16,9 +17,10 @@ def test_copycat_auto_copies_sole_leader_without_interactive_choice() -> None:
 
     scenario.engine.start_turn()
 
-    assert scenario.engine.continue_turn() is True
+    assert scenario.engine.continue_turn() is TurnProgress.WAITING_FOR_ROLL
     assert broker.pending is None
     assert "BananaTrip" in scenario.engine.get_racer(0).abilities
+    assert scenario.engine.state.roll_state.serial_id == 0
 
 
 def test_copycat_still_prompts_for_tied_leaders() -> None:
@@ -35,6 +37,7 @@ def test_copycat_still_prompts_for_tied_leaders() -> None:
 
     scenario.engine.start_turn()
 
-    assert scenario.engine.continue_turn() is False
+    assert scenario.engine.continue_turn() is TurnProgress.WAITING_FOR_DECISION
     assert broker.pending is not None
     assert broker.pending.ability_name == "CopyLead"
+    assert scenario.engine.state.roll_state.serial_id == 0
