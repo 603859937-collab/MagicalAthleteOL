@@ -40,6 +40,16 @@ Magical Athlete Online 是一个支持 **2–6 人实时联机**的网页桌游�
 
 ## 游戏画面
 
+### 3D 比赛棋盘
+
+<p align="center">
+  <img src="docs/assets/board.jpg" alt="Wild Wilds 3D 比赛棋盘预览" width="100%">
+</p>
+
+<p align="center"><sub>赛道、角色棋子、特殊格与物理骰子均在同一个 3D 场景中渲染。</sub></p>
+
+### 公开招募
+
 <p align="center">
   <img src="docs/assets/draft.jpg" alt="公开蛇形招募界面" width="100%">
 </p>
