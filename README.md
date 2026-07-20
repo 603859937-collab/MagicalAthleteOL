@@ -1,65 +1,145 @@
-# Magical Athlete Online
+<h1 align="center">Magical Athlete Online</h1>
 
-Magical Athlete 的 2–6 人多人网页版本。浏览器只提交玩家意图，所有掷骰、移动、能力触发、计分和阶段推进都由服务端权威状态机决定。
+<h3 align="center">把荒诞的魔法竞速桌游，带到每个人的浏览器里</h3>
 
-## 架构
+<p align="center">
+  <a href="https://xeonliu.github.io/MagicalAthleteOL/"><b>在线游玩</b></a> |
+  <a href="docs/rules.md"><b>玩法规则</b></a> |
+  <a href="docs/protocol.md"><b>通信协议</b></a> |
+  <a href="#架构"><b>项目架构</b></a>
+</p>
 
-```text
-apps/web (React + TypeScript + PixiJS / R3F + Rapier)
-    │  JSON / WebSocket
-    ▼
-apps/server (FastAPI 本地 / Cloudflare Worker 生产)
-    ├── RoomManager：连接、重连、广播、房间生命周期
-    └── GameEngine：纯状态转换端口
-          └── MagsimGameEngine（复用 vendored magsim 规则）
-```
+<p align="center">
+  <a href="https://github.com/xeonliu/MagicalAthelete/actions/workflows/deploy.yml"><img alt="Test and deploy" src="https://github.com/xeonliu/MagicalAthelete/actions/workflows/deploy.yml/badge.svg"></a>
+  <img alt="Players" src="https://img.shields.io/badge/players-2--6-E34A36">
+  <img alt="React 18" src="https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-authoritative_server-009688?logo=fastapi&logoColor=white">
+  <img alt="Cloudflare Workers" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white">
+</p>
 
-- `apps/web`：房间 UI 使用 React/HTML/CSS；当前跑道由 PixiJS 渲染，比赛骰子由独立的 React Three Fiber + Rapier 场景渲染。
-- `apps/server`：WebSocket 接收玩家意图，串行修改房间状态并广播事件。
-- `docs/protocol.md`：连接、消息和版本约定。
-- `docs/rules.md`：项目实现必须固化遵守的实体规则常量。
-- `docs/3d-race-plan.md`：已确认的全 3D 比赛桌目标架构、实施阶段和验收标准；实现完成前不代表当前渲染状态。
-- `infra/Caddyfile`：生产环境同域反向代理，避免额外的跨域配置。
+<p align="center">
+  <a href="https://xeonliu.github.io/MagicalAthleteOL/">
+    <img src="docs/assets/home.jpg" alt="Magical Athlete Online 游戏入口" width="100%">
+  </a>
+</p>
 
-正式规则由服务端 `MagsimGameEngine` 驱动，底层复用 `apps/server/src/magsim` 中 vendored 的 36 角色规则。游戏包含公开蛇形招募、四场秘密选将、`Standard, Standard, WildWilds, WildWilds` 固定赛程和逐场累计积分。两人使用官方双赛车手规则；三人可由房主选择标准或双赛车手变体。
+## 关于
 
-服务端会在轮次到达时自动结算回合开始能力，并推进到技能选择或 `WAITING_FOR_ROLL`。只有当前玩家此时发起的 `ROLL_DICE` 才会生成骰点并继续执行主要移动、反应、赛道格效果和回合结束；摔倒恢复或已消耗主移动的轮次会自动换手。第二名冲线后该场立即结束。
+Magical Athlete Online 是一个支持 **2–6 人实时联机**的网页桌游实现。创建四位房间号、邀请朋友加入，然后经历公开蛇形招募、秘密选将和四场充满意外的魔法竞速。
 
-## 本地运行
+浏览器只负责提交玩家意图。掷骰、移动、角色能力、计分和阶段推进全部由服务端权威状态机处理，因此每位玩家看到的都是同一场比赛。
 
-需要 Node.js 20+ 与 Python 3.12+。推荐安装 [uv](https://docs.astral.sh/uv/)。
+## 核心特性
 
-```bash
-# 终端 1
-cd apps/server
-uv sync --extra dev
-uv run uvicorn magical_athlete.main:app --reload
+- **完整比赛流程**：公开招募、秘密选将、四场固定赛程与累计积分一站完成。
+- **36 名魔法赛车手**：复用 `magsim` 规则实现，每名角色都有独立的互动能力。
+- **实时多人房间**：WebSocket 广播状态，支持断线重连、身份恢复与行动去重。
+- **服务端权威判定**：客户端无法决定骰点或越过阶段，规则只在一个地方执行。
+- **立体比赛桌**：React Three Fiber + Rapier 驱动 3D 骰子和赛场表现。
+- **云端持久化**：生产环境使用 Cloudflare Worker + Durable Objects 保存房间快照。
 
-# 终端 2
-cd apps/web
-npm install
-npm run dev
-```
+## 游戏画面
 
-打开 `http://localhost:5173`。前端开发服务器会把 `/api` 与 `/ws` 代理到 `localhost:8000`。
+<p align="center">
+  <img src="docs/assets/draft.jpg" alt="公开蛇形招募界面" width="100%">
+</p>
 
-也可以直接运行：
+<p align="center"><sub>从公开角色池组建队伍。招募顺序由掷骰决定，并在轮次间按蛇形方向推进。</sub></p>
+
+## 快速开始
+
+### Docker Compose
+
+仓库根目录执行：
 
 ```bash
 docker compose up --build
 ```
 
-然后打开 `http://localhost:8080`。
+打开 [http://localhost:8080](http://localhost:8080)，即可创建房间。使用无痕窗口或另一台设备加入同一房间，可以在本地测试多人流程。
 
-## magsim 代码来源
+### 从源码运行
 
-`apps/server/src/magsim` 是从上游 `magsim` 包 vendored 进来的普通 Python 模块，服务端代码直接 `import magsim`。更新上游规则时，重新同步该目录和 `apps/server/THIRD_PARTY_LICENSES/magsim-LICENSE`，再跑 server 测试确认 adapter 事件映射没有回归。
+需要 Node.js 20+、Python 3.12+，并推荐安装 [uv](https://docs.astral.sh/uv/)。
 
-本地 FastAPI 使用进程内房间仓库。生产环境的 Cloudflare Worker 将请求按四位房间号路由到 Durable Object；每个对象串行执行房间行动，以带 `schemaVersion` 的服务端二进制快照保存游戏状态、重连身份和 `actionId` 去重集合。Durable Object alarm 恢复 60 秒技能选择超时，并在最后活动 24 小时后清理无连接、无待决策的房间。
+```bash
+# 终端 1：权威游戏服务
+cd apps/server
+uv sync --extra dev
+uv run uvicorn magical_athlete.main:app --reload
 
-## Cloudflare 与 GitHub Pages 部署
+# 终端 2：网页客户端
+cd apps/web
+npm ci
+npm run dev
+```
 
-首次部署前，在 Cloudflare 创建仅用于此仓库的 API Token。最小权限为账户的 Workers Scripts 编辑、Workers Durable Objects 编辑；若账户界面把 Durable Objects 权限包含在 Workers Scripts 中，则不需要额外扩大权限。确认账户已启用 Python Workers、Durable Objects、WebSocket hibernation 和 alarms。
+打开 [http://localhost:5173/MagicalAthleteOL/](http://localhost:5173/MagicalAthleteOL/)。Vite 会将 `/api` 和 `/ws` 代理到 `localhost:8000`。
+
+## 架构
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│  apps/web · React + TypeScript                              │
+│  房间与角色 UI · React Three Fiber · Rapier · PixiJS        │
+└───────────────────────────┬──────────────────────────────────┘
+                            │ JSON / WebSocket
+┌───────────────────────────▼──────────────────────────────────┐
+│  apps/server · FastAPI / Cloudflare Worker                  │
+│  RoomManager · 连接、重连、广播、房间生命周期                │
+├──────────────────────────────────────────────────────────────┤
+│  GameEngine · 纯状态转换端口                                │
+│  MagsimGameEngine · 36 名角色与正式比赛规则                  │
+└───────────────────────────┬──────────────────────────────────┘
+                            │ 生产环境快照
+┌───────────────────────────▼──────────────────────────────────┐
+│  Cloudflare Durable Objects · 串行行动与持久化房间           │
+└──────────────────────────────────────────────────────────────┘
+```
+
+| 模块 | 职责 |
+| --- | --- |
+| [`apps/web`](apps/web) | 房间、招募、选将、比赛和结算界面；3D 骰子与赛场渲染 |
+| [`apps/server`](apps/server) | 接收玩家意图，串行推进权威状态并广播事件 |
+| [`apps/server/src/magsim`](apps/server/src/magsim) | vendored 规则引擎和 36 名赛车手能力 |
+| [`docs`](docs) | 固化规则、协议、架构计划和原始玩法资料 |
+| [`infra/Caddyfile`](infra/Caddyfile) | 本地容器环境的同域反向代理 |
+
+## 规则实现
+
+比赛采用公开蛇形招募和四场秘密选将，赛程固定为 `Standard, Standard, WildWilds, WildWilds`。两人游戏使用双赛车手规则；三人游戏可由房主选择标准或双赛车手变体。
+
+服务端会自动结算回合开始能力，并推进到技能选择或 `WAITING_FOR_ROLL`。只有当前玩家可以掷骰；主要移动、反应能力、赛道格效果和回合结束均由状态机依次解析。第二名赛车手冲线后，该场立即结束。
+
+## 文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [规则常量](docs/rules.md) | 项目实现必须遵守的实体规则与比赛约束 |
+| [通信协议](docs/protocol.md) | WebSocket 连接、消息格式和协议版本约定 |
+| [3D 比赛桌计划](docs/3d-race-plan.md) | 目标架构、实施阶段和验收标准 |
+| [玩法说明 PDF](docs/How_to_play_Magical_Athlete_compressed.pdf) | 原始玩法参考资料 |
+
+## 开发与测试
+
+```bash
+# 运行服务端与前端测试
+make test
+
+# 构建生产前端
+make build
+```
+
+也可以分别运行 `cd apps/server && uv run pytest` 与 `cd apps/web && npm test`。
+
+## 部署
+
+推送到 `main` 后，[GitHub Actions](.github/workflows/deploy.yml) 会依次运行 Python 测试、前端测试和生产构建，然后发布 GitHub Pages。Cloudflare Worker 使用下方的 Pywrangler 流程单独发布。线上站点为 [xeonliu.github.io/MagicalAthleteOL](https://xeonliu.github.io/MagicalAthleteOL/)。
+
+<details>
+<summary><b>Cloudflare 与 GitHub Pages 配置</b></summary>
+
+首次部署前，在 Cloudflare 创建仅用于本仓库的 API Token。最小权限为账户的 Workers Scripts 编辑、Workers Durable Objects 编辑；若账户界面已将 Durable Objects 权限包含在 Workers Scripts 中，则无需扩大权限。账户还需启用 Python Workers、Durable Objects、WebSocket hibernation 和 alarms。
 
 GitHub 仓库需要以下配置：
 
@@ -67,21 +147,19 @@ GitHub 仓库需要以下配置：
 - Actions variable：`CLOUDFLARE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev`
 - Settings > Pages > Source：`GitHub Actions`
 
-推送 `main` 后，[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 会先运行 Python/前端测试与生产构建，再发布 Worker（首次发布同时应用 Durable Object `v1` migration），最后部署 `apps/web/dist`。站点地址为 `https://xeonliu.github.io/MagicalAthleteOL/`，分享链接格式为 `https://xeonliu.github.io/MagicalAthleteOL/#/room/ABCD`。
+分享链接格式为 `https://xeonliu.github.io/MagicalAthleteOL/#/room/ABCD`。
 
-### 本地调试和发布 Cloudflare Worker
+</details>
 
-Pywrangler 当前需要 `uv >= 0.8.10`、Python 3.13 和 Node 20/22 LTS。不要使用 Node 26：Pyodide 3.13.2 会传入 Node 26 已移除的 `--experimental-wasm-stack-switching` 参数。macOS 可以并行安装 Node 22，而不必卸载现有 Node：
+<details>
+<summary><b>本地调试与发布 Cloudflare Worker</b></summary>
+
+Pywrangler 当前需要 `uv >= 0.8.10`、Python 3.13 和 Node 20/22 LTS。不要使用 Node 26：Pyodide 3.13.2 会传入 Node 26 已移除的 `--experimental-wasm-stack-switching` 参数。
 
 ```bash
 brew install node@22
 export PATH="$(brew --prefix node@22)/bin:$PATH"
-node --version  # 应为 v22.x
-```
 
-在仓库根目录安装锁定依赖，然后启动本地 Worker：
-
-```bash
 uv sync
 uv run pywrangler dev
 curl http://localhost:8787/api/health
@@ -90,28 +168,12 @@ curl http://localhost:8787/api/health
 首次从本机发布时，可以在浏览器登录 Cloudflare：
 
 ```bash
-export PATH="$(brew --prefix node@22)/bin:$PATH"
 uv run pywrangler login
 uv run pywrangler deploy --dry-run
 uv run pywrangler deploy
 ```
 
-也可以使用和 GitHub Actions 相同的 API Token，适合无浏览器或自动化环境：
-
-```bash
-export PATH="$(brew --prefix node@22)/bin:$PATH"
-export CLOUDFLARE_ACCOUNT_ID="<account-id>"
-export CLOUDFLARE_API_TOKEN="<api-token>"
-uv run pywrangler deploy --dry-run
-uv run pywrangler deploy
-```
-
-首次正式发布会创建 `RoomDurableObject` 的 `v1` migration。发布后用命令输出的 `workers.dev` 地址验证接口：
-
-```bash
-curl https://<worker>.<subdomain>.workers.dev/api/health
-curl -X POST https://<worker>.<subdomain>.workers.dev/api/rooms
-```
+也可以设置 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN`，使用和 GitHub Actions 相同的 API Token 发布。首次正式发布会创建 `RoomDurableObject` 的 `v1` migration。
 
 前端生产构建使用同一个 Worker 地址：
 
@@ -120,4 +182,12 @@ cd apps/web
 VITE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev npm run build
 ```
 
-回滚 Worker 时用 Cloudflare Dashboard 的 Workers & Pages > Deployments 选择上一版本；Pages 可在 GitHub Actions 中重新运行先前成功提交。不要删除或回退 `wrangler.toml` 中已经应用的 migration tag。快照格式升级必须先增加兼容读取或显式迁移，不能直接覆盖 `schemaVersion`。
+回滚 Worker 时，在 Cloudflare Dashboard 的 Workers & Pages > Deployments 中选择上一版本；Pages 可在 GitHub Actions 中重新运行先前成功的提交。不要删除或回退 `wrangler.toml` 中已经应用的 migration tag。快照格式升级必须先增加兼容读取或显式迁移，不能直接覆盖 `schemaVersion`。
+
+</details>
+
+## 代码来源
+
+`apps/server/src/magsim` 是从上游 `magsim` 包 vendored 进来的普通 Python 模块。更新规则时，需要同步该目录与 [`magsim-LICENSE`](apps/server/THIRD_PARTY_LICENSES/magsim-LICENSE)，并运行服务端测试确认 adapter 的事件映射没有回归。
+
+Magical Athlete 的名称、规则与美术资产归其各自权利人所有。本仓库中的第三方代码按对应许可证使用。
