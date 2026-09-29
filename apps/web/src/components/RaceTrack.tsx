@@ -118,6 +118,8 @@ export function RaceTrack({ players, finishLine, trackName, moment }: RaceTrackP
         }} />}
         <RacerToken id={racer.id} name={racer.nameZh} color={playerColors[placement.playerIndex % playerColors.length]}
           finished={racer.finished} />
+        {(racer.finishPosition === 1 || racer.finishPosition === 2) && <Text text={racer.finishPosition === 1 ? "✹" : "✺"} x={0} y={-34} anchor={.5}
+          style={new TextStyle({ fill: racer.finishPosition === 1 ? 0xef3825 : 0xd965ab, fontSize: 28, fontWeight: "900", stroke: 0xf2bd27, strokeThickness: 2 })} />}
         {(racer.tripped || racer.finished) && <Text text={racer.tripped ? "×" : "★"} x={15} y={-23} anchor={.5}
           style={new TextStyle({ fill: racer.tripped ? 0xe63a24 : 0xf2bd27, fontSize: 16, fontWeight: "900", stroke: ink, strokeThickness: 2 })} />}
       </Container>;

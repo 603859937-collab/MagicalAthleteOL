@@ -2,6 +2,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CuboidCollider, Physics, RigidBody, type RapierRigidBody } from "@react-three/rapier";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CanvasTexture, DoubleSide, ExtrudeGeometry, PCFSoftShadowMap, Shape, SRGBColorSpace, TextureLoader, Vector3 } from "three";
+import { FinishFireworks } from "./FinishFireworks";
 import type { ActionMoment } from "../../eventPresentation";
 import type { PlayerState } from "../../protocol";
 import { assetUrl } from "../../runtimeConfig";
@@ -132,10 +133,10 @@ function TrackBoard({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
   </RigidBody>;
 }
 
-function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finished, eliminated, reducedMotion, highlight }: {
+function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finished, finishPosition, eliminated, reducedMotion, highlight }: {
   highlight?: string;
   athleteId: string; name: string; color: string; world: { x: number; z: number };
-  reducedMotion: boolean; slotCount: number; tripped: boolean; finished: boolean; eliminated: boolean;
+  reducedMotion: boolean; slotCount: number; tripped: boolean; finished: boolean; finishPosition?: number | null; eliminated: boolean;
 }) {
   const texture = useMemo(() => {
     const next = new TextureLoader().load(assetUrl(`assets/racer-tokens/${athleteId}.webp`));
@@ -178,6 +179,7 @@ function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finishe
         <ringGeometry args={[baseRadius * 0.52, baseRadius * 0.72, 24]} /><meshBasicMaterial color="#efbd25" />
       </mesh>}
     </group>
+    {finished && (finishPosition === 1 || finishPosition === 2) && <FinishFireworks place={finishPosition} reducedMotion={reducedMotion} />}
     <mesh visible={false} name={name} />
   </RigidBody>;
 }
@@ -200,7 +202,7 @@ function RacerFleet({ players, finishLine, reducedMotion, moment, focus }: Pick<
         : moment?.source.playerId === player.id && moment.source.athleteId === racer.id ? "#37d7ec"
         : focus?.athleteId === racer.id && (!focus.playerId || focus.playerId === player.id) ? "#37d7ec" : undefined}
       reducedMotion={reducedMotion} color={PLAYER_COLORS[placement.playerIndex]} world={placement.world} slotCount={placement.slotCount} tripped={racer.tripped}
-      finished={racer.finished} eliminated={racer.eliminated} />;
+      finished={racer.finished} finishPosition={racer.finishPosition} eliminated={racer.eliminated} />;
   })}</>;
 }
 

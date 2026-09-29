@@ -10,7 +10,7 @@ import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPre
 import { canRollRaceDice, raceDiceTurnKey } from "./raceControls";
 import { apiUrl, assetUrl } from "./runtimeConfig";
 import { scoreLabel } from "./scorePresentation";
-import { playMoveSound, unlockGameAudio } from "./gameAudio";
+import { playCharacterScoreSound, playMoveSound, playFireworkSound, unlockGameAudio } from "./gameAudio";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
@@ -120,6 +120,8 @@ export default function App() {
   const [restingDiceValue, setRestingDiceValue] = useState(1);
   const [cameraFocus, setCameraFocus] = useState<{ athleteId: string; playerId?: string; close: boolean } | null>(null);
   const [raceDetailsOpen, setRaceDetailsOpen] = useState(false);
+  const [feedOpen, setFeedOpen] = useState(false);
+  const [feedPosition, setFeedPosition] = useState<{ x: number; y: number } | null>(null);
   const [moment, setMoment] = useState<Moment | null>(null);
   const [rollOffResult, setRollOffResult] = useState<{ outcome: string; winnerId?: string } | null>(null);
   const [decisionSeconds, setDecisionSeconds] = useState(0);
@@ -137,6 +139,8 @@ export default function App() {
   const activePlayback = useRef<RacePlayback | null>(null);
   const eventPlaybackActive = useRef(false);
   const finishingRollKey = useRef<string | null>(null);
+  const feedDragRef = useRef<{ offsetX: number; offsetY: number; moved: boolean } | null>(null);
+  const feedClickSuppressedRef = useRef(false);
   const revealTimer = useRef<number | null>(null);
   const playbackId = useRef(0);
 
@@ -189,11 +193,15 @@ export default function App() {
 
   async function createRoom() {
     setError("");
-    const response = await fetch(apiUrl("/api/rooms"), { method: "POST" });
-    if (!response.ok) return setError("创建房间失败");
-    const data = (await response.json()) as { roomId: string };
-    window.location.hash = `/room/${data.roomId}`;
-    setRoomId(data.roomId);
+    try {
+      const response = await fetch(apiUrl("/api/rooms"), { method: "POST" });
+      if (!response.ok) return setError("创建房间失败");
+      const data = (await response.json()) as { roomId: string };
+      window.location.hash = `/room/${data.roomId}`;
+      setRoomId(data.roomId);
+    } catch {
+      setError("无法连接服务器，请稍后重试");
+    }
   }
 
   function joinRoom() {
@@ -229,7 +237,7 @@ export default function App() {
   }
 
   function hasRaceAnimationEvents(events: GameEvent[]) {
-    return events.some((event) => ["RACER_MOVED", "RACER_WARPED", "RACER_TRIPPED", "ABILITY_TRIGGERED"].includes(event.type));
+    return events.some((event) => ["RACER_MOVED", "RACER_WARPED", "RACER_TRIPPED", "RACER_FINISHED", "ABILITY_TRIGGERED"].includes(event.type));
   }
 
   function isRacePlaybackSnapshot(message: RoomSnapshot) {
@@ -506,6 +514,16 @@ export default function App() {
       return true;
     };
     const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+    const celebrate = (event: GameEvent) => {
+      const racer = working.game.players.find((p) => p.id === event.playerId)?.activeRacers.find((r) => r.id === event.athleteId);
+      if (!racer || racer.finished) return;
+      racer.finished = true;
+      racer.finishPosition = event.finishPosition ?? null;
+      racer.position = working.game.finishLine;
+      publish();
+      if (event.finishPosition === 1 || event.finishPosition === 2) playFireworkSound(event.finishPosition);
+      else playCharacterScoreSound();
+    };
     if (events.some((event) => event.type === "START_DICE_ROLLED")) {
       const result = rollOffPresentation(working, finalSnapshot, events);
       publishSnapshot(result.display);
@@ -518,6 +536,11 @@ export default function App() {
     }
     for (const event of events) {
       if (cancelled()) return;
+      if (event.type === "RACER_FINISHED") {
+        celebrate(event);
+        if (event.finishPosition === 1 || event.finishPosition === 2) await pause(3400);
+        continue;
+      }
       // Some engine notifications follow their effect. Do not replay them as a second action.
       if (isRedundantAbilityEvent(event, events)) continue;
       const currentMoment = actionMoment(event, working.game.players, events);
@@ -539,6 +562,10 @@ export default function App() {
             await pause(180);
             if (cancelled()) return;
             racer.position = event.to;
+            if (racer.position >= working.game.finishLine) {
+              const finish = events.find((e) => e.type === "RACER_FINISHED" && e.playerId === event.playerId && e.athleteId === event.athleteId);
+              if (finish) celebrate(finish);
+            }
             if (!publish()) return;
             playMoveSound();
             await pause(320);
@@ -549,6 +576,10 @@ export default function App() {
             for (let position = start + direction; direction > 0 ? position <= event.to : position >= event.to; position += direction) {
               if (cancelled()) return;
               racer.position = position;
+              if (position >= working.game.finishLine) {
+                const finish = events.find((e) => e.type === "RACER_FINISHED" && e.playerId === event.playerId && e.athleteId === event.athleteId);
+                if (finish) celebrate(finish);
+              }
               if (!publish()) return;
               playMoveSound();
               await pause(use3DRaceTable ? 340 : 220);
@@ -715,12 +746,43 @@ export default function App() {
       {(game!.phase === "RACE_RESULTS" || game!.phase === "FINISHED") && (
         <section className="results-stage stage">
           <div className="stage-title"><p className="kicker">{game!.phase === "FINISHED" ? "FINAL SCORE" : `RACE ${game!.raceNumber} COMPLETE`}</p><h2>{game!.phase === "FINISHED" ? (game!.winnerIds.length > 1 ? "并列冠军" : `${game!.players.find((p) => p.id === game!.winnerIds[0])?.name} 获胜`) : "本场成绩"}</h2></div>
-          <div className="podium-list">{game!.players.slice().sort((a, b) => b.score - a.score).map((player, index) => <div key={player.id} className={index === 0 ? "leader" : ""}><span>{index + 1}</span><strong>{player.name}</strong><div className="result-racers">{game!.raceResults.filter((result) => result.playerId === player.id).map((result) => <small key={result.athlete.id}>{result.athlete.nameZh} +{result.points}</small>)}</div><b>{player.score} 分</b></div>)}</div>
+          <div className="podium-celebration" aria-hidden="true"><i className="confetti confetti-one">✦</i><i className="confetti confetti-two">✧</i><i className="firework firework-one">✹</i><i className="firework firework-two">✺</i></div>
+          <div className="podium-list">{game!.players.slice().sort((a, b) => b.score - a.score).map((player, index) => <div key={player.id} className={index === 0 ? "leader" : index === 1 ? "second" : ""}><span>{index + 1}</span><strong>{player.name}</strong><div className="result-racers">{game!.raceResults.filter((result) => result.playerId === player.id).map((result) => <small key={result.athlete.id}>{result.athlete.nameZh} +{result.points}</small>)}</div><b>{player.score} 分</b></div>)}</div>
           {game!.phase === "RACE_RESULTS" && <button className="command primary big" disabled={!isHost} onClick={() => send({ type: "ADVANCE_RACE" })}>{isHost ? "进入下一场" : "等待房主继续"}</button>}
         </section>
       )}
 
-      {game!.phase !== "LOBBY" && <aside className={`event-feed ${game!.phase === "RACING" ? "racing" : ""}`}><strong>赛场动态</strong>{(game!.raceLog.length ? game!.raceLog.slice().reverse().map((event) => eventText(event, game!.players)).filter(Boolean) : feed).slice(0, 12).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</aside>}
+      {game!.phase !== "LOBBY" && <details className={`event-feed ${game!.phase === "RACING" ? "racing" : ""}`} style={use3DRaceTable && feedPosition ? { left: feedPosition.x, top: feedPosition.y, right: "auto" } : undefined} open={!use3DRaceTable || feedOpen} onToggle={(event) => setFeedOpen(event.currentTarget.open)}>
+        <summary onPointerDown={(event) => {
+          if (!use3DRaceTable) return;
+          const box = event.currentTarget.parentElement?.getBoundingClientRect();
+          if (!box) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          feedDragRef.current = { offsetX: event.clientX - box.left, offsetY: event.clientY - box.top, moved: false };
+        }} onPointerMove={(event) => {
+          const drag = feedDragRef.current;
+          if (!drag || !use3DRaceTable) return;
+          const box = event.currentTarget.parentElement?.getBoundingClientRect();
+          if (!box) return;
+          if (Math.abs(event.movementX) + Math.abs(event.movementY) > 1) drag.moved = true;
+          const maxX = Math.max(8, window.innerWidth - box.width - 8);
+          const maxY = Math.max(8, window.innerHeight - box.height - 8);
+          setFeedPosition({
+            x: Math.min(maxX, Math.max(8, event.clientX - drag.offsetX)),
+            y: Math.min(maxY, Math.max(8, event.clientY - drag.offsetY)),
+          });
+        }} onPointerUp={(event) => {
+          feedClickSuppressedRef.current = feedDragRef.current?.moved ?? false;
+          feedDragRef.current = null;
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+        }} onClick={(event) => {
+          if (feedClickSuppressedRef.current) {
+            event.preventDefault();
+            feedClickSuppressedRef.current = false;
+          }
+        }}><strong>赛场动态</strong><span className="event-feed-count">{game!.raceLog.length || feed.length}</span></summary>
+        <div className="event-feed-list">{(game!.raceLog.length ? game!.raceLog.slice().reverse().map((event) => eventText(event, game!.players)).filter(Boolean) : feed).slice(0, 12).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</div>
+      </details>}
       {error && <div className="toast" role="alert">{error}<button aria-label="关闭" onClick={() => setError("")}>×</button></div>}
     </main>
   );

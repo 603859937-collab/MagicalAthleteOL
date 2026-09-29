@@ -1,13 +1,16 @@
 from fastapi.testclient import TestClient
+import pytest
+from starlette.websockets import WebSocketDisconnect
 
 from magical_athlete.main import app
 
 
-def test_create_room_and_join() -> None:
+@pytest.mark.parametrize("origin", ["http://localhost:5173", "http://127.0.0.1:5173"])
+def test_create_room_and_join(origin: str) -> None:
     client = TestClient(app)
     room_id = client.post("/api/rooms").json()["roomId"]
 
-    with client.websocket_connect("/ws", headers={"origin": "http://localhost:5173"}) as socket:
+    with client.websocket_connect("/ws", headers={"origin": origin}) as socket:
         socket.send_json({"type": "JOIN_ROOM", "roomId": room_id, "playerName": "Alice"})
         welcome = socket.receive_json()
 
@@ -15,6 +18,14 @@ def test_create_room_and_join() -> None:
     assert welcome["roomId"] == room_id
     assert welcome["game"]["players"][0]["name"] == "Alice"
     assert welcome["game"]["phase"] == "LOBBY"
+
+
+def test_rejects_untrusted_websocket_origin() -> None:
+    client = TestClient(app)
+    with pytest.raises(WebSocketDisconnect) as error:
+        with client.websocket_connect("/ws", headers={"origin": "https://untrusted.example"}):
+            pass
+    assert error.value.code == 1008
 
 
 def test_players_start_with_public_roll_off() -> None:
