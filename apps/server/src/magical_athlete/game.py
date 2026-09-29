@@ -665,6 +665,22 @@ class MagsimGameEngine:
         owner_id = state.racer_owner_by_index.get(index)
         athlete = state.racer_athlete_by_index.get(index)
         base = {"playerId": owner_id, "athleteId": athlete.id if athlete else None}
+        source_index = getattr(event, "responsible_racer_idx", None)
+        source_athlete = state.racer_athlete_by_index.get(source_index)
+        if source_athlete:
+            base.update({
+                "sourcePlayerId": state.racer_owner_by_index.get(source_index),
+                "sourceAthleteId": source_athlete.id,
+                "sourceAthleteName": source_athlete.name_zh,
+            })
+        trigger_index = getattr(event, "trigger_racer_idx", None)
+        trigger_athlete = state.racer_athlete_by_index.get(trigger_index)
+        if trigger_athlete:
+            base.update({
+                "triggerPlayerId": state.racer_owner_by_index.get(trigger_index),
+                "triggerAthleteId": trigger_athlete.id,
+                "triggerAthleteName": trigger_athlete.name_zh,
+            })
         if name == "RollResultEvent":
             events.append({
                 "type": "DICE_ROLLED",

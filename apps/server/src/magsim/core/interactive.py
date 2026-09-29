@@ -125,6 +125,12 @@ def _choice_label(value: Any) -> str:
     return str(value)
 
 
+# These target-selection abilities explicitly support returning None to decline.
+OPTIONAL_SELECTION_ABILITIES = frozenset({
+    "DuelistDuel", "FlipFlopSwap", "HypnotistWarp", "ThirdWheelJoin",
+})
+
+
 @dataclass(slots=True)
 class PendingChoice:
     id: str
@@ -139,16 +145,27 @@ class PendingChoice:
     auto_answer: bool = False
 
     def public_options(self) -> list[dict[str, str]]:
-        return [
+        options = [
             {"id": str(index), "label": label}
             for index, label in enumerate(self.option_labels)
         ]
+        if self.ability_name in OPTIONAL_SELECTION_ABILITIES:
+            options.append({"id": "skip", "label": "不使用"})
+        return options
 
 
 @dataclass(slots=True)
 class DecisionBroker:
     pending: PendingChoice | None = None
     last_resolved: PendingChoice | None = None
+    resolved_choices: list[PendingChoice] = field(default_factory=list)
+    replay_index: int = 0
+
+    def rewind(self) -> None:
+        # Older persisted brokers kept only one resolved answer.
+        if not hasattr(self, "resolved_choices"):
+            self.resolved_choices = [self.last_resolved] if self.last_resolved else []
+        self.replay_index = 0
 
     def request(
         self,
@@ -159,17 +176,12 @@ class DecisionBroker:
     ) -> Any:
         ability_name = str(getattr(ctx.source, "name", type(ctx.source).__name__))
         signature = (ctx.source_racer_idx, ability_name, choice_type)
-        if self.pending is None and self.last_resolved is not None:
-            resolved = self.last_resolved
-            if signature == (
-                resolved.racer_idx,
-                resolved.ability_name,
-                resolved.choice_type,
-            ):
-                if resolved.answer_index == -2:
-                    return None
-                if resolved.answer_index is not None:
-                    return options[resolved.answer_index]
+        if self.replay_index < len(self.resolved_choices):
+            resolved = self.resolved_choices[self.replay_index]
+            if signature != (resolved.racer_idx, resolved.ability_name, resolved.choice_type):
+                raise RuntimeError("decision replay order changed")
+            self.replay_index += 1
+            return None if resolved.answer_index == -2 else options[resolved.answer_index]
         if self.pending is None:
             roll_state = ctx.game_state.roll_state
             roll_serial = getattr(ctx.event, "roll_serial", None)
@@ -204,6 +216,8 @@ class DecisionBroker:
         index = current.answer_index
         if index == -2:
             self.last_resolved = current
+            self.resolved_choices.append(current)
+            self.replay_index += 1
             self.pending = None
             return None
         auto = current.auto_answer
@@ -220,16 +234,23 @@ class DecisionBroker:
             auto_answer=auto,
         )
         self.last_resolved = resolved
+        self.resolved_choices.append(resolved)
+        self.replay_index += 1
         self.pending = None
         return options[index]
 
     def commit(self) -> None:
         self.last_resolved = None
+        self.resolved_choices.clear()
+        self.replay_index = 0
 
     def choose(self, decision_id: str, option_id: str) -> PendingChoice:
         pending = self.pending
         if pending is None or pending.id != decision_id:
             raise ValueError("STALE_DECISION")
+        if option_id == "skip" and pending.ability_name in OPTIONAL_SELECTION_ABILITIES:
+            pending.answer_index = -2
+            return pending
         try:
             index = int(option_id)
         except ValueError as error:
@@ -264,7 +285,9 @@ class InteractiveAgent(Agent):
     @override
     def make_boolean_decision(self, engine: Any, ctx: DecisionContext[Any]) -> bool:
         pending = self.broker.pending
-        if pending is not None and pending.answer_index == -1:
+        if (pending is not None and pending.answer_index == -1
+            and pending.racer_idx == ctx.source_racer_idx
+            and pending.ability_name == str(ctx.source.name)):
             result = ctx.source.get_auto_boolean_decision(engine, ctx)
             pending.answer_index = 1 if result else 0
         return bool(
@@ -282,7 +305,9 @@ class InteractiveAgent(Agent):
         if not options:
             return None
         pending = self.broker.pending
-        if pending is not None and pending.answer_index == -1:
+        if (pending is not None and pending.answer_index == -1
+            and pending.racer_idx == ctx.source_racer_idx
+            and pending.ability_name == str(ctx.source.name)):
             recommended = ctx.source.get_auto_selection_decision(engine, ctx)
             if recommended is None:
                 pending.answer_index = -2

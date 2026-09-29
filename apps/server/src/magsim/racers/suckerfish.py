@@ -40,6 +40,7 @@ class SuckerfishTargetModifier(RacerModifier, DestinationCalculatorMixin):
     name: AbilityName | ModifierName = "SuckerfishTarget"
     priority: int = 0  # High priority to ensure exact landing
     target_tile: int = 0
+    followed_racer_idx: int | None = None
 
     @override
     def calculate_destination(
@@ -63,6 +64,7 @@ class SuckerfishTargetModifier(RacerModifier, DestinationCalculatorMixin):
                 source=self.name,
                 phase=move_cmd_event.phase,
                 target_racer_idx=move_cmd_event.target_racer_idx,
+                trigger_racer_idx=self.followed_racer_idx,
             ),
         ]
 
@@ -109,7 +111,7 @@ class SuckerfishRide(Ability, BooleanDecisionMixin):
         )
 
         # 1. Attach the target lock
-        mod = SuckerfishTargetModifier(owner_idx=owner.idx, target_tile=event.end_tile)
+        mod = SuckerfishTargetModifier(owner_idx=owner.idx, target_tile=event.end_tile, followed_racer_idx=event.target_racer_idx)
         add_racer_modifier(engine, owner.idx, mod)
 
         # 2. Push the move command
@@ -121,6 +123,7 @@ class SuckerfishRide(Ability, BooleanDecisionMixin):
             source=self.name,
             responsible_racer_idx=owner.idx,
             emit_ability_triggered="never",
+            trigger_racer_idx=event.target_racer_idx,
         )
 
         # triggers in modifier

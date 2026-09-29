@@ -253,3 +253,27 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
   .immersive-race .ability-banner { top: 210px; font-size: .85rem; }
   .immersive-race .reward { font-size: .8rem; }
 }
+
+.rolloff-rule { margin: 0; color: #625b50; text-align: center; font-size: .85rem; }
+.roll-seat.roll-winner { border-color: #d69a00; background: #fff2bb; box-shadow: 0 0 0 5px #efbd2544; }
+.rolloff-result { display: grid; gap: 6px; padding: 16px 24px; text-align: center; border: 3px solid #151515; background: #fff2bb; }
+.rolloff-result small { color: #625b50; }
+.action-moment { position: fixed; z-index: 18; top: 110px; left: 50%; transform: translateX(-50%); width: min(430px, calc(100% - 24px)); padding: 12px 16px; border: 2px solid #222; border-radius: 14px; background: #fffdf5f5; box-shadow: 0 8px 28px #0003; pointer-events: none; }
+.action-moment p { margin: 0 0 10px; text-align: center; font-size: .9rem; font-weight: 800; }
+.moment-flow { display: grid; grid-template-columns: 90px 1fr 90px; align-items: center; gap: 8px; }
+.moment-actor { display: grid; justify-items: center; gap: 3px; min-width: 0; }
+.moment-actor img, .moment-symbol { width: 52px; height: 52px; object-fit: contain; border-bottom: 4px solid #37d7ec; }
+.moment-actor:last-child img, .moment-actor:last-child .moment-symbol { border-color: #ff9247; }
+.moment-symbol { font-size: 38px; text-align: center; }
+.moment-actor strong { font-size: .85rem; }
+.moment-actor small { max-width: 100%; overflow-wrap: anywhere; color: #625b50; font-size: .7rem; }
+.moment-effect { display: grid; gap: 4px; text-align: center; font-size: .95rem; }
+.moment-effect > span { color: #287fc2; font-size: 30px; line-height: 1; }
+.moment-positions { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.moment-positions b { padding: 3px 8px; border-radius: 5px; background: #eee8db; }
+.moment-positions b:last-of-type { background: #ffe0c6; }
+@media (max-width: 600px) {
+  .action-moment { top: 210px; padding: 8px 12px; }
+  .moment-flow { grid-template-columns: 74px 1fr 74px; }
+  .moment-actor img, .moment-symbol { width: 40px; height: 40px; }
+}

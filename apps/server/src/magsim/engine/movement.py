@@ -172,6 +172,7 @@ def _finalize_committed_move(
         target_racer_idx=evt.target_racer_idx,
         start_tile=start_tile,
         end_tile=end_tile,
+        trigger_racer_idx=evt.trigger_racer_idx,
         source=evt.source,
         phase=evt.phase,
         responsible_racer_idx=evt.responsible_racer_idx,
@@ -523,6 +524,7 @@ def push_move(
     responsible_racer_idx: int | None,
     emit_ability_triggered: EventTriggerMode = "never",
     is_main_move: bool = False,
+    trigger_racer_idx: int | None = None,
 ):
     engine.push_event(
         MoveCmdEvent(
@@ -533,6 +535,7 @@ def push_move(
             emit_ability_triggered=emit_ability_triggered,
             responsible_racer_idx=responsible_racer_idx,
             is_main=is_main_move,
+            trigger_racer_idx=trigger_racer_idx,
         ),
     )
 

@@ -1,12 +1,14 @@
 import { Container, Graphics, Sprite, Stage, Text } from "@pixi/react";
 import { useEffect, useMemo, useState } from "react";
 import { Assets, ColorMatrixFilter, TextStyle, Texture } from "pixi.js";
+import type { ActionMoment } from "../eventPresentation";
 import type { PlayerState } from "../protocol";
 import { assetUrl } from "../runtimeConfig";
 import { createBoardCanvas, drawBoardArtwork, loadBoardAtlas } from "./race3d/boardArtwork";
 import { assignRacerPlacements, BOARD_SIZE } from "./race3d/trackLayout";
 
 interface RaceTrackProps {
+  moment?: ActionMoment | null;
   players: PlayerState[];
   finishLine: number;
   trackName: "Standard" | "WildWilds";
@@ -71,7 +73,7 @@ function RacerToken({ id, name, color, finished }: { id: string; name: string; c
   </>;
 }
 
-export function RaceTrack({ players, finishLine, trackName }: RaceTrackProps) {
+export function RaceTrack({ players, finishLine, trackName, moment }: RaceTrackProps) {
   // Keep the Sprite's texture alive across map changes: Pixi applies prop
   // updates after React effects, so disposing the previous map here is unsafe.
   const [{ canvas, board }] = useState(() => {
@@ -109,6 +111,11 @@ export function RaceTrack({ players, finishLine, trackName }: RaceTrackProps) {
         x={(placement.world.x / BOARD_SIZE.width + .5) * WIDTH}
         y={(placement.world.z / BOARD_SIZE.depth + .5) * HEIGHT}
         scale={placement.slotCount > 3 ? .7 : 1} alpha={racer.eliminated ? .4 : 1}>
+        {(moment?.target.playerId === player.id && moment.target.athleteId === racer.id
+          || moment?.source.playerId === player.id && moment.source.athleteId === racer.id) && <Graphics draw={(g) => {
+          const target = moment?.target.playerId === player.id && moment.target.athleteId === racer.id;
+          g.clear(); g.lineStyle(4, target ? 0xff9247 : 0x37d7ec); g.drawCircle(0, 0, 29);
+        }} />}
         <RacerToken id={racer.id} name={racer.nameZh} color={playerColors[placement.playerIndex % playerColors.length]}
           finished={racer.finished} />
         {(racer.tripped || racer.finished) && <Text text={racer.tripped ? "×" : "★"} x={15} y={-23} anchor={.5}

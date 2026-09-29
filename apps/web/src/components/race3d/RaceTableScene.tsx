@@ -2,6 +2,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CuboidCollider, Physics, RigidBody, type RapierRigidBody } from "@react-three/rapier";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CanvasTexture, DoubleSide, ExtrudeGeometry, PCFSoftShadowMap, Shape, SRGBColorSpace, TextureLoader, Vector3 } from "three";
+import type { ActionMoment } from "../../eventPresentation";
 import type { PlayerState } from "../../protocol";
 import { assetUrl } from "../../runtimeConfig";
 import {
@@ -14,6 +15,7 @@ import { createBoardCanvas, drawBoardArtwork, loadBoardAtlas } from "./boardArtw
 import { TableDice, type DiceLauncher, type DiceThrowState } from "./TableDice";
 
 export interface RaceTableSceneProps {
+  moment?: ActionMoment | null;
   players: PlayerState[];
   finishLine: number;
   trackName: "Standard" | "WildWilds";
@@ -21,6 +23,7 @@ export interface RaceTableSceneProps {
   activePlayerId?: string | null;
   dice: {
     enabled: boolean;
+    playbackBusy?: boolean;
     targetValue: number | null;
     restingValue: number;
     rollKey: string;
@@ -126,7 +129,8 @@ function TrackBoard({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
   </RigidBody>;
 }
 
-function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finished, eliminated, reducedMotion }: {
+function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finished, eliminated, reducedMotion, highlight }: {
+  highlight?: string;
   athleteId: string; name: string; color: string; world: { x: number; z: number };
   reducedMotion: boolean; slotCount: number; tripped: boolean; finished: boolean; eliminated: boolean;
 }) {
@@ -154,6 +158,10 @@ function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finishe
   return <RigidBody type="kinematicPosition" ref={body} colliders={false} position={initialPosition.current}>
     <CuboidCollider args={[portraitWidth / 2, (baseHeight + portraitHeight) / 2, 0.06 * scale]}
       position={[0, (baseHeight + portraitHeight) / 2, 0]} friction={0.7} restitution={0.45} />
+    {highlight && <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[baseRadius * 1.2, baseRadius * 1.6, 48]} />
+      <meshBasicMaterial color={highlight} side={DoubleSide} depthTest={false} />
+    </mesh>}
     <group rotation={[lean, 0, 0]} position={[0, tripped ? baseHeight / 2 : 0, 0]}>
       <mesh castShadow receiveShadow position={[0, baseHeight / 2, 0]}>
         <cylinderGeometry args={[baseRadius * 0.88, baseRadius, baseHeight, 24]} />
@@ -171,7 +179,7 @@ function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finishe
   </RigidBody>;
 }
 
-function RacerFleet({ players, finishLine, reducedMotion }: Pick<RaceTableSceneProps, "players" | "finishLine"> & { reducedMotion: boolean }) {
+function RacerFleet({ players, finishLine, reducedMotion, moment }: Pick<RaceTableSceneProps, "players" | "finishLine" | "moment"> & { reducedMotion: boolean }) {
   const racers = players.flatMap((player, playerIndex) => player.activeRacers.map((racer) => ({
     athleteId: racer.id,
     playerIndex,
@@ -185,6 +193,8 @@ function RacerFleet({ players, finishLine, reducedMotion }: Pick<RaceTableSceneP
     const player = players[placement.playerIndex];
     const racer = player.activeRacers.find((item) => item.id === placement.athleteId)!;
     return <RacerPiece key={`${player.id}:${racer.id}`} athleteId={racer.id} name={racer.nameZh}
+      highlight={moment?.target.playerId === player.id && moment.target.athleteId === racer.id ? "#ff9247"
+        : moment?.source.playerId === player.id && moment.source.athleteId === racer.id ? "#37d7ec" : undefined}
       reducedMotion={reducedMotion} color={PLAYER_COLORS[placement.playerIndex]} world={placement.world} slotCount={placement.slotCount} tripped={racer.tripped}
       finished={racer.finished} eliminated={racer.eliminated} />;
   })}</>;
@@ -204,7 +214,7 @@ function TableAndBounds() {
   </RigidBody>;
 }
 
-function Scene({ players, finishLine, trackName, dice, focus, activePlayerId, overview, diceActive, reducedMotion, onDiceStateChange, registerDiceLauncher }: RaceTableSceneProps & {
+function Scene({ moment, players, finishLine, trackName, dice, focus, activePlayerId, overview, diceActive, reducedMotion, onDiceStateChange, registerDiceLauncher }: RaceTableSceneProps & {
   overview: boolean; diceActive: boolean; reducedMotion: boolean;
   onDiceStateChange: (state: DiceThrowState) => void;
   registerDiceLauncher: (launcher: DiceLauncher | null) => void;
@@ -221,7 +231,7 @@ function Scene({ players, finishLine, trackName, dice, focus, activePlayerId, ov
     <Physics gravity={[0, -12, 0]}>
       <TableAndBounds />
       <TrackBoard trackName={trackName} />
-      <Suspense fallback={null}><RacerFleet players={players} finishLine={finishLine} reducedMotion={reducedMotion} /></Suspense>
+      <Suspense fallback={null}><RacerFleet moment={moment} players={players} finishLine={finishLine} reducedMotion={reducedMotion} /></Suspense>
       <TableDice {...dice} reducedMotion={reducedMotion} onStateChange={onDiceStateChange} registerLauncher={registerDiceLauncher} />
     </Physics>
   </>;
@@ -255,6 +265,7 @@ export function RaceTableScene(props: RaceTableSceneProps) {
   if (!webglAvailable) return <HtmlFallback {...props} />;
   const status = diceState === "settled" && props.dice.targetValue ? `掷出 ${props.dice.targetValue}`
     : diceState === "rolling" || diceState === "settling" ? `${props.dice.activePlayerName} 投掷中`
+      : props.dice.playbackBusy ? "正在播放本次行动…"
       : props.dice.enabled ? "拖动骰子向内投掷" : `等待 ${props.dice.activePlayerName}`;
   return <section className={`race-table-3d ${props.dice.enabled ? "dice-enabled" : ""}`} aria-label="3D 比赛桌">
     <div className="race-table-viewport">
