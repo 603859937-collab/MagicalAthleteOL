@@ -478,3 +478,25 @@ def test_duelist_hands_the_second_throw_to_target_and_wins_ties() -> None:
     assert [participant["value"] for participant in result["participants"]] == [4, 4]
     assert result["winnerAthleteId"] == "duelist"
     assert target.state.positions["duelist"] == 2
+
+
+def test_movement_event_identifies_skill_source_and_victim() -> None:
+    from types import SimpleNamespace
+    from magsim.core.events import Phase, PostMoveEvent
+
+    engine = MagsimGameEngine(random.Random(1))
+    state = SimpleNamespace(
+        racer_owner_by_index={0: "p0", 1: "p1"},
+        racer_athlete_by_index={0: ATHLETE_BY_ID["centaur"], 1: ATHLETE_BY_ID["banana"]},
+    )
+    event = PostMoveEvent(
+        responsible_racer_idx=0, source="CentaurTrample", phase=Phase.REACTION,
+        target_racer_idx=1, start_tile=4, end_tile=2,
+    )
+    events = []
+    engine._append_public_event(events, state, event)
+    assert events[0]["sourcePlayerId"] == "p0"
+    assert events[0]["sourceAthleteId"] == "centaur"
+    assert events[0]["playerId"] == "p1"
+    assert events[0]["athleteId"] == "banana"
+    assert (events[0]["from"], events[0]["to"]) == (4, 2)

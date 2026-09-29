@@ -125,7 +125,7 @@ race3d/
 ### 5.2 棋盘实现
 
 - Mild Mile 和 Wild Wilds 使用同一套 30 格路径几何，替换中场装饰和特殊格标记。
-- 棋盘主体、格子和边框使用有厚度的几何体，不把实拍参考图直接铺成材质。现有 `docs/mildmile.png` 与 `docs/wildwilds.png` 只作为造型和配色参考。
+- 棋盘主体保留有厚度的圆角几何体。为贴近实体原版，格线与边框按统一坐标重绘，中央插画、起点、领奖台和特殊格从 `docs/mildmile.png` 与 `docs/wildwilds.png` 提取并校正后作为印刷层使用；不将含桌布、卡牌和棋子的整张实拍图铺成棋盘。素材生成与局限见 [棋盘美术](board-artwork.md)。
 - 共享材质和几何体应实例化，避免为每个格子创建独立高成本资源。
 - 服务端公开逻辑赛道定义 `id/version/length/spaces`；客户端只负责把逻辑格映射到世界坐标，避免 Wild Wilds 效果在 Python 和 TypeScript 中继续各维护一份。
 

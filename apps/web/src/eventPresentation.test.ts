@@ -1,0 +1,85 @@
+import { describe, expect, it } from "vitest";
+import type { PlayerState, RoomSnapshot } from "./protocol";
+import { actionMoment, rollOffPresentation } from "./eventPresentation";
+
+const players = [
+  { id: "p1", name: "小明", rollValues: [6, 2], activeRacers: [{ id: "centaur", nameZh: "半人马" }], team: [] },
+  { id: "p2", name: "小红", rollValues: null, activeRacers: [{ id: "banana", nameZh: "香蕉" }], team: [] },
+] as unknown as PlayerState[];
+const before = { revision: 1, roomId: "TEST", game: { phase: "DRAFT_ROLL", players } } as RoomSnapshot;
+const after = { ...before, revision: 2, game: { ...before.game, phase: "DRAFTING", players: players.map((p) => ({ ...p, rollValues: null })) } } as RoomSnapshot;
+
+describe("roll-off presentation", () => {
+  it("retains both dice results when the server advances and clears them", () => {
+    const result = rollOffPresentation(before, after, [
+      { type: "START_DICE_ROLLED", playerId: "p2", values: [6, 5] },
+      { type: "ROLL_OFF_WON", playerId: "p2" },
+    ]);
+    expect(result.display.game.phase).toBe("DRAFT_ROLL");
+    expect(result.display.game.players.map((p) => p.rollValues)).toEqual([[6, 2], [6, 5]]);
+    expect(result.outcome).toBe("小红 获得首位招募权");
+    expect(before.game.players[1].rollValues).toBeNull();
+    expect(after.game.players[1].rollValues).toBeNull();
+  });
+  it("shows the tied round before exposing the new reroll", () => {
+    const result = rollOffPresentation(before, before, [
+      { type: "START_DICE_ROLLED", playerId: "p2", values: [6, 2] },
+      { type: "ROLL_OFF_TIED", playerIds: ["p1", "p2"] },
+    ]);
+    expect(result.outcome).toBe("小明、小红 点数相同，需要重掷");
+    expect(result.display.game.players[1].rollValues).toEqual([6, 2]);
+  });
+});
+
+describe("action moments", () => {
+  it("explains a kick using its actual source, victim and displacement", () => {
+    const result = actionMoment({ type: "RACER_MOVED", playerId: "p2", athleteId: "banana",
+      sourcePlayerId: "p1", sourceAthleteId: "centaur", source: "CentaurTrample", from: 1, to: 0 }, players)!;
+    expect(result.cause).toBe("半人马经过香蕉");
+    expect(result.effect).toBe("后退 1 格"); // Clamped at the start, not the generic skill's -2.
+    expect(result.source.owner).toBe("小明");
+    expect(result.target.owner).toBe("小红");
+  });
+  it("distinguishes passing the banana from the banana moving", () => {
+    const result = actionMoment({ type: "RACER_TRIPPED", playerId: "p1", athleteId: "centaur",
+      sourcePlayerId: "p2", sourceAthleteId: "banana", source: "BananaTrip" }, players)!;
+    expect(result.cause).toBe("半人马经过香蕉");
+    expect(result.effect).toBe("绊倒");
+  });
+  it("uses player identity when two players have the same athlete", () => {
+    const duplicated = [...players, { ...players[0], id: "p3", name: "小林" }];
+    const result = actionMoment({ type: "ABILITY_TRIGGERED", playerId: "p3", athleteId: "centaur",
+      sourcePlayerId: "p1", sourceAthleteId: "centaur", abilityName: "CoachBoost" }, duplicated)!;
+    expect(result.source.owner).toBe("小明");
+    expect(result.target.owner).toBe("小林");
+  });
+});
+
+it("collapses targetless swap summaries but retains both real movements", async () => {
+  const { isRedundantAbilityEvent } = await import("./eventPresentation");
+  const source = { sourcePlayerId: "p1", sourceAthleteId: "flip_flop" };
+  const movement = { type: "RACER_WARPED", ...source, playerId: "p2", athleteId: "banana", source: "FlipFlopSwap", from: 8, to: 2 };
+  const summary = { type: "ABILITY_TRIGGERED", ...source, abilityName: "FlipFlopSwap" };
+  expect(isRedundantAbilityEvent(summary, [movement, summary])).toBe(true);
+  expect(isRedundantAbilityEvent(movement, [movement, summary])).toBe(false);
+  expect(isRedundantAbilityEvent({ ...summary, sourcePlayerId: "p3" }, [movement])).toBe(false);
+});
+
+it("shows the chosen die for a copied LongLegs ability", () => {
+  const event = { type: "ABILITY_TRIGGERED", playerId: "p1", athleteId: "centaur", sourcePlayerId: "p1", sourceAthleteId: "centaur", abilityName: "LongLegs" };
+  const moment = actionMoment(event, players, [{ type: "DICE_ROLLED", playerId: "p1", athleteId: "centaur", values: [2, 6], value: 6 }])!;
+  expect(moment.cause).toContain("2 / 6");
+  expect(moment.effect).toBe("选用 6 点");
+});
+
+it("shows who the suckerfish actually followed, rather than pointing at itself", () => {
+  const moment = actionMoment({ type: "RACER_MOVED", source: "SuckerfishRide",
+    playerId: "p2", athleteId: "banana", sourcePlayerId: "p2", sourceAthleteId: "banana", sourceAthleteName: "吸盘鱼",
+    triggerPlayerId: "p1", triggerAthleteId: "centaur", triggerAthleteName: "半人马", from: 4, to: 8,
+  }, players)!;
+  expect(moment.source.name).toBe("半人马");
+  expect(moment.source.owner).toBe("小明");
+  expect(moment.target.owner).toBe("小红");
+  expect(moment.cause).toContain("半人马从同格离开");
+  expect(moment.effect).toBe("前进 4 格");
+});

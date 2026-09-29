@@ -178,11 +178,13 @@ class GameEngine:
 
             racer_idx, ability = task
             snapshot = self._transaction_snapshot()
+            self._rewind_interactions()
             try:
                 ability.on_setup(self, self.get_active_racer(racer_idx), self.agents[racer_idx])
             except DecisionRequired:
                 self._restore_transaction(snapshot)
                 return False
+            self._commit_interactions()
             self._setup_completed.add((racer_idx, type(ability).__qualname__))
 
     # --- Main Loop ---
@@ -352,6 +354,11 @@ class GameEngine:
                 break
 
             self.current_processing_event = sched
+            self._rewind_interactions()
+            callback = self.on_event_processed
+            committed_events: list[GameEvent] = []
+            if callback is not None:
+                self.on_event_processed = lambda _engine, event: committed_events.append(event)
             try:
                 self._handle_event(sched.event)
             except DecisionRequired:
@@ -360,8 +367,13 @@ class GameEngine:
             except RollRequired:
                 self._restore_transaction(snapshot)
                 return TurnProgress.WAITING_FOR_ROLL
-            else:
-                self._commit_interactions()
+            finally:
+                self.on_event_processed = callback
+            # Observers must not see movement that was rolled back for a choice.
+            if callback is not None:
+                for event in committed_events:
+                    callback(self, event)
+            self._commit_interactions()
         self._turn_in_progress = False
         return TurnProgress.TURN_COMPLETE
 
@@ -382,6 +394,12 @@ class GameEngine:
 
     def submit_pending_roll(self) -> SubmittedRoll:
         return self.roll_broker.submit(self.rng.randint(1, 6))
+
+    def _rewind_interactions(self) -> None:
+        for agent in self.agents.values():
+            broker = getattr(agent, "broker", None)
+            if broker is not None:
+                broker.rewind()
 
     def _commit_interactions(self) -> None:
         self.roll_broker.commit()

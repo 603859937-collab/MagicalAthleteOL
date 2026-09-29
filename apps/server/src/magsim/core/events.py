@@ -37,6 +37,7 @@ class GameEvent(ABC):
     responsible_racer_idx: int | None
     source: Source
     phase: Phase
+    trigger_racer_idx: int | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)

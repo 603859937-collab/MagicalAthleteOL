@@ -33,36 +33,36 @@ function topEdge(pose: ReturnType<typeof trackPose>) {
 describe("track layout", () => {
   it("maps the 2D board rectangles to one proportionally scaled 3D course", () => {
     expect(BOARD_SIZE).toEqual({ width: 24, depth: 7.2 });
-    expect(trackPose(0).position.x).toBeCloseTo(-9.37);
-    expect(trackPose(0).position.z).toBeCloseTo(-2.26);
-    expect(trackPose(0).size).toEqual([4.04, 1.5]);
-    expect(trackPose(1).position.x).toBeCloseTo(-6.5992307692);
-    expect(trackPose(13).position.x).toBeCloseTo(10.6992307692);
-    expect(trackPose(13).position.z).toBeCloseTo(-2.26);
-    expect(trackPose(13).size[0]).toBeCloseTo(1.3815384615);
-    expect(trackPose(14).position.x).toBeCloseTo(10.76);
-    expect(trackPose(14).position.z).toBeCloseTo(-0.74);
-    expect(trackPose(14).size).toEqual([1.26, 1.42]);
-    expect(trackPose(16).position.x).toBeCloseTo(10.6728571429);
-    expect(trackPose(15).position.z).toBeCloseTo(0.74);
-    expect(trackPose(16).position.z).toBeCloseTo(2.26);
-    expect(trackPose(29).position.x).toBeCloseTo(-8.7528571429);
-    expect(trackPose(29).position.z).toBeCloseTo(2.26);
-    expect(trackPose(30).position.x).toBeCloseTo(-10.39);
-    expect(trackPose(30).position.z).toBeCloseTo(0);
-    expect(trackPose(30).size[0]).toBeCloseTo(1.64);
-    expect(trackPose(30).size[1]).toBeCloseTo(2.34);
+    expect(trackPose(0).position.x).toBeCloseTo(-9.28);
+    expect(trackPose(0).position.z).toBeCloseTo(-2.4);
+    expect(trackPose(0).size[0]).toBeCloseTo(4.58);
+    expect(trackPose(1).position.x).toBeCloseTo(-6.18666667);
+    // The photographed board has 12 top cells, then 13/14 on the right.
+    expect(trackPose(12).position.x).toBeCloseTo(10.82666667);
+    expect(trackPose(12).position.z).toBeCloseTo(-2.4);
+    expect(trackPose(13).position.x).toBeCloseTo(10.82666667);
+    expect(trackPose(13).position.z).toBeCloseTo(-.8);
+    expect(trackPose(14).position.z).toBeCloseTo(.8);
+    expect(trackPose(15).position.z).toBeCloseTo(2.4);
+    expect(trackPose(15).tangent).toEqual({ x: -1, z: 0 });
+    expect(trackPose(29).position.x).toBeCloseTo(-10.82666667);
+    expect(trackPose(29).position.z).toBeCloseTo(2.4);
+    expect(trackPose(30).position.x).toBeCloseTo(-10.68);
+    expect(trackPose(30).position.z).toBeCloseTo(.12);
   });
 
-  it("keeps every adjacent source cell edge aligned while reserving one consistent visible grid gap", () => {
+  it("keeps adjacent cells aligned across both turns and the two straight rows", () => {
     expect(leftEdge(trackPose(1))).toBeCloseTo(rightEdge(trackPose(0)));
-    expect(rightEdge(trackPose(13))).toBeCloseTo(rightEdge(trackPose(14)));
-    expect(bottomEdge(trackPose(13))).toBeCloseTo(topEdge(trackPose(14)));
-    expect(bottomEdge(trackPose(14))).toBeCloseTo(topEdge(trackPose(15)));
-    expect(bottomEdge(trackPose(15))).toBeCloseTo(topEdge(trackPose(16)));
-    expect(rightEdge(trackPose(17))).toBeCloseTo(leftEdge(trackPose(16)));
-    expect(leftEdge(trackPose(2)) - rightEdge(trackPose(1))).toBeCloseTo(0);
-    expect(topEdge(trackPose(15)) - bottomEdge(trackPose(14))).toBeCloseTo(0);
+    for (let step = 1; step < 12; step += 1) {
+      expect(rightEdge(trackPose(step))).toBeCloseTo(leftEdge(trackPose(step + 1)));
+    }
+    for (let step = 12; step < 15; step += 1) {
+      expect(rightEdge(trackPose(step))).toBeCloseTo(rightEdge(trackPose(step + 1)));
+      expect(bottomEdge(trackPose(step))).toBeCloseTo(topEdge(trackPose(step + 1)));
+    }
+    for (let step = 15; step < 29; step += 1) {
+      expect(leftEdge(trackPose(step))).toBeCloseTo(rightEdge(trackPose(step + 1)));
+    }
     expect(
       (trackPose(2).position.x - trackPose(2).size[0] / 2)
       - (trackPose(1).position.x + trackPose(1).size[0] / 2),
@@ -70,7 +70,7 @@ describe("track layout", () => {
   });
 
   it("centers a single racer and keeps every six-racer slot inside each kind of cell", () => {
-    const cells = [trackPose(1), trackPose(13), trackPose(15), trackPose(30)];
+    const cells = Array.from({ length: 31 }, (_, step) => trackPose(step));
     const single = slotWorldPosition(trackPose(8), 0, 1);
     expect(single).toEqual(trackPose(8).position);
 
