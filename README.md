@@ -35,18 +35,28 @@ Magical Athlete Online 是一个支持 **2–6 人实时联机**的网页桌游�
 - **36 名魔法赛车手**：复用 `magsim` 规则实现，每名角色都有独立的互动能力。
 - **实时多人房间**：WebSocket 广播状态，支持断线重连、身份恢复与行动去重。
 - **服务端权威判定**：客户端无法决定骰点或越过阶段，规则只在一个地方执行。
-- **立体比赛桌**：React Three Fiber + Rapier 驱动 3D 骰子和赛场表现。
+- **沉浸式比赛桌**：Mild Mile 与 Wild Wilds 棋盘美术、立体角色棋子和物理骰子共同呈现比赛。
+- **跟随镜头与行动展示**：镜头聚焦移动和技能角色，逐格播放移动，并展示技能、绊倒与冲线事件。可随时切换全局镜头。
+- **互动技能选择**：需要玩家决策时显示选项与倒计时；相关掷骰结果先展示，再进入选择。
 - **云端持久化**：生产环境使用 Cloudflare Worker + Durable Objects 保存房间快照。
 
 ## 游戏画面
 
-### 3D 比赛棋盘
+### 沉浸式比赛棋盘
 
 <p align="center">
   <img src="docs/assets/board.jpg" alt="Wild Wilds 3D 比赛棋盘预览" width="100%">
 </p>
 
-<p align="center"><sub>赛道、角色棋子、特殊格与物理骰子均在同一个 3D 场景中渲染。</sub></p>
+<p align="center"><sub>Wild Wilds 本地棋盘预览：印刷棋盘美术、角色棋子与物理骰子在同一个 3D 场景中渲染。</sub></p>
+
+### 跟随镜头与角色特写
+
+<p align="center">
+  <img src="docs/assets/board-focus.jpg" alt="Wild Wilds 棋盘预览中的技能特写与同格角色棋子" width="100%">
+</p>
+
+<p align="center"><sub>本地预览中的技能特写。正式比赛会按事件切换焦点，展示移动、技能与冲线过程；右下角可切换跟随或全局镜头。</sub></p>
 
 ### 公开招募
 
@@ -57,6 +67,17 @@ Magical Athlete Online 是一个支持 **2–6 人实时联机**的网页桌游�
 <p align="center"><sub>从公开角色池组建队伍。招募顺序由掷骰决定，并在轮次间按蛇形方向推进。</sub></p>
 
 ## 快速开始
+
+### 和朋友开一局
+
+1. 打开[在线游玩](https://xeonliu.github.io/MagicalAthleteOL/)，填写玩家名称并创建房间。
+2. 把房间号发给朋友，等待 2–6 名玩家加入后，由房主开始游戏。
+3. 掷两颗骰子决定招募顺序，再按蛇形顺序从公开角色池组建队伍。
+4. 每场秘密选择参赛角色并锁定阵容，然后掷骰决定先手。
+5. 轮到你时，点击「掷骰」或将桌上的骰子向棋盘内拖动后松开。出现技能选项时，在倒计时内完成选择。
+6. 每场结算后，由房主进入下一场。四场结束后按累计积分排名。
+
+比赛中可用「跟随 / 全局」切换镜头，用「角色与技能」展开本场角色卡牌。两人局每场派出两名赛车手；三人局可由房主在开局前选择双赛车手变体。
 
 ### Docker Compose
 
@@ -85,6 +106,8 @@ npm run dev
 ```
 
 打开 [http://localhost:5173/MagicalAthleteOL/](http://localhost:5173/MagicalAthleteOL/)。Vite 会将 `/api` 和 `/ws` 代理到 `localhost:8000`。
+
+只查看棋盘时，启动前端即可打开[本地 3D 预览](http://localhost:5173/MagicalAthleteOL/race3d-preview.html)。预览支持切换两张棋盘、立体 / 俯视视图，以及演示移动和技能特写，无需启动后端。上方棋盘截图来自该预览页，使用演示角色状态。
 
 ## 架构
 
@@ -136,8 +159,8 @@ npm run dev
 # 运行服务端与前端测试
 make test
 
-# 构建生产前端
-make build
+# 构建生产前端（替换为实际后端 HTTPS 地址）
+VITE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev make build
 ```
 
 也可以分别运行 `cd apps/server && uv run pytest` 与 `cd apps/web && npm test`。
@@ -153,9 +176,10 @@ make build
 
 GitHub 仓库需要以下配置：
 
-- Actions secrets：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`
 - Actions variable：`CLOUDFLARE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev`
 - Settings > Pages > Source：`GitHub Actions`
+
+当前工作流只测试和发布 Pages，不部署 Worker。Cloudflare 凭据用于下方的手动发布流程，无需为这个 Pages 工作流配置 Cloudflare secrets。
 
 分享链接格式为 `https://xeonliu.github.io/MagicalAthleteOL/#/room/ABCD`。
 
@@ -183,7 +207,7 @@ uv run pywrangler deploy --dry-run
 uv run pywrangler deploy
 ```
 
-也可以设置 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN`，使用和 GitHub Actions 相同的 API Token 发布。首次正式发布会创建 `RoomDurableObject` 的 `v1` migration。
+也可以设置 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN`，使用本仓库专用的 API Token 发布。首次正式发布会创建 `RoomDurableObject` 的 `v1` migration。
 
 前端生产构建使用同一个 Worker 地址：
 
