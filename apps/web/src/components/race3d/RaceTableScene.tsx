@@ -16,6 +16,7 @@ import { createBoardCanvas, drawBoardArtwork, loadBoardAtlas } from "./boardArtw
 import { TableDice, type DiceLauncher, type DiceThrowState } from "./TableDice";
 
 export interface RaceTableSceneProps {
+  turnKey?: string;
   moment?: ActionMoment | null;
   players: PlayerState[];
   finishLine: number;
@@ -39,8 +40,8 @@ export interface RaceTableSceneProps {
 const PLAYER_COLORS = ["#e8422e", "#4386c6", "#efbd25", "#43a45c", "#d45f9d", "#855ab0"];
 const INK = "#1d1e21";
 
-function FollowCameraRig({ players, finishLine, focus, activePlayerId, overview, reducedMotion, diceActive }: Pick<RaceTableSceneProps, "players" | "finishLine" | "focus" | "activePlayerId"> & {
-  overview: boolean; reducedMotion: boolean; diceActive: boolean;
+function FollowCameraRig({ players, finishLine, focus, activePlayerId, overview, reducedMotion }: Pick<RaceTableSceneProps, "players" | "finishLine" | "focus" | "activePlayerId"> & {
+  overview: boolean; reducedMotion: boolean;
 }) {
   const { camera, size } = useThree();
   const target = useRef(new Vector3());
@@ -55,19 +56,20 @@ function FollowCameraRig({ players, finishLine, focus, activePlayerId, overview,
   useFrame((_, delta) => {
     const aspect = size.width / Math.max(size.height, 1);
     const portrait = aspect < 1;
-    const close = !!focus?.close && !diceActive;
+    const close = !!focus?.close;
     const distance = overview ? Math.max(21, 14 / (Math.tan(Math.PI / 12) * aspect))
-      : close ? (portrait ? 18 : 12) : portrait ? 23 : 30;
-    const x = overview || diceActive ? 0 : subject?.world.x ?? 0;
-    const z = overview || diceActive ? 0 : subject?.world.z ?? 0;
+      : close ? (portrait ? 19 : 16) : portrait ? 23 : 30;
+    const x = overview ? 0 : subject?.world.x ?? 0;
+    const z = overview ? 0 : subject?.world.z ?? 0;
     const blend = reducedMotion || !initialized.current ? 1 : 1 - Math.exp(-delta * 3.2);
     target.current.lerp(desired.set(x, .25, z), blend);
     const elevation = Math.PI * (overview ? 72 : 57) / 180;
     desired.set(target.current.x, Math.sin(elevation) * distance, target.current.z + Math.cos(elevation) * distance);
     camera.position.lerp(desired, blend);
     camera.lookAt(target.current);
+    camera.updateMatrixWorld();
     initialized.current = true;
-  });
+  }, -2);
   return null;
 }
 
@@ -180,7 +182,7 @@ function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finishe
   </RigidBody>;
 }
 
-function RacerFleet({ players, finishLine, reducedMotion, moment }: Pick<RaceTableSceneProps, "players" | "finishLine" | "moment"> & { reducedMotion: boolean }) {
+function RacerFleet({ players, finishLine, reducedMotion, moment, focus }: Pick<RaceTableSceneProps, "players" | "finishLine" | "moment" | "focus"> & { reducedMotion: boolean }) {
   const racers = players.flatMap((player, playerIndex) => player.activeRacers.map((racer) => ({
     athleteId: racer.id,
     playerIndex,
@@ -195,7 +197,8 @@ function RacerFleet({ players, finishLine, reducedMotion, moment }: Pick<RaceTab
     const racer = player.activeRacers.find((item) => item.id === placement.athleteId)!;
     return <RacerPiece key={`${player.id}:${racer.id}`} athleteId={racer.id} name={racer.nameZh}
       highlight={moment?.target.playerId === player.id && moment.target.athleteId === racer.id ? "#ff9247"
-        : moment?.source.playerId === player.id && moment.source.athleteId === racer.id ? "#37d7ec" : undefined}
+        : moment?.source.playerId === player.id && moment.source.athleteId === racer.id ? "#37d7ec"
+        : focus?.athleteId === racer.id && (!focus.playerId || focus.playerId === player.id) ? "#37d7ec" : undefined}
       reducedMotion={reducedMotion} color={PLAYER_COLORS[placement.playerIndex]} world={placement.world} slotCount={placement.slotCount} tripped={racer.tripped}
       finished={racer.finished} eliminated={racer.eliminated} />;
   })}</>;
@@ -215,13 +218,13 @@ function TableAndBounds() {
   </RigidBody>;
 }
 
-function Scene({ moment, players, finishLine, trackName, dice, focus, activePlayerId, overview, diceActive, reducedMotion, onDiceStateChange, registerDiceLauncher }: RaceTableSceneProps & {
-  overview: boolean; diceActive: boolean; reducedMotion: boolean;
+function Scene({ turnKey, moment, players, finishLine, trackName, dice, focus, activePlayerId, overview, reducedMotion, onDiceStateChange, registerDiceLauncher }: RaceTableSceneProps & {
+  overview: boolean; reducedMotion: boolean;
   onDiceStateChange: (state: DiceThrowState) => void;
   registerDiceLauncher: (launcher: DiceLauncher | null) => void;
 }) {
   return <>
-    <FollowCameraRig players={players} finishLine={finishLine} focus={focus} activePlayerId={activePlayerId} overview={overview} reducedMotion={reducedMotion} diceActive={diceActive} />
+    <FollowCameraRig players={players} finishLine={finishLine} focus={focus} activePlayerId={activePlayerId} overview={overview} reducedMotion={reducedMotion} />
     <color attach="background" args={["#b5ac99"]} />
     <hemisphereLight intensity={1.25} color="#fff9e9" groundColor="#4b4945" />
     <directionalLight castShadow position={[-7, 14, 8]} intensity={1.75} shadow-mapSize={[2048, 2048]}
@@ -232,8 +235,8 @@ function Scene({ moment, players, finishLine, trackName, dice, focus, activePlay
     <Physics gravity={[0, -12, 0]}>
       <TableAndBounds />
       <TrackBoard trackName={trackName} />
-      <Suspense fallback={null}><RacerFleet moment={moment} players={players} finishLine={finishLine} reducedMotion={reducedMotion} /></Suspense>
-      <TableDice {...dice} reducedMotion={reducedMotion} onStateChange={onDiceStateChange} registerLauncher={registerDiceLauncher} />
+      <Suspense fallback={null}><RacerFleet focus={focus} moment={moment} players={players} finishLine={finishLine} reducedMotion={reducedMotion} /></Suspense>
+      <TableDice turnKey={turnKey} {...dice} reducedMotion={reducedMotion} onStateChange={onDiceStateChange} registerLauncher={registerDiceLauncher} />
     </Physics>
   </>;
 }
@@ -253,6 +256,9 @@ function HtmlFallback({ players, finishLine, dice }: RaceTableSceneProps) {
 
 export function RaceTableScene(props: RaceTableSceneProps) {
   const [overview, setOverview] = useState(false);
+  useEffect(() => {
+    if (props.turnKey) setOverview(false);
+  }, [props.turnKey]);
   const [diceState, setDiceState] = useState<DiceThrowState>("ready");
   const diceLauncher = useRef<DiceLauncher | null>(null);
   const registerDiceLauncher = useCallback((launcher: DiceLauncher | null) => { diceLauncher.current = launcher; }, []);
@@ -264,7 +270,8 @@ export function RaceTableScene(props: RaceTableSceneProps) {
   });
   const [reducedMotion] = useState(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
   if (!webglAvailable) return <HtmlFallback {...props} />;
-  const status = diceState === "settled" && props.dice.targetValue ? `掷出 ${props.dice.targetValue}`
+  const status = diceState === "preparing" ? "准备投骰…"
+    : diceState === "settled" && props.dice.targetValue ? `掷出 ${props.dice.targetValue}`
     : diceState === "rolling" || diceState === "settling" ? `${props.dice.activePlayerName} 投掷中`
       : props.dice.playbackBusy ? "正在播放本次行动…"
       : props.dice.enabled ? "拖动骰子向内投掷" : `等待 ${props.dice.activePlayerName}`;
@@ -273,7 +280,7 @@ export function RaceTableScene(props: RaceTableSceneProps) {
     <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0, 19, 9], fov: 30, near: 0.1, far: 300 }}
       gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
       onCreated={({ gl }) => { gl.shadowMap.type = PCFSoftShadowMap; }}>
-      <Scene {...props} overview={overview} diceActive={diceState === "dragging" || diceState === "rolling" || diceState === "settling" || props.dice.enabled || props.dice.autoThrow} reducedMotion={reducedMotion} onDiceStateChange={setDiceState} registerDiceLauncher={registerDiceLauncher} />
+      <Scene {...props} overview={overview} reducedMotion={reducedMotion} onDiceStateChange={setDiceState} registerDiceLauncher={registerDiceLauncher} />
     </Canvas>
     </div>
     <div className="camera-controls" role="group" aria-label="镜头模式">

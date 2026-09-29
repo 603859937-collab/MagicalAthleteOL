@@ -7,7 +7,7 @@ import { RaceTrack } from "./components/RaceTrack";
 import { actionId, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
 import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
 import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
-import { canRollRaceDice } from "./raceControls";
+import { canRollRaceDice, raceDiceTurnKey } from "./raceControls";
 import { apiUrl, assetUrl } from "./runtimeConfig";
 import { scoreLabel } from "./scorePresentation";
 
@@ -649,7 +649,7 @@ export default function App() {
         <section className="race-stage stage">
           <div className="race-heading"><div><p className="kicker">RACE {game!.raceNumber} / 4</p><h2>{tracks[game!.raceNumber - 1]}</h2></div><div className="reward"><span>🏆 {game!.raceRewards[0]}</span><span>◉ {game!.raceRewards[1]}</span></div></div>
           {use3DRaceTable ? <Suspense fallback={<div className="race-table-loading" aria-label="正在加载 3D 比赛桌" />}>
-            <RaceTableScene moment={moment} focus={cameraFocus ?? (game!.pendingDecision ? { athleteId: game!.pendingDecision.athleteId, playerId: game!.pendingDecision.playerId, close: true } : null)} activePlayerId={game!.activePlayerId} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
+            <RaceTableScene turnKey={raceDiceTurnKey(game!, playbackBusy)} moment={moment} focus={cameraFocus ?? (game!.pendingDecision ? { athleteId: game!.pendingDecision.athleteId, playerId: game!.pendingDecision.playerId, close: true } : game!.pendingRoll ? { athleteId: game!.pendingRoll.nextAthleteId, playerId: game!.pendingRoll.nextPlayerId, close: true } : null)} activePlayerId={game!.activePlayerId} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
               playbackBusy,
               enabled: canRollRaceDice(
                 controlGame,
