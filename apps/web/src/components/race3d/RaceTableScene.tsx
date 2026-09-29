@@ -5,6 +5,7 @@ import { CanvasTexture, DoubleSide, ExtrudeGeometry, PCFSoftShadowMap, Shape, SR
 import type { ActionMoment } from "../../eventPresentation";
 import type { PlayerState } from "../../protocol";
 import { assetUrl } from "../../runtimeConfig";
+import { actionId } from "../../gameClient";
 import {
   assignRacerPlacements,
   BOARD_SIZE,
@@ -246,7 +247,7 @@ function HtmlFallback({ players, finishLine, dice }: RaceTableSceneProps) {
       </div>))}
     </div>
     <div className={dice.targetValue ? "fallback-die landed" : "fallback-die"}>{dice.targetValue ?? dice.restingValue}</div>
-    <button className="dice-throw-button" disabled={!dice.enabled} onClick={() => dice.onThrow(crypto.randomUUID())}>掷骰</button>
+    <button className="dice-throw-button" disabled={!dice.enabled} onClick={() => dice.onThrow(actionId())}>掷骰</button>
   </section>;
 }
 
@@ -282,7 +283,7 @@ export function RaceTableScene(props: RaceTableSceneProps) {
     <div className="table-dice-hud" aria-live="polite">
       <strong>{status}</strong>
       <button className="dice-throw-button" disabled={!props.dice.enabled || diceState !== "ready"} onClick={() => {
-        const throwId = crypto.randomUUID();
+        const throwId = actionId();
         if (diceLauncher.current?.()) props.dice.onThrow(throwId);
       }}>掷骰</button>
     </div>

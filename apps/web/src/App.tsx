@@ -9,6 +9,7 @@ import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, Ro
 import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
 import { canRollRaceDice } from "./raceControls";
 import { apiUrl, assetUrl } from "./runtimeConfig";
+import { scoreLabel } from "./scorePresentation";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
@@ -666,12 +667,12 @@ export default function App() {
             }} />
           </Suspense> : <div className="track-wrap"><RaceTrack moment={moment} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} /></div>}
           <div className="race-console">
-            <div className="score-strip">{game!.players.map((player, index) => <div className={game!.activePlayerId === player.id ? "active" : ""} key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><small>{player.score} 分</small></div>)}</div>
+            <div className="score-strip">{game!.players.map((player, index) => <div className={game!.activePlayerId === player.id ? "active" : ""} key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><small>{scoreLabel(player, game!.phase)}</small></div>)}</div>
             {!use3DRaceTable && <button className="command dice-command" disabled={!canRollRaceDice(
               controlGame,
               playerId,
               localRollPending || playbackBusy || !!rollAnimation || status !== "connected",
-            )} onClick={() => throwRaceDice(crypto.randomUUID())}>掷骰</button>}
+            )} onClick={() => throwRaceDice(actionId())}>掷骰</button>}
           </div>
           {use3DRaceTable && <button className="race-details-toggle" aria-expanded={raceDetailsOpen} aria-controls="race-roster" onClick={() => setRaceDetailsOpen(!raceDetailsOpen)}>{raceDetailsOpen ? "收起角色" : "角色与技能"}</button>}
           <section id="race-roster" className="race-roster" aria-label="本场角色卡牌">

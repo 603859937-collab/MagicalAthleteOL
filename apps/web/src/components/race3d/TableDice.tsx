@@ -6,6 +6,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { createDiceLifecycle, syncDiceLifecycle, takeDiceResetValue } from "../../diceLifecycle";
 import { targetQuaternion, throwVector } from "../../diceOrientation";
 import { BOARD_SIZE } from "./trackLayout";
+import { actionId } from "../../gameClient";
 
 export type DiceThrowState = "ready" | "dragging" | "rolling" | "settling" | "settled";
 export type DiceLauncher = () => boolean;
@@ -228,7 +229,7 @@ export function TableDice(props: TableDiceProps) {
       reset(lifecycle.current.restingValue);
       return;
     }
-    const throwId = crypto.randomUUID();
+    const throwId = actionId();
     if (launch(drag.current.start, drag.current.current)) {
       launchedRollKey.current = `start-${throwId}`;
       props.onThrow(throwId);
