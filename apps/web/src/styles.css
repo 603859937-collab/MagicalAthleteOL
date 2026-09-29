@@ -109,7 +109,9 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .track-wrap { overflow-x: auto; border-radius: 8px; background: #171719; box-shadow: 8px 8px 0 #151515; scrollbar-color: #ee3825 #ded8cc; }
 .track-wrap canvas { display: block; width: 100%; min-width: 980px; height: auto; }
 .race-table-3d, .race-table-loading { position: relative; width: 100%; max-width: 100%; min-height: 0; max-height: 620px; aspect-ratio: 10 / 3; overflow: hidden; border: 4px solid #151515; border-radius: 6px; background: #6e6b65; box-shadow: 8px 8px 0 #151515; }
-.race-table-3d { touch-action: none; }
+.race-table-3d { touch-action: none; aspect-ratio: auto; max-height: none; background: #b5ac99; }
+.race-table-viewport { position: relative; width: 100%; aspect-ratio: 10 / 3; max-height: 620px; }
+.board-preview-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 20px; }
 .race-table-3d canvas { display: block; width: 100%; height: 100%; cursor: default; }
 .race-table-3d.dice-enabled canvas { cursor: grab; }
 .race-table-3d.dice-enabled canvas:active { cursor: grabbing; }
@@ -127,7 +129,7 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .score-strip .color-chip { grid-row: span 2; }
 .score-strip small { color: #777; }
 .score-strip .active { background: #f2bd27; box-shadow: 4px 4px 0 #151515; }
-.table-dice-hud { position: absolute; z-index: 2; inset: auto 10px 10px auto; display: flex; min-height: 38px; padding: 5px 5px 5px 12px; justify-content: space-between; gap: 10px; align-items: center; pointer-events: none; color: white; border: 2px solid #151515; border-radius: 4px; background: rgba(21,21,21,.88); }
+.table-dice-hud { display: flex; min-height: 44px; padding: 6px 12px; justify-content: flex-end; gap: 14px; align-items: center; color: #f7f4e9; border-top: 2px solid #151515; background: #242427; }
 .table-dice-hud strong { font-size: .76rem; }
 .dice-throw-button { min-width: 72px; min-height: 30px; padding: 0 12px; pointer-events: auto; color: #151515; border: 2px solid #151515; border-radius: 3px; background: #f2bd27; font-size: .75rem; font-weight: 900; }
 .dice-throw-button:disabled { color: #aaa; background: #555; }
@@ -208,7 +210,46 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
   .podium-list > div { grid-template-columns: 34px 1fr auto; }.result-racers { grid-column: 2 / -1; grid-row: 2; }
   .event-feed { display: none; }.event-feed.racing { display: grid; width: calc(100% - 24px); max-width: 1340px; margin-top: -54px; }
   .decision-options { grid-template-columns: 1fr; }
-  .race-table-3d, .race-table-loading { min-width: 0; max-width: calc(100vw - 24px); min-height: 240px; aspect-ratio: 1.45 / 1; }
+  .race-table-3d { min-width: 0; max-width: calc(100vw - 24px); }
+  .race-table-viewport, .race-table-loading { min-height: 240px; aspect-ratio: 1.45 / 1; }
   .race-table-fallback { grid-template-columns: 1fr auto; }
 }
 @media (max-width: 430px) { .draft-pool, .my-team { grid-template-columns: 1fr; }.lobby-players { grid-template-columns: 1fr; } }
+
+/* Viewport-sized race world with floating game controls. */
+.immersive-race { position: fixed; inset: 0; height: 100dvh; min-height: 0; padding: 0; overflow: hidden; background: #b5ac99; }
+.immersive-race .race-stage { position: absolute; inset: 0; width: 100%; max-width: none; margin: 0; padding: 0; }
+.immersive-race .race-table-3d, .immersive-race .race-table-loading { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; border: 0; border-radius: 0; aspect-ratio: auto; box-shadow: none; }
+.immersive-race .race-table-viewport { width: 100%; height: 100%; min-height: 0; max-height: none; aspect-ratio: auto; }
+.immersive-race .topbar { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 16px; right: 16px; min-height: 44px; padding: 8px 14px; grid-template-columns: 1fr auto; border: 1px solid #ffffff50; border-radius: 12px; background: #242427df; backdrop-filter: blur(14px); }
+.immersive-race .race-progress { display: none; }
+.immersive-race .race-heading { position: absolute; z-index: 3; top: max(80px, calc(env(safe-area-inset-top) + 68px)); left: 24px; right: 24px; pointer-events: none; }
+.immersive-race .race-heading h2 { font-size: clamp(1.4rem, 3vw, 2.2rem); text-shadow: 0 1px 8px #fff9; }
+.immersive-race .race-console { position: absolute; z-index: 3; top: 158px; left: 24px; right: 24px; margin: 0; pointer-events: none; }
+.immersive-race .score-strip { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 8px; pointer-events: auto; }
+.immersive-race .score-strip > div { min-width: max-content; padding: 6px 10px; border-width: 1px; border-radius: 8px; background: #fffdf1d9; font-size: .75rem; }
+.immersive-race .score-strip .active { background: #f2bd27; box-shadow: none; }
+.immersive-race .table-dice-hud { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); left: 50%; width: max-content; max-width: calc(100% - 32px); min-height: 54px; padding: 8px 12px 8px 18px; border: 1px solid #ffffff40; border-radius: 14px; background: #242427ee; transform: translateX(-50%); }
+.immersive-race .dice-throw-button { min-height: 40px; }
+.camera-controls { position: absolute; top: 12px; right: 12px; display: flex; padding: 4px; gap: 4px; border-radius: 10px; background: #242427e8; }
+.camera-controls button, .race-details-toggle { min-height: 40px; padding: 8px 14px; color: #fff; border: 0; border-radius: 7px; background: transparent; font-size: .78rem; font-weight: 800; }
+.camera-controls button[aria-pressed="true"] { color: #151515; background: #f2bd27; }
+.immersive-race .camera-controls { top: auto; right: 20px; bottom: max(96px, calc(env(safe-area-inset-bottom) + 72px)); }
+.race-details-toggle { position: absolute; z-index: 5; left: 20px; bottom: max(96px, calc(env(safe-area-inset-bottom) + 72px)); background: #242427e8; }
+.immersive-race .race-roster { display: none; position: absolute; z-index: 4; left: 16px; right: 16px; bottom: 152px; max-height: min(56dvh, 480px); overflow: auto; margin: 0; padding: 16px; border: 1px solid #fff8; border-radius: 14px; background: #f4efe4f5; box-shadow: 0 12px 40px #0004; }
+.immersive-race.race-details-open .race-roster { display: block; }
+.immersive-race .event-feed.racing { position: absolute; z-index: 2; left: 24px; bottom: 155px; width: min(300px, 30vw); max-height: 90px; margin: 0; border: none; background: #fff8; box-shadow: none; pointer-events: none; }
+.immersive-race .ability-banner { top: 220px; width: max-content; max-width: calc(100% - 32px); border-width: 2px; border-radius: 10px; }
+.immersive-race .decision-backdrop { align-items: end; background: #15151520; }
+.immersive-race .decision-dialog { max-height: 65dvh; overflow-y: auto; }
+.immersive-race .race-table-fallback { height: 100%; padding: 220px 20px 150px; overflow-y: auto; }
+.immersive-race .board-preview-controls { position: absolute; z-index: 4; top: 145px; left: 20px; right: 20px; display: flex; flex-wrap: wrap; gap: 6px; }
+.immersive-race .board-preview-controls button { min-height: 34px; padding: 4px 10px; font-size: .7rem; }
+@media (max-width: 700px) {
+  .immersive-race .topbar { left: 10px; right: 10px; }
+  .immersive-race .race-heading { left: 16px; right: 16px; }
+  .immersive-race .race-console { top: 145px; left: 16px; right: 16px; }
+  .immersive-race .event-feed.racing { display: none; }
+  .immersive-race .ability-banner { top: 210px; font-size: .85rem; }
+  .immersive-race .reward { font-size: .8rem; }
+}

@@ -24,17 +24,17 @@ export interface RacerPlacement extends RacerPlacementInput {
 
 export const TRACK_LENGTH = 30;
 
-// Keep the 3D board on the exact 1200 x 360 grid used by RaceTrack.tsx.
-// A uniform scale preserves every cell's proportions and shared edges.
+// One print grid shared by the artwork, 2D renderer and 3D racer placement.
 export const BOARD_SIZE = { width: 24, depth: 7.2 } as const;
 export const RACER_PIECE_DIMENSIONS = {
   baseRadius: 0.28,
   portraitWidth: 0.62,
   portraitHeight: 0.9,
 } as const;
-export const FINISH_BADGE_RECT = { x: 38, y: 120, width: 85, height: 120 } as const;
+export const FINISH_BADGE_RECT = { x: 25, y: 128, width: 82, height: 116 } as const;
 
-const REFERENCE_BOARD = { width: 1200, height: 360 } as const;
+export const REFERENCE_BOARD = { width: 1200, height: 360 } as const;
+export const TRACK_PRINT = { inset: 20, cellWidth: 1160 / 15, cellHeight: 80 } as const;
 const WORLD_SCALE = BOARD_SIZE.width / REFERENCE_BOARD.width;
 export const TRACK_GRID_GAP = 0.06;
 const SLOT_EDGE_CLEARANCE = 0.05;
@@ -61,22 +61,24 @@ function referenceRectToPose(rect: ReferenceRect): TrackPose {
   };
 }
 
-function referenceRectForStep(step: number): ReferenceRect {
+export function referenceRectForStep(step: number): ReferenceRect {
+  const { inset, cellWidth, cellHeight } = TRACK_PRINT;
   if (step === 0) {
-    return { x: 29, y: 28, width: 205, height: 78, tangent: { x: 1, z: 0 } };
+    return { x: inset, y: inset, width: cellWidth * 3, height: cellHeight, tangent: { x: 1, z: 0 } };
   }
-  if (step <= 13) {
+  if (step <= 12) {
     return {
-      x: 234 + (step - 1) * (937 / 13), y: 28, width: 937 / 13, height: 78,
+      x: inset + (step + 2) * cellWidth, y: inset, width: cellWidth, height: cellHeight,
       tangent: { x: 1, z: 0 },
     };
   }
-  if (step <= 15) {
-    return { x: 1105, y: 106 + (step - 14) * 74, width: 66, height: 74, tangent: { x: 0, z: 1 } };
+  if (step <= 14) {
+    return { x: inset + 14 * cellWidth, y: inset + (step - 12) * cellHeight,
+      width: cellWidth, height: cellHeight, tangent: { x: 0, z: 1 } };
   }
   if (step <= 29) {
-    const width = 1046 / 14;
-    return { x: 1171 - (step - 15) * width, y: 254, width, height: 78, tangent: { x: -1, z: 0 } };
+    return { x: inset + (29 - step) * cellWidth, y: inset + 3 * cellHeight,
+      width: cellWidth, height: cellHeight, tangent: { x: -1, z: 0 } };
   }
   return { ...FINISH_BADGE_RECT, tangent: { x: 0, z: -1 } };
 }

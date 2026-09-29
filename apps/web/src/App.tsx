@@ -111,6 +111,8 @@ export default function App() {
   const [rollingActionId, setRollingActionId] = useState<string | null>(null);
   const [diceResetKey, setDiceResetKey] = useState(0);
   const [restingDiceValue, setRestingDiceValue] = useState(1);
+  const [cameraFocus, setCameraFocus] = useState<{ athleteId: string; playerId?: string; close: boolean } | null>(null);
+  const [raceDetailsOpen, setRaceDetailsOpen] = useState(false);
   const [abilityBanner, setAbilityBanner] = useState("");
   const [decisionSeconds, setDecisionSeconds] = useState(0);
   const [resolvingDecisionId, setResolvingDecisionId] = useState<string | null>(null);
@@ -268,6 +270,8 @@ export default function App() {
     revealTimer.current = null;
     finishingRollKey.current = null;
     playbackId.current += 1;
+    setCameraFocus(null);
+    setRaceDetailsOpen(false);
     playbackQueue.current = [];
     activePlayback.current = null;
     eventPlaybackActive.current = false;
@@ -479,9 +483,15 @@ export default function App() {
     const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
     for (const event of events) {
       if (cancelled()) return;
+      const focusId = event.type === "ABILITY_TRIGGERED" ? event.sourceAthleteId ?? event.athleteId : event.athleteId;
+      if (focusId && ["ABILITY_TRIGGERED", "RACER_MOVED", "RACER_WARPED", "RACER_TRIPPED", "RACER_FINISHED"].includes(event.type)) {
+        setCameraFocus({ athleteId: focusId, playerId: event.type === "ABILITY_TRIGGERED" ? event.sourcePlayerId ?? event.playerId : event.playerId, close: true });
+        if (use3DRaceTable) await pause(650);
+        if (cancelled()) return;
+      }
       if (event.type === "ABILITY_TRIGGERED") {
         setAbilityBanner(`${event.sourceAthleteName ?? "赛车手"} · ${event.abilityName ?? "技能触发"}`);
-        await pause(900);
+        await pause(use3DRaceTable ? 1600 : 900);
         if (cancelled()) return;
         setAbilityBanner("");
       }
@@ -502,7 +512,7 @@ export default function App() {
               if (cancelled()) return;
               racer.position = position;
               if (!publish()) return;
-              await pause(220);
+              await pause(use3DRaceTable ? 340 : 220);
             }
           }
         }
@@ -515,6 +525,9 @@ export default function App() {
       }
     }
     if (cancelled()) return;
+    if (use3DRaceTable) await pause(650);
+    if (cancelled()) return;
+    setCameraFocus(null);
     publishSnapshot(finalSnapshot);
   }
 
@@ -543,7 +556,7 @@ export default function App() {
   }
 
   return (
-    <main className="table">
+    <main className={`table ${game!.phase === "RACING" && use3DRaceTable ? "immersive-race" : ""} ${raceDetailsOpen ? "race-details-open" : ""}`}>
       <header className="topbar">
         <div className="wordmark">MAGICAL ATHLETE</div>
         <div className="race-progress">
@@ -605,7 +618,7 @@ export default function App() {
         <section className="race-stage stage">
           <div className="race-heading"><div><p className="kicker">RACE {game!.raceNumber} / 4</p><h2>{tracks[game!.raceNumber - 1]}</h2></div><div className="reward"><span>🏆 {game!.raceRewards[0]}</span><span>◉ {game!.raceRewards[1]}</span></div></div>
           {use3DRaceTable ? <Suspense fallback={<div className="race-table-loading" aria-label="正在加载 3D 比赛桌" />}>
-            <RaceTableScene players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
+            <RaceTableScene focus={cameraFocus ?? (game!.pendingDecision ? { athleteId: game!.pendingDecision.athleteId, playerId: game!.pendingDecision.playerId, close: true } : null)} activePlayerId={game!.activePlayerId} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
               enabled: canRollRaceDice(
                 controlGame,
                 playerId,
@@ -629,7 +642,8 @@ export default function App() {
               localRollPending || playbackBusy || !!rollAnimation || status !== "connected",
             )} onClick={() => throwRaceDice(crypto.randomUUID())}>掷骰</button>}
           </div>
-          <section className="race-roster" aria-label="本场角色卡牌">
+          {use3DRaceTable && <button className="race-details-toggle" aria-expanded={raceDetailsOpen} aria-controls="race-roster" onClick={() => setRaceDetailsOpen(!raceDetailsOpen)}>{raceDetailsOpen ? "收起角色" : "角色与技能"}</button>}
+          <section id="race-roster" className="race-roster" aria-label="本场角色卡牌">
             <div className="race-roster-heading"><p className="kicker">RACERS IN PLAY</p><h3>本场角色</h3></div>
             <div className="race-roster-scroll">
               {game!.players.map((player, index) => <article className={`racer-owner ${game!.activePlayerId === player.id ? "active" : ""}`} key={player.id}>
