@@ -277,3 +277,15 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
   .moment-flow { grid-template-columns: 74px 1fr 74px; }
   .moment-actor img, .moment-symbol { width: 40px; height: 40px; }
 }
+
+.decision-option-detail { display: block; margin-top: 4px; font-size: .75rem; font-weight: 400; }
+
+
+.racer-card-with-rules { position: relative; min-width: 0; }
+.racer-rules-button { position: absolute; z-index: 5; left: 14px; top: 30%; padding: 4px 8px; color: #fff; border: 1px solid #fff9; border-radius: 20px; background: #151515dd; font-size: .7rem; cursor: help; }
+.racer-rules-button:focus-visible { outline: 3px solid #f2bd27; outline-offset: 3px; }
+.racer-rules-tooltip { position: fixed; z-index: 100; width: min(360px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow-y: auto; padding: 16px; color: #242427; border: 2px solid #151515; border-radius: 10px; background: #fffdf5; box-shadow: 0 8px 28px #0004; font-size: .85rem; line-height: 1.65; text-align: left; overflow-wrap: anywhere; }
+.racer-rules-tooltip strong { font-size: .95rem; }
+.racer-rules-tooltip p { margin: 10px 0 0; }
+.racer-rules-summary { font-weight: 700; }
+@media (pointer: coarse) { .racer-rules-button { min-width: 44px; min-height: 44px; } }

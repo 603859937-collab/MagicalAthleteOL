@@ -143,6 +143,7 @@ class PendingChoice:
     roll_preview: dict[str, Any] | None = None
     answer_index: int | None = None
     auto_answer: bool = False
+    effect_preview: dict[str, Any] | None = None
 
     def public_options(self) -> list[dict[str, str]]:
         options = [
@@ -186,7 +187,10 @@ class DecisionBroker:
             roll_state = ctx.game_state.roll_state
             roll_serial = getattr(ctx.event, "roll_serial", None)
             roll_preview = None
-            if roll_serial is not None and getattr(ctx.event, "current_roll_val", None) is not None:
+            if roll_serial is not None and (
+                getattr(ctx.event, "current_roll_val", None) is not None
+                or getattr(ctx.event, "dice_value", None) is not None
+            ):
                 roll_preview = {
                     "rollSerial": roll_serial,
                     "value": roll_state.dice_value or roll_state.base_value,
@@ -204,6 +208,11 @@ class DecisionBroker:
                 options=options,
                 option_labels=labels,
                 roll_preview=roll_preview,
+                effect_preview={
+                    "racerIndex": ctx.event.target_racer_idx,
+                    "from": ctx.event.start_tile,
+                    "to": ctx.event.end_tile,
+                } if ability_name == "SuckerfishRide" and ctx.event is not None else None,
             )
             raise DecisionRequired
 
@@ -232,6 +241,7 @@ class DecisionBroker:
             roll_preview=current.roll_preview,
             answer_index=index,
             auto_answer=auto,
+            effect_preview=getattr(current, "effect_preview", None),
         )
         self.last_resolved = resolved
         self.resolved_choices.append(resolved)
@@ -285,7 +295,8 @@ class InteractiveAgent(Agent):
     @override
     def make_boolean_decision(self, engine: Any, ctx: DecisionContext[Any]) -> bool:
         pending = self.broker.pending
-        if (pending is not None and pending.answer_index == -1
+        if (self.broker.replay_index == len(self.broker.resolved_choices)
+            and pending is not None and pending.answer_index == -1
             and pending.racer_idx == ctx.source_racer_idx
             and pending.ability_name == str(ctx.source.name)):
             result = ctx.source.get_auto_boolean_decision(engine, ctx)
@@ -305,7 +316,8 @@ class InteractiveAgent(Agent):
         if not options:
             return None
         pending = self.broker.pending
-        if (pending is not None and pending.answer_index == -1
+        if (self.broker.replay_index == len(self.broker.resolved_choices)
+            and pending is not None and pending.answer_index == -1
             and pending.racer_idx == ctx.source_racer_idx
             and pending.ability_name == str(ctx.source.name)):
             recommended = ctx.source.get_auto_selection_decision(engine, ctx)

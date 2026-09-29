@@ -1,3 +1,4 @@
+import { AthleteRules } from "./components/AthleteRules";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { decisionTitle, decisionPrompt, decisionOptionLabel } from "./decisionPresentation";
 import { ActionMoment } from "./components/ActionMoment";
@@ -86,8 +87,10 @@ function RacerCard({ athlete, selected, disabled, used, compact, status, onClick
     {used && <span className="used-stamp">已退场</span>}
     {status && <span className="racer-status">{status}</span>}
   </>;
-  if (!onClick) return <article className={className} style={style}>{face}</article>;
-  return <button className={className} style={style} disabled={disabled || used} onClick={onClick}>{face}</button>;
+  return <AthleteRules athlete={athlete}>{onClick
+    ? <button className={className} style={style} disabled={disabled || used} onClick={onClick}>{face}</button>
+    : <article className={className} style={style}>{face}</article>}
+  </AthleteRules>;
 }
 
 function racerStatus(racer: ActiveRacer): string | null {
@@ -691,7 +694,7 @@ export default function App() {
           <p>{decisionPrompt(controlGame.pendingDecision)}</p>
           <div className="decision-options">{controlGame.pendingDecision.options.map((option) => <button className="command secondary" key={option.id}
             disabled={controlGame.pendingDecision?.playerId !== playerId || status !== "connected"}
-            onClick={() => resolveDecision(controlGame.pendingDecision!.id, option.id)}>{decisionOptionLabel(option.label)}</button>)}</div>
+            onClick={() => resolveDecision(controlGame.pendingDecision!.id, option.id)}>{decisionOptionLabel(option.label)}{option.description && <small className="decision-option-detail">{option.description}</small>}</button>)}</div>
           {controlGame.pendingDecision.playerId !== playerId && <small>等待 {controlGame.players.find((player) => player.id === controlGame.pendingDecision?.playerId)?.name} 选择</small>}
         </section>
       </div>}

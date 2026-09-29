@@ -414,6 +414,8 @@ class MagsimGameEngine:
             raise GameRuleError("NO_PENDING_DECISION", "当前没有待处理的技能选择")
         if state.pending_decision["playerId"] != player_id and not timed_out:
             raise GameRuleError("NOT_DECIDING_PLAYER", "只有对应玩家可以提交这个选择")
+        if state.pending_decision["id"] != decision_id:
+            raise GameRuleError("STALE_DECISION", "选择已失效或候选项无效")
         engine = state.magsim_engine
         broker = next(iter(engine.agents.values())).broker
         try:
@@ -476,6 +478,20 @@ class MagsimGameEngine:
             "choiceType": pending.choice_type,
             "options": pending.public_options(),
         }
+        for option, value in zip(public["options"], pending.options):
+            target_idx = getattr(value, "idx", None)
+            if target_idx in athlete_map:
+                target_owner = owner_map[target_idx]
+                owner_name = next(p.name for p in state.players if p.id == target_owner)
+                option["description"] = f"{owner_name} · 第 {value.position} 格"
+        effect_preview = getattr(pending, "effect_preview", None)
+        if effect_preview is not None:
+            target_idx = effect_preview["racerIndex"]
+            public["effectPreview"] = {
+                "athleteName": athlete_map[target_idx].name_zh,
+                "from": effect_preview["from"],
+                "to": effect_preview["to"],
+            }
         if pending.roll_preview is not None:
             public["rollPreview"] = pending.roll_preview
         return public

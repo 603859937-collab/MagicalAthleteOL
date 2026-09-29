@@ -90,6 +90,25 @@ export function decisionOptionLabel(label: string): string {
 }
 
 export function decisionPrompt(decision: PendingDecision): string {
+  const prompts: Record<string, string> = {
+    GeniusPrediction: "预测接下来会掷出的骰点；猜中可获得额外回合。",
+    MastermindPredict: "预测哪名其他赛车手会第一个冲线。",
+    FlipFlopSwap: "选择一名角色交换位置；使用后将跳过本回合的正常移动。也可以不使用。",
+    HypnotistWarp: "选择一名其他角色，将其传送到你所在的格子；也可以不使用。",
+    DuelistDuel: "选择同格的一名角色决斗；双方掷骰，胜者前进 2 格，平局由发起者获胜。也可以不使用。",
+    ThirdWheelJoin: "选择一个恰有两名角色的格子并传送过去；也可以不使用。",
+    CopyLead: "领先者并列，选择其中一名角色复制能力。",
+    CheerleaderSupport: "是否让所有并列最后的角色前进 2 格，再让自己前进 1 格？",
+    AlchemistAlchemy: "是否把本次基础移动值改为 4？",
+    RocketScientistBoost: "是否额外增加本次骰点的移动距离？使用后自己会绊倒。",
+    DicemongerDeal: "是否重掷？借用其他角色的骰商能力时，对方会前进 1 格。",
+    MagicalReroll: "是否重掷？每回合最多使用两次。",
+  };
+  if (decision.abilityName === "SuckerfishRide" && decision.effectPreview) {
+    const preview = decision.effectPreview;
+    return `是否跟随${preview.athleteName}，从第 ${preview.from} 格移动到第 ${preview.to} 格？`;
+  }
+  if (prompts[decision.abilityName]) return prompts[decision.abilityName];
   if (decision.choiceType === "DIE") return "选择本次使用的骰点";
   if (decision.choiceType === "TILE") return "选择本次传送到的格子";
   if (decision.abilityName === "TwinCopy" || decision.abilityName === "EggCopy") return "选择本次复制的角色能力";
