@@ -7,6 +7,7 @@ import { createDiceLifecycle, syncDiceLifecycle, takeDiceResetValue } from "../.
 import { targetQuaternion, throwVector } from "../../diceOrientation";
 import { BOARD_SIZE } from "./trackLayout";
 import { actionId } from "../../gameClient";
+import { playDiceImpactSound } from "../../gameAudio";
 
 export type DiceThrowState = "preparing" | "ready" | "dragging" | "rolling" | "settling" | "settled";
 export type DiceLauncher = () => boolean;
@@ -94,6 +95,8 @@ export function TableDice(props: TableDiceProps) {
   const state = useRef<DiceThrowState>("ready");
   const drag = useRef({ pointerId: -1, start: new Vector3(), current: new Vector3() });
   const rollingSince = useRef(0);
+  const impactPlayed = useRef(false);
+  const fallingSpeed = useRef(0);
   const settleSince = useRef(0);
   const settleStart = useRef(new Quaternion());
   const settlePosition = useRef(new Vector3());
@@ -136,6 +139,8 @@ export function TableDice(props: TableDiceProps) {
     rigidBody.setLinvel(velocity, true);
     if (!wasDragging) rigidBody.setAngvel({ x: 8 + Math.abs(velocity.z), y: 5 + velocity.x, z: 7 - velocity.x }, true);
     rollingSince.current = performance.now();
+    impactPlayed.current = false;
+    fallingSpeed.current = 0;
     setState("rolling");
     return true;
   }, [releaseGrip, setState]);
@@ -223,6 +228,7 @@ export function TableDice(props: TableDiceProps) {
   }, -1);
 
   useBeforePhysicsStep(() => {
+    fallingSpeed.current = body.current?.linvel().y ?? 0;
     if (state.current !== "dragging" || !grip.current) return;
     // Move the hand, leaving gravity and the corner joint to rotate the die.
     const position = new Vector3().copy(grip.current.translation());
@@ -335,6 +341,12 @@ export function TableDice(props: TableDiceProps) {
   return <>
     <RigidBody ref={grip} type="kinematicPosition" colliders={false} />
     <RigidBody ref={body} additionalSolverIterations={8} colliders="cuboid" restitution={0.62} friction={0.72}
+    onCollisionEnter={({ other, manifold }) => {
+      if (state.current !== "rolling" || impactPlayed.current || fallingSpeed.current > -0.5
+        || !other.rigidBody?.isFixed() || Math.abs(manifold.normal().y) < 0.5) return;
+      impactPlayed.current = true;
+      playDiceImpactSound();
+    }}
     linearDamping={0.14} angularDamping={0.18} position={[READY_POSITION.x, READY_POSITION.y, READY_POSITION.z]}>
     <mesh geometry={geometry} castShadow receiveShadow
       onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}

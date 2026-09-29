@@ -10,6 +10,7 @@ import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPre
 import { canRollRaceDice, raceDiceTurnKey } from "./raceControls";
 import { apiUrl, assetUrl } from "./runtimeConfig";
 import { scoreLabel } from "./scorePresentation";
+import { playMoveSound, unlockGameAudio } from "./gameAudio";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
@@ -138,6 +139,15 @@ export default function App() {
   const finishingRollKey = useRef<string | null>(null);
   const revealTimer = useRef<number | null>(null);
   const playbackId = useRef(0);
+
+  useEffect(() => {
+    window.addEventListener("pointerdown", unlockGameAudio);
+    window.addEventListener("keydown", unlockGameAudio);
+    return () => {
+      window.removeEventListener("pointerdown", unlockGameAudio);
+      window.removeEventListener("keydown", unlockGameAudio);
+    };
+  }, []);
 
   useEffect(() => () => {
     client.current.close();
@@ -530,6 +540,7 @@ export default function App() {
             if (cancelled()) return;
             racer.position = event.to;
             if (!publish()) return;
+            playMoveSound();
             await pause(320);
             if (cancelled()) return;
           } else {
@@ -539,6 +550,7 @@ export default function App() {
               if (cancelled()) return;
               racer.position = position;
               if (!publish()) return;
+              playMoveSound();
               await pause(use3DRaceTable ? 340 : 220);
             }
           }
