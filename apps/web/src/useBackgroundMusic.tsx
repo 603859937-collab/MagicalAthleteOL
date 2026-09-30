@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BackgroundMusic } from './backgroundMusic';
 import { getGameAudioContext } from './gameAudio';
 
 const preferenceKey = 'magical-athlete-music';
 export function useBackgroundMusic() {
+  const { t } = useTranslation();
   const [enabled, setEnabled] = useState(() => {
     try { return localStorage.getItem(preferenceKey) !== 'off'; } catch { return true; }
   });
@@ -26,11 +28,11 @@ export function useBackgroundMusic() {
       player.current?.stop(); player.current = null;
     };
   }, []);
-  return <button type="button" className="music-toggle" aria-label="背景音乐" aria-pressed={enabled}
-    title={enabled ? '关闭背景音乐' : '开启背景音乐'} onClick={() => {
+  return <button type="button" className="music-toggle" aria-label={t("audio.label")} aria-pressed={enabled}
+    title={enabled ? t("audio.off") : t("audio.on")} onClick={() => {
       const next = !enabledRef.current;
       enabledRef.current = next; setEnabled(next);
       try { localStorage.setItem(preferenceKey, next ? 'on' : 'off'); } catch { /* Storage is optional. */ }
       if (next) start(); else player.current?.stop();
-    }}>♪ 音乐{enabled ? '开' : '关'}</button>;
+    }}>{t("audio.music")}{enabled ? t("audio.enabled") : t("audio.disabled")}</button>;
 }

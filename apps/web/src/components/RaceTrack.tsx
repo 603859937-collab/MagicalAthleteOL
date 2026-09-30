@@ -1,7 +1,9 @@
 import { Container, Graphics, Sprite, Stage, Text } from "@pixi/react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Assets, ColorMatrixFilter, TextStyle, Texture } from "pixi.js";
 import type { ActionMoment } from "../eventPresentation";
+import { athleteText } from "../i18n/athletes";
 import type { PlayerState } from "../protocol";
 import { assetUrl } from "../runtimeConfig";
 import { createBoardCanvas, drawBoardArtwork, loadBoardAtlas } from "./race3d/boardArtwork";
@@ -74,6 +76,7 @@ function RacerToken({ id, name, color, finished }: { id: string; name: string; c
 }
 
 export function RaceTrack({ players, finishLine, trackName, moment }: RaceTrackProps) {
+  const { t } = useTranslation();
   // Keep the Sprite's texture alive across map changes: Pixi applies prop
   // updates after React effects, so disposing the previous map here is unsafe.
   const [{ canvas, board }] = useState(() => {
@@ -116,7 +119,7 @@ export function RaceTrack({ players, finishLine, trackName, moment }: RaceTrackP
           const target = moment?.target.playerId === player.id && moment.target.athleteId === racer.id;
           g.clear(); g.lineStyle(4, target ? 0xff9247 : 0x37d7ec); g.drawCircle(0, 0, 29);
         }} />}
-        <RacerToken id={racer.id} name={racer.nameZh} color={playerColors[placement.playerIndex % playerColors.length]}
+        <RacerToken id={racer.id} name={athleteText(t, racer).name} color={playerColors[placement.playerIndex % playerColors.length]}
           finished={racer.finished} />
         {(racer.finishPosition === 1 || racer.finishPosition === 2) && <Text text={racer.finishPosition === 1 ? "✹" : "✺"} x={0} y={-34} anchor={.5}
           style={new TextStyle({ fill: racer.finishPosition === 1 ? 0xef3825 : 0xd965ab, fontSize: 28, fontWeight: "900", stroke: 0xf2bd27, strokeThickness: 2 })} />}

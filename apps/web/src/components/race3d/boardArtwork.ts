@@ -1,3 +1,4 @@
+import i18n from "../../i18n";
 import { assetUrl } from "../../runtimeConfig";
 import atlas from "./boardAtlas.json";
 import { FINISH_BADGE_RECT, REFERENCE_BOARD, referenceRectForStep } from "./trackLayout";
@@ -6,10 +7,18 @@ export type TrackName = "Standard" | "WildWilds";
 const INK = "#1d1e21";
 const PAPER = "#f1f0e9";
 const COLORS = ["#b664ad", "#edb921", "#3f7939", "#507fc8", "#e54b34"];
-const WILD_LABELS: Record<number, string> = {
-  1: "★ 1", 5: "绊倒!", 7: "+3", 11: "+1", 13: "★ 1",
-  16: "−4", 17: "绊倒!", 23: "+2", 24: "−2", 26: "绊倒!",
+const WILD_LABEL_KEYS: Record<number, string | null> = {
+  5: "board.trip", 17: "board.trip", 26: "board.trip",
 };
+const WILD_SYMBOLS: Record<number, string> = {
+  1: "★ 1", 7: "+3", 11: "+1", 13: "★ 1", 16: "−4", 23: "+2", 24: "−2",
+};
+
+/** Canvas-filled labels follow the UI language, so the fallback board stays readable. */
+function wildLabel(step: number): string {
+  const key = WILD_LABEL_KEYS[step];
+  return key ? i18n.t(key) : WILD_SYMBOLS[step] ?? "";
+}
 let atlasPromise: Promise<HTMLImageElement> | undefined;
 
 export function loadBoardAtlas(): Promise<HTMLImageElement> {
@@ -64,8 +73,8 @@ export function drawBoardArtwork(context: CanvasRenderingContext2D, track: Track
         context.fillStyle = PAPER;
         context.strokeStyle = INK;
         context.lineWidth = 3;
-        context.strokeText(WILD_LABELS[step], x + w / 2, y + h / 2 + 8);
-        context.fillText(WILD_LABELS[step], x + w / 2, y + h / 2 + 8);
+        context.strokeText(wildLabel(step), x + w / 2, y + h / 2 + 8);
+        context.fillText(wildLabel(step), x + w / 2, y + h / 2 + 8);
       }
     } else if (!wild && step > 0 && step % 5 === 0) {
       if (image) {
@@ -107,7 +116,7 @@ export function drawBoardArtwork(context: CanvasRenderingContext2D, track: Track
     context.font = "900 65px Impact, sans-serif";
     context.fillText(wild ? "WILD WILDS" : "MILD MILE", 608, 205);
     context.font = "900 28px sans-serif";
-    context.fillText("起点", 136, 70);
+    context.fillText(i18n.t("board.start"), 136, 70);
     context.fillText("1 / 2", 67, 190);
   }
 

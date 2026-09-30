@@ -11,10 +11,6 @@ export type GamePhase =
 export interface AthleteCard {
   id: string;
   name: string;
-  nameZh: string;
-  abilityTitleZh: string;
-  abilitySummary: string;
-  abilityDetails?: string;
 }
 
 export interface ActiveRacer extends AthleteCard {
@@ -49,7 +45,7 @@ export interface RaceResult {
   eliminated: boolean;
 }
 
-export interface DecisionOption { id: string; label: string; description?: string }
+export interface DecisionOption { id: string; label: string; ownerName?: string; position?: number }
 export interface RollPreview {
   rollSerial: number;
   value: number;
@@ -67,7 +63,7 @@ export interface PendingDecision {
   prompt: string;
   choiceType: "BOOLEAN" | "RACER" | "TILE" | "DIE";
   options: DecisionOption[];
-  effectPreview?: { athleteName: string; from: number; to: number };
+  effectPreview?: { athleteId?: string; athleteName: string; from: number; to: number };
   rollPreview?: RollPreview;
   deadlineAt?: string;
 }

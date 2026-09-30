@@ -19,7 +19,7 @@
 
 <p align="center">
   <a href="https://xeonliu.github.io/MagicalAthleteOL/">
-    <img src="docs/assets/home.jpg" alt="Magical Athlete Online 游戏入口" width="100%">
+    <img src="docs/assets/01-home-en.png" alt="Magical Athlete Online 游戏入口" width="100%">
   </a>
 </p>
 
@@ -61,7 +61,7 @@ Magical Athlete Online 是一个支持 **2–6 人实时联机**的网页桌游�
 ### 公开招募
 
 <p align="center">
-  <img src="docs/assets/draft.jpg" alt="公开蛇形招募界面" width="100%">
+  <img src="docs/assets/draft.png" alt="公开蛇形招募界面" width="100%">
 </p>
 
 <p align="center"><sub>从公开角色池组建队伍。招募顺序由掷骰决定，并在轮次间按蛇形方向推进。</sub></p>

@@ -469,3 +469,17 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
   .selection-meta { margin-top: 14px; }
   .selection-art { height: 102px; }
 }
+
+/* Locale picker: mirrors the music toggle so both sit comfortably in the top bar. */
+.language-switcher { display: flex; gap: 4px; flex-shrink: 0; }
+.language-switcher button { min-height: 36px; padding: 6px 10px; border: 1px solid currentColor; border-radius: 8px;
+  color: inherit; background: #15151528; font-size: .75rem; white-space: nowrap; }
+.language-switcher button.active { background: #f2bd27; color: #151515; }
+.language-switcher.compact button { min-height: 30px; padding: 3px 8px; font-size: .68rem; }
+.language-switcher button:focus-visible { outline: 3px solid #f2bd27; outline-offset: 3px; }
+.entry > .language-switcher { position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px; z-index: 2; }
+.entry > .music-toggle { right: auto; left: 20px; }
+@media (max-width: 700px) { .entry > .language-switcher { top: max(70px, calc(env(safe-area-inset-top) + 54px)); right: 20px; } }
+.selection-view .language-switcher button { background: transparent; border-color: #dedfd6; font-size: .65rem; padding: 5px 7px; }
+.selection-view .language-switcher button.active { background: #e6b59c; }
+@media (pointer: coarse) { .language-switcher button { min-height: 44px; } }

@@ -122,8 +122,8 @@ def test_stale_timeout_cannot_resolve_a_new_question():
 
 def test_target_options_include_owner_and_current_position():
     engine, state = selection_game()
-    assert [o.get('description') for o in state.pending_decision['options']] == [
-        'A · 第 0 格', 'B · 第 0 格', 'B · 第 0 格', None,
+    assert [(o.get('ownerName'), o.get('position')) for o in state.pending_decision['options']] == [
+        ('A', 0), ('B', 0), ('B', 0), (None, None),
     ]
 
 
@@ -295,6 +295,6 @@ def test_resolved_decision_reports_the_label_the_player_saw():
 
     assert len(resolved) == 1
     assert resolved[0]['optionLabel'] == expected == '5'
-    assert resolved[0]['athleteName'] == '天才'
+    assert resolved[0]['athleteName'] == 'Genius'
     assert resolved[0]['athleteId'] == 'genius'
     assert any(event.get('optionLabel') == '5' for event in transition.state.race_log)

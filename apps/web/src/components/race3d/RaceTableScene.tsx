@@ -5,6 +5,9 @@ import { CanvasTexture, DoubleSide, ExtrudeGeometry, PCFSoftShadowMap, Shape, SR
 import { FinishFireworks } from "./FinishFireworks";
 import type { ActionMoment } from "../../eventPresentation";
 import type { PlayerState } from "../../protocol";
+import { useTranslation } from "react-i18next";
+
+import { athleteText } from "../../i18n/athletes";
 import { assetUrl } from "../../runtimeConfig";
 import { actionId } from "../../gameClient";
 import {
@@ -193,11 +196,12 @@ function RacerFleet({ players, finishLine, reducedMotion, moment, focus }: Pick<
     finishPosition: racer.finishPosition,
     eliminated: racer.eliminated,
   })));
+  const { t } = useTranslation();
   const placements = assignRacerPlacements(racers, finishLine);
   return <>{placements.map((placement) => {
     const player = players[placement.playerIndex];
     const racer = player.activeRacers.find((item) => item.id === placement.athleteId)!;
-    return <RacerPiece key={`${player.id}:${racer.id}`} athleteId={racer.id} name={racer.nameZh}
+    return <RacerPiece key={`${player.id}:${racer.id}`} athleteId={racer.id} name={athleteText(t, racer).name}
       highlight={moment?.target.playerId === player.id && moment.target.athleteId === racer.id ? "#ff9247"
         : moment?.source.playerId === player.id && moment.source.athleteId === racer.id ? "#37d7ec"
         : focus?.athleteId === racer.id && (!focus.playerId || focus.playerId === player.id) ? "#37d7ec" : undefined}
@@ -244,19 +248,21 @@ function Scene({ turnKey, moment, players, finishLine, trackName, dice, focus, a
 }
 
 function HtmlFallback({ players, finishLine, dice }: RaceTableSceneProps) {
-  return <section className="race-table-fallback" aria-label="比赛位置">
+  const { t } = useTranslation();
+  return <section className="race-table-fallback" aria-label={t("race3d.position")}>
     <div className="fallback-racers">
       {players.flatMap((player) => player.activeRacers.map((racer) => <div key={`${player.id}:${racer.id}`}>
-        <strong>{racer.nameZh}</strong>
-        <span>{racer.eliminated ? "已淘汰" : racer.finished ? "已完赛" : `${racer.position} / ${finishLine}`}{racer.tripped ? " · 已绊倒" : ""}</span>
+        <strong>{athleteText(t, racer).name}</strong>
+        <span>{racer.eliminated ? t("race3d.eliminated") : racer.finished ? t("race3d.finished") : `${racer.position} / ${finishLine}`}{racer.tripped ? t("race3d.trippedSuffix") : ""}</span>
       </div>))}
     </div>
     <div className={dice.targetValue ? "fallback-die landed" : "fallback-die"}>{dice.targetValue ?? dice.restingValue}</div>
-    <button className="dice-throw-button" disabled={!dice.enabled} onClick={() => dice.onThrow(actionId())}>掷骰</button>
+    <button className="dice-throw-button" disabled={!dice.enabled} onClick={() => dice.onThrow(actionId())}>{t("race3d.roll")}</button>
   </section>;
 }
 
 export function RaceTableScene(props: RaceTableSceneProps) {
+  const { t } = useTranslation();
   const [overview, setOverview] = useState(false);
   useEffect(() => {
     if (props.turnKey) setOverview(false);
@@ -272,12 +278,12 @@ export function RaceTableScene(props: RaceTableSceneProps) {
   });
   const [reducedMotion] = useState(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
   if (!webglAvailable) return <HtmlFallback {...props} />;
-  const status = diceState === "preparing" ? "准备投骰…"
-    : diceState === "settled" && props.dice.targetValue ? `掷出 ${props.dice.targetValue}`
-    : diceState === "rolling" || diceState === "settling" ? `${props.dice.activePlayerName} 投掷中`
-      : props.dice.playbackBusy ? "正在播放本次行动…"
-      : props.dice.enabled ? "拖动骰子向内投掷" : `等待 ${props.dice.activePlayerName}`;
-  return <section className={`race-table-3d ${props.dice.enabled ? "dice-enabled" : ""}`} aria-label="3D 比赛桌">
+  const status = diceState === "preparing" ? t("race3d.preparing")
+    : diceState === "settled" && props.dice.targetValue ? t("race3d.rollingValue", { value: props.dice.targetValue })
+      : diceState === "rolling" || diceState === "settling" ? t("race3d.playerRolling", { name: props.dice.activePlayerName })
+        : props.dice.playbackBusy ? t("race3d.playingAction")
+          : props.dice.enabled ? t("race3d.dragToThrow") : t("race3d.waitingFor", { name: props.dice.activePlayerName });
+  return <section className={`race-table-3d ${props.dice.enabled ? "dice-enabled" : ""}`} aria-label={t("race3d.table")}>
     <div className="race-table-viewport">
     <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0, 19, 9], fov: 30, near: 0.1, far: 300 }}
       gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
@@ -285,16 +291,16 @@ export function RaceTableScene(props: RaceTableSceneProps) {
       <Scene {...props} overview={overview} reducedMotion={reducedMotion} onDiceStateChange={setDiceState} registerDiceLauncher={registerDiceLauncher} />
     </Canvas>
     </div>
-    <div className="camera-controls" role="group" aria-label="镜头模式">
-      <button aria-pressed={!overview} onClick={() => setOverview(false)}>跟随</button>
-      <button aria-pressed={overview} onClick={() => setOverview(true)}>全局</button>
+    <div className="camera-controls" role="group" aria-label={t("race3d.camera")}>
+      <button aria-pressed={!overview} onClick={() => setOverview(false)}>{t("race3d.follow")}</button>
+      <button aria-pressed={overview} onClick={() => setOverview(true)}>{t("race3d.overview")}</button>
     </div>
     <div className="table-dice-hud" aria-live="polite">
       <strong>{status}</strong>
       <button className="dice-throw-button" disabled={!props.dice.enabled || diceState !== "ready"} onClick={() => {
         const throwId = actionId();
         if (diceLauncher.current?.()) props.dice.onThrow(throwId);
-      }}>掷骰</button>
+      }}>{t("race3d.roll")}</button>
     </div>
   </section>;
 }

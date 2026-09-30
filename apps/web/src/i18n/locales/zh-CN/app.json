@@ -1,0 +1,221 @@
+{
+  "entry": {
+    "kicker": "THE MAGICAL RACE IS ON",
+    "joinLabel": "加入游戏",
+    "playerName": "玩家名称",
+    "playerNamePlaceholder": "你的名字",
+    "roomCode": "房间号",
+    "roomCodePlaceholder": "ABCD",
+    "join": "加入房间",
+    "cancelJoin": "取消加入",
+    "createRoom": "创建房间"
+  },
+  "status": {
+    "connecting": "连接中",
+    "connected": "在线",
+    "disconnected": "已断开"
+  },
+  "errors": {
+    "createRoom": "创建房间失败",
+    "network": "无法连接服务器，请稍后重试",
+    "missingFields": "请输入房间号和玩家名称",
+    "kicked": "你已被房主移出房间",
+    "send": "发送行动失败",
+    "notConnected": "尚未连接到房间"
+  },
+  "serverErrors": {
+    "ALREADY_JOINED": "已经加入房间",
+    "ALREADY_ROLLED": "你已经掷过本轮起始骰",
+    "ATHLETE_ALREADY_LOCKED": "本场阵容已经锁定",
+    "ATHLETE_ALREADY_USED": "赛车手整局只能上场一次",
+    "ATHLETE_NOT_IN_POOL": "该赛车手不在公开招募区",
+    "ATHLETE_NOT_IN_TEAM": "所选赛车手不在你的队伍中",
+    "CANNOT_KICK_SELF": "不能移出自己，请使用退出房间",
+    "DECISION_PENDING": "请先完成当前技能选择",
+    "GAME_ALREADY_STARTED": "游戏已经开始",
+    "GAME_NOT_RUNNING": "比赛尚未开始",
+    "INTERNAL_ERROR": "服务器处理行动失败，请重试",
+    "INVALID_MESSAGE": "消息格式无效",
+    "INVALID_PLAYER_COUNT": "游戏需要 2 至 6 名玩家",
+    "INVALID_RACER_COUNT": "本场必须选择 {expected} 名不同赛车手",
+    "INVALID_RECONNECT_TOKEN": "重连凭证无效",
+    "JOIN_REQUIRED": "第一条消息必须加入房间",
+    "NOT_DECIDING_PLAYER": "只有对应玩家可以提交这个选择",
+    "NOT_DRAFTING": "当前不在招募阶段",
+    "NOT_HOST": "只有房主可以移出玩家",
+    "NOT_IN_ROLL_OFF": "你不在本轮掷骰名单中",
+    "NOT_ROLLING_PLAYER": "当前应由另一位玩家掷骰",
+    "NOT_SELECTING_ATHLETES": "当前不在选将阶段",
+    "NOT_YOUR_PICK": "还没轮到你招募",
+    "NOT_YOUR_TURN": "还没轮到你",
+    "NO_PENDING_DECISION": "当前没有待处理的技能选择",
+    "NO_RACE_TO_ADVANCE": "当前没有可继续的比赛",
+    "ONLY_HOST_CAN_ADVANCE": "只有房主可以进入下一场",
+    "ONLY_HOST_CAN_CONFIGURE": "只有房主可以修改游戏模式",
+    "ONLY_HOST_CAN_START": "只有房主可以开始游戏",
+    "PLAYER_NOT_FOUND": "该玩家不在房间中",
+    "ROLL_NOT_AVAILABLE": "当前不能掷骰",
+    "ROLL_OFF_NOT_ACTIVE": "当前不需要掷起始骰",
+    "ROOM_CODE_EXHAUSTED": "暂时无法创建房间，请重试",
+    "ROOM_FULL": "房间已满",
+    "ROOM_NOT_FOUND": "房间不存在",
+    "STALE_DECISION": "选择已失效或候选项无效",
+    "VARIANT_REQUIRES_THREE": "该双赛车手开关仅用于 3 人游戏"
+  },
+  "common": {
+    "player": "玩家",
+    "you": "你",
+    "close": "关闭",
+    "automatic": "系统自动选择"
+  },
+  "language": {
+    "label": "语言",
+    "switchTo": "切换到{{language}}"
+  },
+  "racer": {
+    "retired": "已退场",
+    "eliminated": "已淘汰",
+    "finished": "已完赛",
+    "finishPosition": "第 {{position}} 名",
+    "tripped": "已绊倒",
+    "rules": "说明",
+    "rulesLabel": "查看{{name}}的详细规则",
+    "usedUp": "该角色已参加过比赛，本场无法再次选择。",
+    "selectable": {
+      "retired": "已退场，无法上场",
+      "blocked": "暂时不可选择",
+      "recruit": "招募该角色",
+      "deselect": "取消选择该角色",
+      "select": "选择该角色",
+      "details": "详情 ›",
+      "detailsLabel": "查看{{name}}的详情",
+      "closeDetails": "关闭详情",
+      "fullRules": "完整规则与特殊情况"
+    }
+  },
+  "topbar": {
+    "room": "房间",
+    "feed": "赛场动态",
+    "closeFeed": "关闭赛场动态"
+  },
+  "lobby": {
+    "title": "等待选手入场",
+    "roomCode": "房间号",
+    "connected": "已连接",
+    "offline": "离线",
+    "kick": "移出房间",
+    "emptySeat": "空位",
+    "shareRoomCode": "分享房间号",
+    "threePlayerMode": "三人游戏模式",
+    "standard": "标准 · 每场 1 名",
+    "doubleRacer": "双赛车手 · 每场 2 名",
+    "leave": "退出房间",
+    "start": "开始游戏",
+    "waitingHost": "等待房主"
+  },
+  "rollOff": {
+    "draftTitle": "决定首位招募玩家",
+    "raceTitle": "掷骰决定本场先手",
+    "hint": "两颗骰子先比较较大点数，再比较较小点数；完全相同则重掷。",
+    "showing": "正在展示掷骰结果…",
+    "resultContinues": "结果展示后继续",
+    "waiting": "等待其他玩家",
+    "roll": "掷两颗骰子"
+  },
+  "draft": {
+    "yourTurn": "轮到你招募",
+    "waitingFor": "等待 {{name}} 选择",
+    "pool": "公开招募区 · 蛇形顺序",
+    "team": "队伍",
+    "notYet": "等待轮到你招募"
+  },
+  "selection": {
+    "title": "选好角色，准备上场",
+    "hintOne": "选择 {{count}} 名赛车手，其他玩家不会看到你的阵容。",
+    "hintMany": "选择 {{count}} 名赛车手，其他玩家不会看到你的阵容。",
+    "yourTeam": "你的队伍 · {{count}} 名",
+    "rewards": "本场奖励 ① {{first}} 分 · ② {{second}} 分",
+    "locked": "阵容已锁定",
+    "full": "已选满 {{count}} 名，请先取消一名角色",
+    "nothingPicked": "还未选择角色",
+    "reconnecting": "等待重新连接",
+    "confirm": "确认上场",
+    "ready": "{{ready}} / {{total}} 位玩家已准备"
+  },
+  "race": {
+    "loading": "正在加载 3D 比赛桌",
+    "otherPlayers": "其他玩家",
+    "roll": "掷骰",
+    "hideCards": "收起角色",
+    "showCards": "角色与技能",
+    "cardsTitle": "本场角色卡牌",
+    "cardsHeading": "本场角色"
+  },
+  "decision": {
+    "rollPreview": "本次掷出",
+    "finalMove": "最终移动 {{value}}",
+    "waitingFor": "等待 {{name}} 选择",
+    "replayBadge": "已选择",
+    "replayTimeout": "{{name}} 超时未选，系统自动选择「{{label}}」",
+    "replayChosen": "{{name}} 选择了「{{label}}」"
+  },
+  "results": {
+    "finalKicker": "FINAL SCORE",
+    "raceKicker": "RACE {{number}} COMPLETE",
+    "jointChampions": "并列冠军",
+    "winner": "{{name}} 获胜",
+    "raceTitle": "本场成绩",
+    "next": "进入下一场",
+    "waitingHost": "等待房主继续",
+    "points": "{{score}} 分"
+  },
+  "feed": {
+    "empty": "本场还没有记录"
+  },
+  "momentFlow": {
+    "source": "触发来源",
+    "target": "受影响",
+    "space": "格"
+  },
+  "race3d": {
+    "position": "比赛位置",
+    "eliminated": "已淘汰",
+    "finished": "已完赛",
+    "trippedSuffix": " · 已绊倒",
+    "roll": "掷骰",
+    "preparing": "准备投骰…",
+    "rollingValue": "掷出 {{value}}",
+    "playerRolling": "{{name}} 投掷中",
+    "playingAction": "正在播放本次行动…",
+    "dragToThrow": "拖动骰子向内投掷",
+    "waitingFor": "等待 {{name}}",
+    "table": "3D 比赛桌",
+    "camera": "镜头模式",
+    "follow": "跟随",
+    "overview": "全局"
+  },
+  "preview": {
+    "player": "玩家 {{index}}",
+    "title": "棋盘预览",
+    "selectTrack": "选择棋盘",
+    "view": "棋盘视图",
+    "perspective": "立体桌面",
+    "topDown": "俯视棋盘",
+    "hidePieces": "隐藏棋子",
+    "showPieces": "显示棋子",
+    "demoMove": "演示移动",
+    "abilityCloseUp": "技能特写"
+  },
+  "audio": {
+    "label": "背景音乐",
+    "off": "关闭背景音乐",
+    "on": "开启背景音乐",
+    "music": "♪ 音乐",
+    "enabled": "开",
+    "disabled": "关"
+  },
+  "board": {
+    "trip": "绊倒!",
+    "start": "起点"
+  }
+}

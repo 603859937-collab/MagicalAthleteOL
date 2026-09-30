@@ -1,9 +1,14 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+
+import { athleteText } from "../i18n/athletes";
 import { createPortal } from "react-dom";
 import type { AthleteCard } from "../protocol";
 
 /** Rules stay readable outside scrolling card grids, including disabled cards. */
 export function AthleteRules({ athlete, children }: { athlete: AthleteCard; children: ReactNode }) {
+  const { t } = useTranslation();
+  const card = athleteText(t, athlete);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ left: 12, top: 12 });
   const anchor = useRef<HTMLDivElement>(null);
@@ -63,13 +68,13 @@ export function AthleteRules({ athlete, children }: { athlete: AthleteCard; chil
     onPointerLeave={(event) => { if (event.pointerType !== "touch") hideSoon(); }}
     onFocus={(event) => { if (event.target.matches(":focus-visible")) show(); }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) hideSoon(); }}>
     {children}
-    <button type="button" className="racer-rules-button" aria-label={`查看${athlete.nameZh}的详细规则`}
-      aria-describedby={open ? id : undefined} aria-expanded={open} onClick={show}>说明</button>
+    <button type="button" className="racer-rules-button" aria-label={t("racer.rulesLabel", { name: card.name })}
+      aria-describedby={open ? id : undefined} aria-expanded={open} onClick={show}>{t("racer.rules")}</button>
     {open && createPortal(<div id={id} ref={tooltip} role="tooltip" className="racer-rules-tooltip"
       style={position} onPointerEnter={show} onPointerLeave={hideSoon}>
-      <strong>{athlete.nameZh} · {athlete.abilityTitleZh}</strong>
-      <p className="racer-rules-summary">{athlete.abilitySummary}</p>
-      {athlete.abilityDetails && <p>{athlete.abilityDetails}</p>}
+      <strong>{card.name} · {card.abilityTitle}</strong>
+      <p className="racer-rules-summary">{card.summary}</p>
+      {card.details && <p>{card.details}</p>}
     </div>, document.body)}
   </div>;
 }

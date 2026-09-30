@@ -3,8 +3,8 @@ import type { PlayerState, RoomSnapshot } from "./protocol";
 import { actionMoment, eventText, rollOffPresentation } from "./eventPresentation";
 
 const players = [
-  { id: "p1", name: "小明", rollValues: [6, 2], activeRacers: [{ id: "centaur", nameZh: "半人马" }], team: [] },
-  { id: "p2", name: "小红", rollValues: null, activeRacers: [{ id: "banana", nameZh: "香蕉" }], team: [] },
+  { id: "p1", name: "小明", rollValues: [6, 2], activeRacers: [{ id: "centaur", name: "Centaur" }], team: [] },
+  { id: "p2", name: "小红", rollValues: null, activeRacers: [{ id: "banana", name: "Banana" }], team: [] },
 ] as unknown as PlayerState[];
 const before = { revision: 1, roomId: "TEST", game: { phase: "DRAFT_ROLL", players } } as RoomSnapshot;
 const after = { ...before, revision: 2, game: { ...before.game, phase: "DRAFTING", players: players.map((p) => ({ ...p, rollValues: null })) } } as RoomSnapshot;

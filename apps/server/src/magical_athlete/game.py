@@ -483,7 +483,7 @@ class MagsimGameEngine:
             "id": pending.id,
             "playerId": owner_map[pending.racer_idx],
             "athleteId": athlete.id,
-            "athleteName": athlete.name_zh,
+            "athleteName": athlete.name,
             "abilityName": pending.ability_name,
             "prompt": pending.prompt,
             "choiceType": pending.choice_type,
@@ -494,12 +494,14 @@ class MagsimGameEngine:
             if target_idx in athlete_map:
                 target_owner = owner_map[target_idx]
                 owner_name = next(p.name for p in state.players if p.id == target_owner)
-                option["description"] = f"{owner_name} · 第 {value.position} 格"
+                option["ownerName"] = owner_name
+                option["position"] = value.position
         effect_preview = getattr(pending, "effect_preview", None)
         if effect_preview is not None:
             target_idx = effect_preview["racerIndex"]
             public["effectPreview"] = {
-                "athleteName": athlete_map[target_idx].name_zh,
+                "athleteId": athlete_map[target_idx].id,
+                "athleteName": athlete_map[target_idx].name,
                 "from": effect_preview["from"],
                 "to": effect_preview["to"],
             }
@@ -517,7 +519,7 @@ class MagsimGameEngine:
             participant = {
                 "playerId": state.racer_owner_by_index[racer_idx],
                 "athleteId": athlete.id,
-                "athleteName": athlete.name_zh,
+                "athleteName": athlete.name,
             }
             if index < len(pending.values):
                 participant["value"] = pending.values[index]
@@ -532,7 +534,7 @@ class MagsimGameEngine:
             "values": list(pending.values),
             "nextPlayerId": state.racer_owner_by_index[next_racer_idx],
             "nextAthleteId": next_athlete.id,
-            "nextAthleteName": next_athlete.name_zh,
+            "nextAthleteName": next_athlete.name,
             "throwIndex": pending.next_index,
             "throwCount": len(pending.participants),
         }
@@ -700,7 +702,7 @@ class MagsimGameEngine:
             base.update({
                 "sourcePlayerId": state.racer_owner_by_index.get(source_index),
                 "sourceAthleteId": source_athlete.id,
-                "sourceAthleteName": source_athlete.name_zh,
+                "sourceAthleteName": source_athlete.name,
             })
         trigger_index = getattr(event, "trigger_racer_idx", None)
         trigger_athlete = state.racer_athlete_by_index.get(trigger_index)
@@ -708,7 +710,7 @@ class MagsimGameEngine:
             base.update({
                 "triggerPlayerId": state.racer_owner_by_index.get(trigger_index),
                 "triggerAthleteId": trigger_athlete.id,
-                "triggerAthleteName": trigger_athlete.name_zh,
+                "triggerAthleteName": trigger_athlete.name,
             })
         if name == "RollResultEvent":
             events.append({
@@ -763,7 +765,7 @@ class MagsimGameEngine:
                 **base,
                 "sourcePlayerId": state.racer_owner_by_index.get(source_index),
                 "sourceAthleteId": source_athlete.id if source_athlete else None,
-                "sourceAthleteName": source_athlete.name_zh if source_athlete else None,
+                "sourceAthleteName": source_athlete.name if source_athlete else None,
                 "abilityName": str(event.source),
                 "movementDistance": getattr(event, "movement_distance", 0),
             })
