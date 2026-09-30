@@ -1,4 +1,4 @@
-import type { PendingDecision } from "./protocol";
+import type { GameEvent, PendingDecision } from "./protocol";
 
 // Labels mirror the server athlete catalog; wire identifiers remain unchanged.
 const racerNames: Record<string, string> = {
@@ -83,6 +83,26 @@ const abilityNames: Record<string, string> = {
 
 export function decisionTitle(decision: PendingDecision): string {
   return abilityNames[decision.abilityName] ?? `${decision.athleteName}的技能`;
+}
+
+export type DecisionOutcome = { optionId: string | null; automatic: boolean; playerId: string };
+
+// Every client keeps showing the closed dialog once its choice lands, so the table
+// can see which button the deciding player picked.
+export function decisionResolution(
+  decision: PendingDecision | null | undefined,
+  events: GameEvent[],
+): DecisionOutcome | null {
+  if (!decision) return null;
+  const resolved = events.find((event) =>
+    (event.type === "DECISION_RESOLVED" || event.type === "DECISION_TIMED_OUT")
+    && event.decisionId === decision.id);
+  if (!resolved) return null;
+  return {
+    optionId: resolved.optionId || null,
+    automatic: Boolean(resolved.automatic) || resolved.type === "DECISION_TIMED_OUT",
+    playerId: resolved.playerId ?? decision.playerId,
+  };
 }
 
 export function abilityTitle(abilityName?: string): string {

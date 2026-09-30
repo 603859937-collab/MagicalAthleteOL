@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { decisionOptionLabel, decisionPrompt, decisionTitle } from "./decisionPresentation";
+import { decisionOptionLabel, decisionPrompt, decisionResolution, decisionTitle } from "./decisionPresentation";
 import type { PendingDecision } from "./protocol";
 
 it("localizes copied skill choices without changing numeric choices", () => {
@@ -27,4 +27,21 @@ it("shows who the suckerfish will follow and its destination before movement com
   const decision = { abilityName: "SuckerfishRide", choiceType: "BOOLEAN",
     effectPreview: { athleteName: "教练", from: 8, to: 3 } } as PendingDecision;
   expect(decisionPrompt(decision)).toBe("是否跟随教练，从第 8 格移动到第 3 格？");
+});
+
+it("reports the picked option so every table can replay the closed dialog", () => {
+  const decision = { id: "d1", playerId: "p1", abilityName: "FlipFlopSwap" } as PendingDecision;
+  expect(decisionResolution(decision, [
+    { type: "DECISION_RESOLVED", decisionId: "d1", playerId: "p2", optionId: "2", automatic: false },
+  ])).toEqual({ optionId: "2", automatic: false, playerId: "p2" });
+  expect(decisionResolution(decision, [
+    { type: "DECISION_TIMED_OUT", decisionId: "d1", playerId: "p1", optionId: "", automatic: true },
+  ])).toEqual({ optionId: null, automatic: true, playerId: "p1" });
+});
+
+it("ignores resolutions of another decision or an unrelated event", () => {
+  const decision = { id: "d1", playerId: "p1", abilityName: "FlipFlopSwap" } as PendingDecision;
+  expect(decisionResolution(decision, [{ type: "DECISION_RESOLVED", decisionId: "d2", optionId: "1" }])).toBeNull();
+  expect(decisionResolution(decision, [{ type: "DIE_ROLLED", value: 3 }])).toBeNull();
+  expect(decisionResolution(null, [{ type: "DECISION_RESOLVED", decisionId: "d1", optionId: "1" }])).toBeNull();
 });

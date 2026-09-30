@@ -2,12 +2,12 @@ import { SelectionCard } from "./components/SelectionCard";
 import { useBackgroundMusic } from "./useBackgroundMusic";
 import { AthleteRules } from "./components/AthleteRules";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { decisionTitle, decisionPrompt, decisionOptionLabel } from "./decisionPresentation";
+import { decisionResolution, decisionTitle, decisionPrompt, decisionOptionLabel, type DecisionOutcome } from "./decisionPresentation";
 import { ActionMoment } from "./components/ActionMoment";
 import { actionMoment, eventText, isRedundantAbilityEvent, rollOffPresentation, type ActionMoment as Moment } from "./eventPresentation";
 import { RaceTrack } from "./components/RaceTrack";
 import { actionId, clearSession, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
-import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
+import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PendingDecision, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
 import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
 import { canRollRaceDice, raceDiceTurnKey } from "./raceControls";
 import { apiUrl, assetUrl } from "./runtimeConfig";
@@ -19,6 +19,12 @@ type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
 type WithoutActionId<T> = T extends { actionId: string } ? Omit<T, "actionId"> : never;
 type GameActionInput = WithoutActionId<GameAction>;
 type RollAnimation = { revision: number; values: number[]; index: number; autoThrow: boolean; throwKey: string };
+type DecisionReplay = {
+  decision: PendingDecision;
+  outcome: DecisionOutcome;
+  playerName: string;
+  chosenLabel: string;
+};
 type RacePlayback = {
   revision: number;
   values: number[];
@@ -103,6 +109,7 @@ export default function App() {
   const [rollOffResult, setRollOffResult] = useState<{ outcome: string; winnerId?: string } | null>(null);
   const [decisionSeconds, setDecisionSeconds] = useState(0);
   const [resolvingDecisionId, setResolvingDecisionId] = useState<string | null>(null);
+  const [decisionReplay, setDecisionReplay] = useState<DecisionReplay | null>(null);
   const client = useRef(new GameClient());
   const visibleSnapshot = useRef<RoomSnapshot | null>(null);
   const authoritativeSnapshot = useRef<RoomSnapshot | null>(null);
@@ -117,6 +124,7 @@ export default function App() {
   const eventPlaybackActive = useRef(false);
   const finishingRollKey = useRef<string | null>(null);
   const revealTimer = useRef<number | null>(null);
+  const decisionReplayTimer = useRef<number | null>(null);
   const playbackId = useRef(0);
 
   useEffect(() => {
@@ -132,6 +140,7 @@ export default function App() {
     client.current.close();
     playbackId.current += 1;
     if (revealTimer.current !== null) window.clearTimeout(revealTimer.current);
+    if (decisionReplayTimer.current !== null) window.clearTimeout(decisionReplayTimer.current);
   }, []);
 
   const snapshot = viewState.display;
@@ -165,6 +174,28 @@ export default function App() {
       setResolvingDecisionId(null);
     }
   }, [controlGame?.pendingDecision?.id, resolvingDecisionId]);
+
+  // A new choice always replaces the lingering result of the previous one.
+  useEffect(() => {
+    if (controlGame?.pendingDecision) setDecisionReplay(null);
+  }, [controlGame?.pendingDecision?.id]);
+
+  function rememberDecisionResult(decision: PendingDecision | null | undefined, events: GameEvent[], players: PlayerState[]) {
+    const outcome = decisionResolution(decision, events);
+    if (!decision || !outcome) return;
+    const chosen = decision.options.find((option) => option.id === outcome.optionId);
+    setDecisionReplay({
+      decision,
+      outcome,
+      playerName: players.find((player) => player.id === outcome.playerId)?.name ?? "玩家",
+      chosenLabel: chosen ? decisionOptionLabel(chosen.label) : "系统自动选择",
+    });
+    if (decisionReplayTimer.current !== null) window.clearTimeout(decisionReplayTimer.current);
+    decisionReplayTimer.current = window.setTimeout(() => {
+      decisionReplayTimer.current = null;
+      setDecisionReplay(null);
+    }, 3600);
+  }
 
   async function createRoom() {
     setError("");
@@ -358,6 +389,7 @@ export default function App() {
       setError("");
       return;
     }
+    const previousDecision = authoritativeSnapshot.current?.game.pendingDecision ?? null;
     rememberAuthoritativeSnapshot(message);
     if (message.type === "ROLL_STARTED") {
       rollingPlayerRef.current = message.playerId;
@@ -370,6 +402,7 @@ export default function App() {
     if (message.type === "STATE_UPDATED") {
       const lines = message.events.map((event) => eventText(event, message.game.players, message.events)).filter(Boolean);
       setFeed((current) => [...lines, ...current].slice(0, 300));
+      rememberDecisionResult(previousDecision, message.events, message.game.players);
       const nextShownRolls = new Set(shownRolls.current);
       let diceValues = collectUnseenRollValues(message, nextShownRolls);
       if (diceValues.length === 0 && localRollPendingRef.current) {
@@ -636,6 +669,8 @@ export default function App() {
     ? game!.raceLog.slice().reverse().map((event) => eventText(event, game!.players, game!.raceLog)).filter(Boolean)
     : feed).slice(0, 300);
   const feedCount = game!.raceLog.length || feed.length;
+  const liveDecision = controlGame?.pendingDecision && !playbackBusy && !rollAnimation
+    && resolvingDecisionId !== controlGame.pendingDecision.id ? controlGame.pendingDecision : null;
 
   return (
     <main className={`table ${game?.phase === "CHARACTER_SELECTION" ? "selection-view" : ""} ${immersiveRace ? "immersive-race" : ""} ${raceDetailsOpen ? "race-details-open" : ""} ${immersiveRace && feedOpen ? "feed-sidebar-open" : ""}`}>
@@ -749,15 +784,24 @@ export default function App() {
       )}
 
       {moment && <ActionMoment moment={moment} />}
-      {controlGame?.pendingDecision && !playbackBusy && !rollAnimation && resolvingDecisionId !== controlGame.pendingDecision.id && <div className="decision-backdrop">
+      {liveDecision && <div className="decision-backdrop">
         <section className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
-          <header><div><small>{controlGame.pendingDecision.athleteName}</small><h2 id="decision-title">{decisionTitle(controlGame.pendingDecision)}</h2></div><strong>{decisionSeconds}s</strong></header>
-          {controlGame.pendingDecision.rollPreview && <p className="decision-roll">本次掷出 <strong>{controlGame.pendingDecision.rollPreview.value}</strong>{controlGame.pendingDecision.rollPreview.finalValue !== controlGame.pendingDecision.rollPreview.value && <small>最终移动 {controlGame.pendingDecision.rollPreview.finalValue}</small>}</p>}
-          <p>{decisionPrompt(controlGame.pendingDecision)}</p>
-          <div className="decision-options">{controlGame.pendingDecision.options.map((option) => <button className="command secondary" key={option.id}
-            disabled={controlGame.pendingDecision?.playerId !== playerId || status !== "connected"}
-            onClick={() => resolveDecision(controlGame.pendingDecision!.id, option.id)}>{decisionOptionLabel(option.label)}{option.description && <small className="decision-option-detail">{option.description}</small>}</button>)}</div>
-          {controlGame.pendingDecision.playerId !== playerId && <small>等待 {controlGame.players.find((player) => player.id === controlGame.pendingDecision?.playerId)?.name} 选择</small>}
+          <header><div><small>{liveDecision.athleteName}</small><h2 id="decision-title">{decisionTitle(liveDecision)}</h2></div><strong>{decisionSeconds}s</strong></header>
+          {liveDecision.rollPreview && <p className="decision-roll">本次掷出 <strong>{liveDecision.rollPreview.value}</strong>{liveDecision.rollPreview.finalValue !== liveDecision.rollPreview.value && <small>最终移动 {liveDecision.rollPreview.finalValue}</small>}</p>}
+          <p>{decisionPrompt(liveDecision)}</p>
+          <div className="decision-options">{liveDecision.options.map((option) => <button className="command secondary" key={option.id}
+            disabled={liveDecision.playerId !== playerId || status !== "connected"}
+            onClick={() => resolveDecision(liveDecision.id, option.id)}>{decisionOptionLabel(option.label)}{option.description && <small className="decision-option-detail">{option.description}</small>}</button>)}</div>
+          {liveDecision.playerId !== playerId && <small>等待 {controlGame?.players.find((player) => player.id === liveDecision.playerId)?.name} 选择</small>}
+        </section>
+      </div>}
+      {!liveDecision && decisionReplay && <div className="decision-backdrop replay">
+        <section className="decision-dialog" role="status" aria-live="polite">
+          <header><div><small>{decisionReplay.decision.athleteName}</small><h2>{decisionTitle(decisionReplay.decision)}</h2></div><strong className="decision-replay-badge">已选择</strong></header>
+          <p>{decisionPrompt(decisionReplay.decision)}</p>
+          <div className="decision-options">{decisionReplay.decision.options.map((option) => <button className={`command secondary ${option.id === decisionReplay.outcome.optionId ? "decision-chosen" : ""}`} key={option.id} disabled>
+            {decisionOptionLabel(option.label)}{option.description && <small className="decision-option-detail">{option.description}</small>}</button>)}</div>
+          <small className="decision-replay-note">{decisionReplay.playerName}{decisionReplay.outcome.automatic ? " 超时未选，系统自动选择" : " 选择了"}「{decisionReplay.chosenLabel}」</small>
         </section>
       </div>}
 
