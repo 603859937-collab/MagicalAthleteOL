@@ -78,11 +78,11 @@ it("collapses targetless swap summaries but retains both real movements", async 
   expect(isRedundantAbilityEvent({ ...summary, sourcePlayerId: "p3" }, [movement])).toBe(false);
 });
 
-it("reports a copied Legs ability as a jog instead of a die choice", () => {
+it("shows the chosen die for a copied LongLegs ability", () => {
   const event = { type: "ABILITY_TRIGGERED", playerId: "p1", athleteId: "centaur", sourcePlayerId: "p1", sourceAthleteId: "centaur", abilityName: "LongLegs" };
-  const moment = actionMoment(event, players)!;
-  expect(moment.cause).toBe("半人马选择慢跑");
-  expect(moment.effect).toBe("跳过掷骰，改为移动 5 格");
+  const moment = actionMoment(event, players, [{ type: "DICE_ROLLED", playerId: "p1", athleteId: "centaur", values: [2, 6], value: 6 }])!;
+  expect(moment.cause).toContain("2 / 6");
+  expect(moment.effect).toBe("选用 6 点");
 });
 
 it("shows who the suckerfish actually followed, rather than pointing at itself", () => {
@@ -98,12 +98,6 @@ it("shows who the suckerfish actually followed, rather than pointing at itself",
 });
 
 describe("race feed sentences", () => {
-  it("omits the die line for a main move that skipped rolling", () => {
-    const line = eventText({ type: "DICE_ROLLED", playerId: "p1", athleteId: "centaur",
-      value: 5, values: [], baseValue: 5, finalValue: 5, noDice: true }, players);
-    expect(line).toBe("");
-  });
-
   it("names the athlete that landed on a trip tile", () => {
     const line = eventText({ type: "RACER_TRIPPED", playerId: "p2", athleteId: "banana", source: "TripTile" }, players);
     expect(line).toBe("香蕉落在绊倒格 → 小红的香蕉：绊倒");
