@@ -465,9 +465,10 @@ class MagsimGameEngine:
             raise GameRuleError("STALE_DECISION", "选择已失效或候选项无效")
         engine = state.magsim_engine
         broker = next(iter(engine.agents.values())).broker
+        smart_choice = None
         try:
             if timed_out or bot:
-                broker.choose_smart(engine)
+                smart_choice = broker.choose_smart(engine)
             else:
                 broker.choose(decision_id, option_id)
         except ValueError as error:
@@ -498,7 +499,12 @@ class MagsimGameEngine:
 
         def finish(transition: GameTransition) -> GameTransition:
             if bot:
-                return self._record_bot_choice(transition, engine, decision_id, resolved)
+                return self._record_bot_choice(
+                    transition,
+                    decision_id,
+                    resolved,
+                    None if smart_choice is None else smart_choice.answer_index,
+                )
             return transition
 
         if not engine._setup_complete:
@@ -522,23 +528,24 @@ class MagsimGameEngine:
     @staticmethod
     def _record_bot_choice(
         transition: GameTransition,
-        engine: Any,
         decision_id: str,
         resolved: dict[str, Any],
+        index: int | None,
     ) -> GameTransition:
         """Fill in the concrete option a bot's smart agent picked for the broadcast,
         so the table sees which skill the bot used instead of an empty "automatic"."""
-        broker = next(iter(engine.agents.values())).broker
-        index = next(
-            (choice.answer_index for choice in reversed(broker.resolved_choices)
-             if choice.id == decision_id),
-            None,
-        )
         options = resolved.get("options", ())
         if index is None or not (-2 <= index < len(options)):
             return transition
         option_id = "skip" if index == -2 else str(index)
-        option_label = None if index == -2 else options[index].get("label")
+        option_label = next(
+            (
+                option.get("label")
+                for option in options
+                if str(option.get("id")) == option_id
+            ),
+            None,
+        )
         for event in transition.events:
             if event.get("decisionId") == decision_id:
                 event["optionId"] = option_id
