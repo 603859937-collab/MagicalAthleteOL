@@ -58,11 +58,9 @@ export function SelectionCard({ athlete, accent, selected = false, disabled = fa
         : selected ? t("racer.selectable.deselect") : t("racer.selectable.select");
   useEffect(() => {
     if (!open || desktop) return;
-    const previousOverflow = document.body.style.overflow;
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialog.current?.showModal();
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = previousOverflow; trigger?.focus({ preventScroll: true }); };
+    dialog.current?.show();
+    return () => { if (dialog.current?.open) dialog.current.close(); trigger?.focus({ preventScroll: true }); };
   }, [open, desktop]);
   const choose = () => { if (!unavailable) { setOpen(false); onChoose(); } };
   const image = assetUrl(`assets/racer-tokens/${athlete.id}.webp`);
