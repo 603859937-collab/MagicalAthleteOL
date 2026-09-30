@@ -82,7 +82,7 @@ class GameEngine(Protocol):
     def draft_athlete(self, state: GameState, player_id: str, athlete_id: str) -> GameTransition: ...
     def select_racers(self, state: GameState, player_id: str, athlete_ids: tuple[str, ...]) -> GameTransition: ...
     def roll_dice(self, state: GameState, player_id: str, timed_out: bool = False) -> GameTransition: ...
-    def resolve_decision(self, state: GameState, player_id: str, decision_id: str, option_id: str, timed_out: bool = False) -> GameTransition: ...
+    def resolve_decision(self, state: GameState, player_id: str, decision_id: str, option_id: str, timed_out: bool = False, bot: bool = False) -> GameTransition: ...
     def advance_race(self, state: GameState, player_id: str) -> GameTransition: ...
     def public_state(self, state: GameState, viewer_id: str | None = None) -> dict[str, Any]: ...
 
@@ -455,17 +455,18 @@ class MagsimGameEngine:
         decision_id: str,
         option_id: str,
         timed_out: bool = False,
+        bot: bool = False,
     ) -> GameTransition:
         if state.magsim_engine is None or state.pending_decision is None:
             raise GameRuleError("NO_PENDING_DECISION", "当前没有待处理的技能选择")
-        if state.pending_decision["playerId"] != player_id and not timed_out:
+        if state.pending_decision["playerId"] != player_id and not (timed_out or bot):
             raise GameRuleError("NOT_DECIDING_PLAYER", "只有对应玩家可以提交这个选择")
         if state.pending_decision["id"] != decision_id:
             raise GameRuleError("STALE_DECISION", "选择已失效或候选项无效")
         engine = state.magsim_engine
         broker = next(iter(engine.agents.values())).broker
         try:
-            if timed_out:
+            if timed_out or bot:
                 broker.choose_smart(engine)
             else:
                 broker.choose(decision_id, option_id)
@@ -492,7 +493,14 @@ class MagsimGameEngine:
             "optionId": option_id,
             "optionLabel": option_label,
             "automatic": timed_out,
+            "bot": bot,
         }]
+
+        def finish(transition: GameTransition) -> GameTransition:
+            if bot:
+                return self._record_bot_choice(transition, engine, decision_id, resolved)
+            return transition
+
         if not engine._setup_complete:
             complete = engine.continue_setup()
             if not complete:
@@ -504,11 +512,44 @@ class MagsimGameEngine:
                     pending_decision=pending,
                     resolution_status="WAITING_FOR_DECISION",
                 )
-                return self._transition_with_log(next_state, events)
+                return finish(self._transition_with_log(next_state, events))
             next_state = replace(state, pending_decision=None, resolution_status="IDLE")
-            return self._advance_turn_flow(next_state, events, start_turn=True)
-        return self._advance_turn_flow(
-            replace(state, pending_decision=None), events
+            return finish(self._advance_turn_flow(next_state, events, start_turn=True))
+        return finish(
+            self._advance_turn_flow(replace(state, pending_decision=None), events)
+        )
+
+    @staticmethod
+    def _record_bot_choice(
+        transition: GameTransition,
+        engine: Any,
+        decision_id: str,
+        resolved: dict[str, Any],
+    ) -> GameTransition:
+        """Fill in the concrete option a bot's smart agent picked for the broadcast,
+        so the table sees which skill the bot used instead of an empty "automatic"."""
+        broker = next(iter(engine.agents.values())).broker
+        index = next(
+            (choice.answer_index for choice in reversed(broker.resolved_choices)
+             if choice.id == decision_id),
+            None,
+        )
+        options = resolved.get("options", ())
+        if index is None or not (-2 <= index < len(options)):
+            return transition
+        option_id = "skip" if index == -2 else str(index)
+        option_label = None if index == -2 else options[index].get("label")
+        for event in transition.events:
+            if event.get("decisionId") == decision_id:
+                event["optionId"] = option_id
+                event["optionLabel"] = option_label
+        log = [
+            {**entry, "optionId": option_id, "optionLabel": option_label}
+            if entry.get("decisionId") == decision_id else entry
+            for entry in transition.state.race_log
+        ]
+        return GameTransition(
+            replace(transition.state, race_log=tuple(log)), transition.events
         )
 
     def _pending_decision(

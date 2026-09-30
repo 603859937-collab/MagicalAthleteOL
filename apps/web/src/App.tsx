@@ -707,13 +707,16 @@ export default function App() {
         <section className="lobby-stage stage">
           <div className="stage-title"><p className="kicker">2–6 PLAYERS</p><h2>{t("lobby.title")}</h2><p>{t("lobby.roomCode")} <strong>{snapshot.roomId}</strong></p></div>
           <div className="lobby-players">
-            {game!.players.map((player, index) => <div className={`seat ${playerColors[index]}`} key={player.id}>
-              <span>{index + 1}</span><strong>{player.name}</strong>
-              <small>{player.id === playerId ? t("common.you") : player.connected ? t("lobby.connected") : t("lobby.offline")}</small>
+            {game!.players.map((player, index) => <div className={`seat ${playerColors[index]} ${player.isBot ? "bot" : ""}`} key={player.id}>
+              <span>{index + 1}</span><strong>{player.name}{player.isBot && <em className="seat-badge">{t("lobby.bot")}</em>}</strong>
+              <small>{player.id === playerId ? t("common.you") : player.isBot ? t("lobby.botSeat") : player.connected ? t("lobby.connected") : t("lobby.offline")}</small>
               {isHost && player.id !== playerId && <button className="seat-kick" disabled={status !== "connected"} onClick={() => send({ type: "KICK_PLAYER", targetPlayerId: player.id })}>{t("lobby.kick")}</button>}
             </div>)}
             {Array.from({ length: Math.max(0, 4 - game!.players.length) }).map((_, index) => <div className="seat empty" key={index}><span>+</span><strong>{t("lobby.emptySeat")}</strong><small>{t("lobby.shareRoomCode")}</small></div>)}
           </div>
+          {isHost && <div className="lobby-actions">
+            <button className="command secondary" disabled={status !== "connected" || game!.players.length >= 6} onClick={() => send({ type: "ADD_BOT" })}>{t("lobby.addBot")}</button>
+          </div>}
           {game!.players.length === 3 && <div className="variant-control" role="group" aria-label={t("lobby.threePlayerMode")}>
             <button className={!game!.doubleRacerVariant ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_VARIANT", doubleRacer: false })}>{t("lobby.standard")}</button>
             <button className={game!.doubleRacerVariant ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_VARIANT", doubleRacer: true })}>{t("lobby.doubleRacer")}</button>

@@ -22,6 +22,11 @@ class KickPlayerIntent(BaseModel):
     target_player_id: str = Field(alias="targetPlayerId", min_length=1, max_length=64)
 
 
+class AddBotIntent(BaseModel):
+    type: Literal["ADD_BOT"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+
+
 class StartGameIntent(BaseModel):
     type: Literal["START_GAME"]
     action_id: str = Field(alias="actionId", min_length=1, max_length=64)
@@ -77,6 +82,7 @@ ClientIntent = Annotated[
     JoinRoomIntent
     | LeaveRoomIntent
     | KickPlayerIntent
+    | AddBotIntent
     | StartGameIntent
     | SetVariantIntent
     | SetAutoDealIntent
