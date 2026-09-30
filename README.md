@@ -1,12 +1,13 @@
 <h1 align="center">Magical Athlete Online</h1>
 
-<h3 align="center">把充满魔力的胡闹运动会，带到每个人的浏览器里</h3>
+<h3 align="center">The magical, chaotic track meet — playable in any browser</h3>
 
 <p align="center">
-  <a href="https://xeonliu.github.io/MagicalAthleteOL/"><b>在线游玩</b></a> |
-  <a href="docs/rules.md"><b>玩法规则</b></a> |
-  <a href="docs/protocol.md"><b>通信协议</b></a> |
-  <a href="#架构"><b>项目架构</b></a>
+  <a href="https://xeonliu.github.io/MagicalAthleteOL/"><b>Play online</b></a> |
+  <a href="docs/rules.md"><b>Rules</b></a> |
+  <a href="docs/protocol.md"><b>Protocol</b></a> |
+  <a href="#architecture"><b>Architecture</b></a> |
+  <a href="README.zh-CN.md"><b>简体中文</b></a>
 </p>
 
 <p align="center">
@@ -19,180 +20,188 @@
 
 <p align="center">
   <a href="https://xeonliu.github.io/MagicalAthleteOL/">
-    <img src="docs/assets/01-home-en.png" alt="Magical Athlete Online 游戏入口" width="100%">
+    <img src="docs/assets/en-home.png" alt="Magical Athlete Online entry screen" width="100%">
   </a>
 </p>
 
-## 关于
+## About
 
-Magical Athlete Online 是 [CMYK 同名桌游](https://www.cmyk.games/products/magical-athlete) 的网页实现，支持 **2–6 人实时联机**。创建四位房间号、邀请朋友加入，然后经历公开蛇形招募、秘密选将和四场充满意外的魔法竞速。房主也可以在开局前改成自动发牌，直接跳过招募。
+Magical Athlete Online is a browser implementation of the [CMYK board game of the same name](https://www.cmyk.games/products/magical-athlete) with **real-time multiplayer for 2–6 players**. Create a four-letter room code, invite your friends, and play through an open snake draft, secret racer selection, and four wildly unpredictable magical races. The host can also switch to auto-deal before the game starts and skip the draft entirely.
 
-本游戏掷骰、移动、角色能力、计分和阶段推进在服务器进行处理，保证每位玩家看到同一场比赛。
+Dice rolls, movement, athlete abilities, scoring, and phase progression all run on the server, so every player watches the same race.
 
-## 核心特性
+## Highlights
 
-- **完整比赛流程**：公开招募、秘密选将、四场固定赛程与累计积分一站完成；房主可切换自动发牌，跳过招募阶段。
-- **36 名魔法赛车手**：复用 `magsim` 规则实现，每名角色都有独立的互动能力。
-- **实时多人房间**：WebSocket 广播状态，支持断线重连、身份恢复与行动去重。
-- **服务端权威判定**：客户端无法决定骰点或越过阶段，规则只在一个地方执行。
-- **沉浸式比赛桌**：Mild Mile 与 Wild Wilds 棋盘美术、立体角色棋子和物理骰子共同呈现比赛。
-- **跟随镜头与行动展示**：镜头聚焦移动和技能角色，逐格播放移动，并展示技能、绊倒与冲线事件。可随时切换全局镜头。
-- **互动技能选择**：需要玩家决策时显示选项与倒计时；相关掷骰结果先展示，再进入选择。
-- **云端持久化**：生产环境使用 Cloudflare Worker + Durable Objects 保存房间快照。
+- **Complete game flow**: open draft, secret selection, four fixed races, and cumulative scoring in one pass; the host can switch to auto-deal and skip the draft.
+- **36 magical athletes**: built on the `magsim` rule engine, each with its own interactive ability.
+- **Real-time multiplayer rooms**: WebSocket state broadcast with reconnect, identity restore, and action de-duplication.
+- **Server-authoritative rules**: clients cannot decide dice values or skip phases; the rules live in exactly one place.
+- **Immersive race table**: Mild Mile and Wild Wilds board art, 3D racer pieces, and physics dice rendered together.
+- **Follow camera and action playback**: the camera focuses on the racer that moves or triggers an ability, replays movement tile by tile, and calls out abilities, trips, and finishes. Switch to the overview camera at any time.
+- **Interactive ability choices**: options and a countdown appear whenever a player has to decide; the related roll is shown first, then the choice.
+- **Cloud persistence**: production rooms are snapshotted in a Cloudflare Worker with Durable Objects.
 
-## 游戏画面
+## Screenshots
 
-### 沉浸式比赛棋盘
-
-<p align="center">
-  <img src="docs/assets/en-board.png" alt="Wild Wilds 3D 比赛棋盘预览" width="100%">
-</p>
-
-<p align="center"><sub>Wild Wilds 本地棋盘预览：印刷棋盘美术、角色棋子与物理骰子在同一个 3D 场景中渲染。</sub></p>
-
-### 跟随镜头与角色特写
+### The 3D race table
 
 <p align="center">
-  <img src="docs/assets/en-board-focus.png" alt="Wild Wilds 棋盘预览中的技能特写与同格角色棋子" width="100%">
+  <img src="docs/assets/en-board.png" alt="Wild Wilds 3D race table preview" width="100%">
 </p>
 
-<p align="center"><sub>本地预览中的技能特写。正式比赛会按事件切换焦点，展示移动、技能与冲线过程；右下角可切换跟随或全局镜头。</sub></p>
+<p align="center"><sub>Wild Wilds in the local board preview: printed board art, racer pieces, and physics dice rendered in one 3D scene.</sub></p>
 
-### 公开招募
+### Follow camera and ability close-ups
 
 <p align="center">
-  <img src="docs/assets/draft.png" alt="公开蛇形招募界面" width="100%">
+  <img src="docs/assets/en-board-focus.png" alt="Ability close-up in the Wild Wilds board preview" width="100%">
 </p>
 
-<p align="center"><sub>从公开角色池组建队伍。招募顺序由掷骰决定，并在轮次间按蛇形方向推进；房主也可以在开局前改为自动发牌。</sub></p>
+<p align="center"><sub>An ability close-up in the local preview. During a real race the camera cuts between events to show movement, abilities, and the finish; the bottom-right control switches between the follow and overview cameras.</sub></p>
 
-## 快速开始
+### Waiting room
 
-### 和朋友开一局
+<p align="center">
+  <img src="docs/assets/en-wait.png" alt="Waiting room with a room code and open seats" width="100%">
+</p>
 
-1. 打开[在线游玩](https://xeonliu.github.io/MagicalAthleteOL/)，填写玩家名称并创建房间。
-2. 把房间号发给朋友，等待 2–6 名玩家加入后，由房主开始游戏。
-3. 掷两颗骰子决定招募顺序，再按蛇形顺序从公开角色池组建队伍；房主在开局前开启「自动发牌」则可以跳过招募，每人随机获得 4 张牌（双赛车手变体为 8 张）。
-4. 每场秘密选择参赛角色并锁定阵容，然后掷骰决定先手。
-5. 轮到你时，点击「掷骰」或将桌上的骰子向棋盘内拖动后松开。出现技能选项时，在倒计时内完成选择。
-6. 每场结算后，由房主进入下一场。四场结束后按累计积分排名。
+<p align="center"><sub>Creating a room gives you a four-letter code and a share link. Once 2–6 players take a seat, the host starts the game; before that, the host can switch between manual draft and auto-deal.</sub></p>
 
-比赛中可用「跟随 / 全局」切换镜头，用「角色与技能」展开本场角色卡牌；横屏时点顶部「赛场动态」会把事件栏固定在右侧，棋盘收窄到左半屏，再点一次收起。
+### Public draft
 
-两人局每场派出两名赛车手；三人局可由房主在开局前选择双赛车手变体。
+<p align="center">
+  <img src="docs/assets/en-draft.png" alt="Public snake draft screen" width="100%">
+</p>
 
-## 部署
+<p align="center"><sub>Build your team from the public athlete pool. The draft order comes from a dice roll and then snakes back and forth between rounds; the host can also enable auto-deal before the game and skip the draft.</sub></p>
+
+## Quick start
+
+### Play with friends
+
+1. Open [Play online](https://xeonliu.github.io/MagicalAthleteOL/), enter a player name, and create a room.
+2. Send the room code to your friends and wait for 2–6 players; the host starts the game.
+3. Roll two dice to decide the draft order, then build your team from the public pool in snake order. If the host enables "Auto-deal" before the game starts, the draft is skipped and everyone gets 4 random cards (8 in the double-racer variant).
+4. Each race, secretly pick your racers and lock the lineup, then roll to decide who goes first.
+5. On your turn, click "Roll" or drag the dice on the table into the board and release. When ability options appear, pick one before the countdown ends.
+6. After each race's results, the host advances to the next race. After four races, players are ranked by total points.
+
+During a race, use "Follow / Overview" to switch cameras and "Racers & abilities" to expand this race's athlete cards. In landscape, tapping "Race feed" at the top docks the event list to the right and narrows the board into the left half; tap it again to collapse it.
+
+Two-player games field two racers per race; three-player games let the host choose the double-racer variant before the start.
 
 ### Docker Compose
 
-仓库根目录执行：
+Run this from the repository root:
 
 ```bash
 docker compose up --build
 ```
 
-打开 [http://localhost:8080](http://localhost:8080)，即可创建房间。使用无痕窗口或另一台设备加入同一房间，可以在本地测试多人流程。
+Open [http://localhost:8080](http://localhost:8080) to create a room. Use a private/incognito window or a second device to join the same room and test the multiplayer flow locally.
 
-### 从源码运行
+### Run from source
 
-需要 Node.js 20+、Python 3.12+，并推荐安装 [uv](https://docs.astral.sh/uv/)。
+You need Node.js 20+ and Python 3.12+, and [uv](https://docs.astral.sh/uv/) is recommended.
 
 ```bash
-# 终端 1：权威游戏服务
+# Terminal 1: authoritative game server
 cd apps/server
 uv sync --extra dev
 uv run uvicorn magical_athlete.main:app --reload
 
-# 终端 2：网页客户端
+# Terminal 2: web client
 cd apps/web
 npm ci
 npm run dev
 ```
 
-打开 [http://localhost:5173/MagicalAthleteOL/](http://localhost:5173/MagicalAthleteOL/)。Vite 会将 `/api` 和 `/ws` 代理到 `localhost:8000`。
+Open [http://localhost:5173/MagicalAthleteOL/](http://localhost:5173/MagicalAthleteOL/). Vite proxies `/api` and `/ws` to `localhost:8000`.
 
-只查看棋盘时，启动前端即可打开[本地 3D 预览](http://localhost:5173/MagicalAthleteOL/race3d-preview.html)。预览支持切换两张棋盘、立体 / 俯视视图，以及演示移动和技能特写，无需启动后端。上方棋盘截图来自该预览页，使用演示角色状态。
+To look at the board only, start the frontend and open the [local 3D preview](http://localhost:5173/MagicalAthleteOL/race3d-preview.html). The preview can switch between both boards, 3D and top-down views, demo moves, and ability close-ups with no backend running. The board screenshots above come from this preview page using demo racer state.
 
-## 架构
+## Architecture
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
 │  apps/web · React + TypeScript                              │
-│  房间与角色 UI · React Three Fiber · Rapier · PixiJS        │
+│  room and athlete UI · React Three Fiber · Rapier · PixiJS  │
 └───────────────────────────┬──────────────────────────────────┘
                             │ JSON / WebSocket
 ┌───────────────────────────▼──────────────────────────────────┐
 │  apps/server · FastAPI / Cloudflare Worker                  │
-│  RoomManager · 连接、重连、广播、房间生命周期                │
+│  RoomManager · connections, reconnects, broadcast, rooms     │
 ├──────────────────────────────────────────────────────────────┤
-│  GameEngine · 纯状态转换端口                                │
-│  MagsimGameEngine · 36 名角色与正式比赛规则                  │
+│  GameEngine · pure state-transition port                    │
+│  MagsimGameEngine · 36 athletes and the official rules      │
 └───────────────────────────┬──────────────────────────────────┘
-                            │ 生产环境快照
+                            │ production snapshots
 ┌───────────────────────────▼──────────────────────────────────┐
-│  Cloudflare Durable Objects · 串行行动与持久化房间           │
+│  Cloudflare Durable Objects · serial actions, persisted rooms│
 └──────────────────────────────────────────────────────────────┘
 ```
 
-| 模块 | 职责 |
+| Module | Responsibility |
 | --- | --- |
-| [`apps/web`](apps/web) | 房间、招募、选将、比赛和结算界面；3D 骰子与赛场渲染 |
-| [`apps/server`](apps/server) | 接收玩家意图，串行推进权威状态并广播事件 |
-| [`apps/server/src/magsim`](apps/server/src/magsim) | vendored 规则引擎和 36 名赛车手能力 |
-| [`docs`](docs) | 固化规则、协议、架构计划和原始玩法资料 |
-| [`infra/Caddyfile`](infra/Caddyfile) | 本地容器环境的同域反向代理 |
+| [`apps/web`](apps/web) | Room, draft, selection, race, and results UI; 3D dice and race rendering |
+| [`apps/server`](apps/server) | Accepts player intents, advances authoritative state serially, and broadcasts events |
+| [`apps/server/src/magsim`](apps/server/src/magsim) | Vendored rule engine and the 36 athlete abilities |
+| [`docs`](docs) | Frozen rules, protocol, architecture plan, and original gameplay reference |
+| [`infra/Caddyfile`](infra/Caddyfile) | Same-origin reverse proxy for the local container setup |
 
-## 规则实现
+## Rules implementation
 
-比赛采用公开蛇形招募和四场秘密选将（房主可改为自动发牌），赛程固定为 `Standard, Standard, WildWilds, WildWilds`。两人游戏使用双赛车手规则；三人游戏可由房主选择标准或双赛车手变体。
+Races use an open snake draft and four rounds of secret selection (the host can switch to auto-deal), with a fixed schedule of `Standard, Standard, WildWilds, WildWilds`. Two-player games use the double-racer rules; in three-player games the host can choose the standard or double-racer variant.
 
-服务端会自动结算回合开始能力，并推进到技能选择或 `WAITING_FOR_ROLL`。只有当前玩家可以掷骰；主要移动、反应能力、赛道格效果和回合结束均由状态机依次解析。第二名赛车手冲线后，该场立即结束。
+The server resolves start-of-turn abilities automatically and then advances to either an ability choice or `WAITING_FOR_ROLL`. Only the active player can roll; the main move, reaction abilities, track-tile effects, and end of turn are all resolved in order by the state machine. A race ends immediately once the second racer crosses the finish line.
 
-## 文档
+## Documentation
 
-| 文档 | 内容 |
+These documents are written in Chinese.
+
+| Document | Contents |
 | --- | --- |
-| [规则常量](docs/rules.md) | 项目实现必须遵守的实体规则与比赛约束 |
-| [通信协议](docs/protocol.md) | WebSocket 连接、消息格式和协议版本约定 |
-| [3D 比赛桌计划](docs/3d-race-plan.md) | 目标架构、实施阶段和验收标准 |
-| [玩法说明 PDF](docs/How_to_play_Magical_Athlete_compressed.pdf) | 原始玩法参考资料 |
+| [Rule constants](docs/rules.md) | The physical rules and match constraints the implementation must follow |
+| [Protocol](docs/protocol.md) | WebSocket connections, message formats, and protocol versioning |
+| [3D race table plan](docs/3d-race-plan.md) | Target architecture, implementation phases, and acceptance criteria |
+| [How to play (PDF)](docs/How_to_play_Magical_Athlete_compressed.pdf) | The original gameplay reference |
 
-## 开发与测试
+## Development and testing
 
 ```bash
-# 运行服务端与前端测试
+# Run the server and frontend test suites
 make test
 
-# 构建生产前端（替换为实际后端 HTTPS 地址）
+# Build the production frontend (replace with the real backend HTTPS origin)
 VITE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev make build
 ```
 
-也可以分别运行 `cd apps/server && uv run pytest` 与 `cd apps/web && npm test`。
+You can also run `cd apps/server && uv run pytest` and `cd apps/web && npm test` separately.
 
-## 部署
+## Deployment
 
-推送到 `main` 后，[GitHub Actions](.github/workflows/deploy.yml) 会依次运行 Python 测试、前端测试和生产构建，然后发布 GitHub Pages。Cloudflare Worker 使用下方的 Pywrangler 流程单独发布。线上站点为 [xeonliu.github.io/MagicalAthleteOL](https://xeonliu.github.io/MagicalAthleteOL/)。
+After a push to `main`, [GitHub Actions](.github/workflows/deploy.yml) runs the Python tests, the frontend tests, and the production build, then publishes GitHub Pages. The Cloudflare Worker is deployed separately with the Pywrangler flow below. The live site is [xeonliu.github.io/MagicalAthleteOL](https://xeonliu.github.io/MagicalAthleteOL/).
 
 <details>
-<summary><b>Cloudflare 与 GitHub Pages 配置</b></summary>
+<summary><b>Cloudflare and GitHub Pages configuration</b></summary>
 
-首次部署前，在 Cloudflare 创建仅用于本仓库的 API Token。最小权限为账户的 Workers Scripts 编辑、Workers Durable Objects 编辑；若账户界面已将 Durable Objects 权限包含在 Workers Scripts 中，则无需扩大权限。账户还需启用 Python Workers、Durable Objects、WebSocket hibernation 和 alarms。
+Before the first deployment, create a Cloudflare API Token scoped to this repository only. The minimum permissions are Workers Scripts: Edit and Workers Durable Objects: Edit on the account; if the account UI already includes Durable Objects under Workers Scripts, no broader permission is needed. The account must also have Python Workers, Durable Objects, WebSocket hibernation, and alarms enabled.
 
-GitHub 仓库需要以下配置：
+The GitHub repository needs:
 
-- Actions variable：`CLOUDFLARE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev`
-- Settings > Pages > Source：`GitHub Actions`
+- Actions variable: `CLOUDFLARE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev`
+- Settings > Pages > Source: `GitHub Actions`
 
-当前工作流只测试和发布 Pages，不部署 Worker。Cloudflare 凭据用于下方的手动发布流程，无需为这个 Pages 工作流配置 Cloudflare secrets。
+The current workflow only tests and publishes Pages; it does not deploy the Worker. The Cloudflare credentials are for the manual release flow below, and this Pages workflow needs no Cloudflare secrets.
 
-分享链接格式为 `https://xeonliu.github.io/MagicalAthleteOL/#/room/ABCD`。
+Share links look like `https://xeonliu.github.io/MagicalAthleteOL/#/room/ABCD`.
 
 </details>
 
 <details>
-<summary><b>本地调试与发布 Cloudflare Worker</b></summary>
+<summary><b>Local debugging and releasing the Cloudflare Worker</b></summary>
 
-Pywrangler 当前需要 `uv >= 0.8.10`、Python 3.13 和 Node 20/22 LTS。不要使用 Node 26：Pyodide 3.13.2 会传入 Node 26 已移除的 `--experimental-wasm-stack-switching` 参数。
+Pywrangler currently needs `uv >= 0.8.10`, Python 3.13, and Node 20/22 LTS. Do not use Node 26: Pyodide 3.13.2 passes `--experimental-wasm-stack-switching`, which Node 26 removed.
 
 ```bash
 brew install node@22
@@ -203,7 +212,7 @@ uv run pywrangler dev
 curl http://localhost:8787/api/health
 ```
 
-首次从本机发布时，可以在浏览器登录 Cloudflare：
+To release from your machine the first time, log in to Cloudflare in the browser:
 
 ```bash
 uv run pywrangler login
@@ -211,21 +220,21 @@ uv run pywrangler deploy --dry-run
 uv run pywrangler deploy
 ```
 
-也可以设置 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN`，使用本仓库专用的 API Token 发布。首次正式发布会创建 `RoomDurableObject` 的 `v1` migration。
+You can also set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` and deploy with an API Token scoped to this repository. The first real deploy creates the `v1` migration for `RoomDurableObject`.
 
-前端生产构建使用同一个 Worker 地址：
+The production frontend build uses the same Worker origin:
 
 ```bash
 cd apps/web
 VITE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev npm run build
 ```
 
-回滚 Worker 时，在 Cloudflare Dashboard 的 Workers & Pages > Deployments 中选择上一版本；Pages 可在 GitHub Actions 中重新运行先前成功的提交。不要删除或回退 `wrangler.toml` 中已经应用的 migration tag。快照格式升级必须先增加兼容读取或显式迁移，不能直接覆盖 `schemaVersion`。
+To roll back the Worker, pick the previous version under Workers & Pages > Deployments in the Cloudflare dashboard; for Pages, re-run an earlier successful commit in GitHub Actions. Do not delete or roll back a migration tag that `wrangler.toml` has already applied. Snapshot format upgrades must add compatible reads or an explicit migration first; never overwrite `schemaVersion` directly.
 
 </details>
 
-## 代码来源
+## Code provenance
 
-本仓库中的第三方代码按对应许可证使用，[服务器端规则](apps/server/src/magsim) 自 [`pschonev/magsim`](https://github.com/pschonev/magsim)（许可证 [`magsim-LICENSE`](apps/server/THIRD_PARTY_LICENSES/magsim-LICENSE)）修改。
+Third-party code in this repository is used under its own license. The [server-side rules](apps/server/src/magsim) are modified from [`pschonev/magsim`](https://github.com/pschonev/magsim) (license: [`magsim-LICENSE`](apps/server/THIRD_PARTY_LICENSES/magsim-LICENSE)).
 
-Magical Athlete 的名称、规则与美术资产归其各自权利人所有。
+The Magical Athlete name, rules, and artwork belong to their respective rights holders.
