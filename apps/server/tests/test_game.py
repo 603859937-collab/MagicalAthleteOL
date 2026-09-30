@@ -407,7 +407,7 @@ def test_magician_reveals_each_roll_before_reroll_decision() -> None:
     assert roll["rollSerial"] == second["rollPreview"]["rollSerial"]
 
 
-def test_long_legs_requires_two_throws_then_lets_owner_choose() -> None:
+def test_long_legs_jog_skips_the_roll_and_moves_five() -> None:
     engine = MagsimGameEngine(random.Random(31))
     players = make_players(2)
     teams = {
@@ -422,42 +422,42 @@ def test_long_legs_requires_two_throws_then_lets_owner_choose() -> None:
     )
     state = engine.select_racers(state, "p0", ("legs", "banana")).state
     state = engine.select_racers(state, "p1", ("skipper", "blimp")).state
-    rng = MagicMock(wraps=random.Random(0))
-    rng.randint.side_effect = [2, 5]
-    state.magsim_engine.rng = rng
 
-    first = engine.roll_dice(state, "p0")
-    assert [event["value"] for event in first.events if event["type"] == "DIE_ROLLED"] == [2]
-    assert not any(event["type"] == "DICE_ROLLED" for event in first.events)
-    assert first.state.pending_roll is not None
-    assert first.state.pending_roll["nextPlayerId"] == "p0"
-    assert first.state.pending_roll["values"] == [2]
+    decision = state.pending_decision
+    assert decision is not None
+    assert decision["abilityName"] == "LongLegs"
+    assert decision["choiceType"] == "BOOLEAN"
+    assert [option["label"] for option in decision["options"]] == ["不使用", "使用"]
+    with pytest.raises(GameRuleError, match="先完成当前技能选择"):
+        engine.roll_dice(state, "p0")
 
-    second = engine.roll_dice(first.state, "p0")
-    assert [event["value"] for event in second.events if event["type"] == "DIE_ROLLED"] == [5]
-    assert second.state.pending_roll is None
-    assert second.state.pending_decision is not None
-    assert second.state.pending_decision["choiceType"] == "DIE"
-    assert [option["label"] for option in second.state.pending_decision["options"]] == ["2", "5"]
-
-    resolved = engine.resolve_decision(
-        second.state,
-        "p0",
-        second.state.pending_decision["id"],
-        "0",
+    # Accepting the jog skips the die entirely: the move happens with no throw.
+    jogged = engine.resolve_decision(state, "p0", decision["id"], "1")
+    assert jogged.state.pending_decision is None
+    assert any(
+        event["type"] == "ABILITY_TRIGGERED" and event["abilityName"] == "LongLegs"
+        for event in jogged.events
     )
-    roll = next(event for event in resolved.events if event["type"] == "DICE_ROLLED")
-    assert roll["values"] == [2, 5]
-    assert roll["baseValue"] == 2
-    assert resolved.state.positions["legs"] == 2
+    assert not any(event["type"] == "DIE_ROLLED" for event in jogged.events)
+    roll = next(event for event in jogged.events if event["type"] == "DICE_ROLLED")
+    assert roll["values"] == []
+    assert roll["noDice"] is True
+    assert roll["baseValue"] == 5
+    step = next(
+        event
+        for event in jogged.events
+        if event["type"] == "RACER_MOVED" and event["athleteId"] == "legs"
+    )
+    assert (step["from"], step["to"]) == (0, 5)
+    assert jogged.state.positions["legs"] == 5
 
 
-def test_long_legs_reroll_replaces_only_the_second_die() -> None:
+def test_long_legs_can_decline_and_roll_one_die() -> None:
     engine = MagsimGameEngine(random.Random(33))
     players = make_players(2)
     teams = {
         "p0": (ATHLETE_BY_ID["legs"], ATHLETE_BY_ID["banana"]),
-        "p1": (ATHLETE_BY_ID["dicemonger"], ATHLETE_BY_ID["blimp"]),
+        "p1": (ATHLETE_BY_ID["skipper"], ATHLETE_BY_ID["blimp"]),
     }
     state = replace(
         engine.create_game(players),
@@ -466,38 +466,27 @@ def test_long_legs_reroll_replaces_only_the_second_die() -> None:
         first_turn_player_id="p0",
     )
     state = engine.select_racers(state, "p0", ("legs", "banana")).state
-    state = engine.select_racers(state, "p1", ("dicemonger", "blimp")).state
+    state = engine.select_racers(state, "p1", ("skipper", "blimp")).state
     rng = MagicMock(wraps=random.Random(0))
-    rng.randint.side_effect = [2, 5, 4]
+    rng.randint.side_effect = [4]
     state.magsim_engine.rng = rng
 
-    first = engine.roll_dice(state, "p0")
-    second = engine.roll_dice(first.state, "p0")
-    chosen = engine.resolve_decision(
-        second.state,
-        "p0",
-        second.state.pending_decision["id"],
-        "1",
-    )
-    reroll_decision = chosen.state.pending_decision
-    assert reroll_decision is not None
-    assert reroll_decision["abilityName"] == "DicemongerDeal"
+    decision = state.pending_decision
+    assert decision is not None
+    declined = engine.resolve_decision(state, "p0", decision["id"], "0")
+    assert not any(event["type"] == "ABILITY_TRIGGERED" for event in declined.events)
 
-    reroll = engine.resolve_decision(
-        chosen.state,
-        "p0",
-        reroll_decision["id"],
-        "1",
+    rolled = engine.roll_dice(declined.state, "p0")
+    assert [event["value"] for event in rolled.events if event["type"] == "DIE_ROLLED"] == [4]
+    roll = next(event for event in rolled.events if event["type"] == "DICE_ROLLED")
+    assert roll["values"] == [4]
+    assert roll["noDice"] is False
+    step = next(
+        event
+        for event in rolled.events
+        if event["type"] == "RACER_MOVED" and event["athleteId"] == "legs"
     )
-    assert reroll.state.pending_roll is not None
-    assert reroll.state.pending_roll["throwCount"] == 1
-
-    replacement = engine.roll_dice(reroll.state, "p0")
-    assert replacement.state.pending_decision is not None
-    assert replacement.state.pending_decision["abilityName"] == "LongLegs"
-    assert [
-        option["label"] for option in replacement.state.pending_decision["options"]
-    ] == ["2", "4"]
+    assert (step["from"], step["to"]) == (0, 4)
 
 
 def test_duelist_hands_the_second_throw_to_target_and_wins_ties() -> None:

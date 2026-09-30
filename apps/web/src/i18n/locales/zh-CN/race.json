@@ -44,7 +44,7 @@
       "BabaYagaTrip": "{{target}}与{{source}}停在同一格",
       "CoachBoostSelf": "{{source}}本次为自己加速",
       "CoachBoost": "{{target}}在{{source}}所在格开始移动",
-      "LongLegs": "{{target}}本次使用两颗骰子{{rolls}}",
+      "LongLegs": "{{target}}选择慢跑",
       "HugeBabyBlocker": "{{target}}即将停在{{source}}所在格",
       "HugeBabyPush": "{{source}}落在{{target}}所在格",
       "LackeyLoyalty": "其他赛车手本次掷出了 6",
@@ -87,8 +87,7 @@
       "backward": "后退 {{count}} 格",
       "suckerfishTarget": "按跟随目标确定落点",
       "duelistDuel": "胜者获得本次额外移动",
-      "longLegsChosen": "选用 {{value}} 点",
-      "longLegsPick": "选定本次移动骰点",
+      "longLegsJog": "跳过掷骰，改为移动 5 格",
       "hareHubris": "跳过本次主要移动",
       "hareSpeed": "本次移动 +2",
       "lovableLoserBonus": "得分 +1",
@@ -98,8 +97,7 @@
       "coachBoost": "本次移动 +1",
       "hugeBabyBlocker": "落点向后调整 1 格",
       "movementAdjust": "移动调整 {{value}}"
-    },
-    "rollValues": "（{{values}}）"
+    }
   },
   "decision": {
     "titleFallback": "{{athlete}}的技能",
@@ -122,7 +120,8 @@
       "AlchemistAlchemy": "是否把本次基础移动值改为 4？",
       "RocketScientistBoost": "是否额外增加本次骰点的移动距离？使用后自己会绊倒。",
       "DicemongerDeal": "是否重掷？借用其他角色的骰商能力时，对方会前进 1 格。",
-      "MagicalReroll": "是否重掷？每回合最多使用两次。"
+      "MagicalReroll": "是否重掷？每回合最多使用两次。",
+      "LongLegs": "跳过本次主要移动骰，直接移动 5 格；这 5 格仍算主要移动，受黏液怪与教练等影响。"
     },
     "optionDetail": "{{owner}} · 第 {{position}} 格"
   },

@@ -129,6 +129,7 @@ export interface DiceRollResult {
   baseValue?: number;
   finalValue?: number;
   rollSerial?: number;
+  noDice?: boolean;
   kind?: "MAIN_ROLL" | "ABILITY_ROLL" | "ROLL_OFF";
   participants?: RollParticipant[];
   abilityName?: string | null;
@@ -159,6 +160,7 @@ export type GameEvent = {
   baseValue?: number;
   finalValue?: number;
   rollSerial?: number;
+  noDice?: boolean;
   finishPosition?: number;
   raceNumber?: number;
   from?: number;

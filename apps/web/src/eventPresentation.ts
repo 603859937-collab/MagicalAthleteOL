@@ -59,14 +59,17 @@ export function eventText(event: GameEvent, players: PlayerState[], events: Game
   if (event.type === "ATHLETE_DRAFTED") return t("race:event.athleteDrafted", { who });
   if (event.type === "TEAM_DEALT") return t("race:event.teamDealt", { who, cards: event.athleteIds?.length ?? 0 });
   if (event.type === "RACERS_LOCKED") return t("race:event.racersLocked", { who });
-  if (event.type === "DICE_ROLLED") return t("race:event.diceRolled", { who, value: event.value });
+  if (event.type === "DICE_ROLLED") {
+    // Overridden moves (Legs' jog) carry a distance but no die face.
+    return event.noDice ? "" : t("race:event.diceRolled", { who, value: event.value });
+  }
   if (event.type === "DIE_ROLLED") return t("race:event.dieRolled", { who, index: (event.throwIndex ?? 0) + 1, value: event.value });
   if (event.type === "ABILITY_DICE_ROLLED") return t("race:event.abilityDiceRolled", { who, value: event.value });
   if (event.type === "ABILITY_ROLL_RESOLVED") {
     const winner = players.find((item) => item.id === event.winnerPlayerId);
     return t("race:event.abilityRollResolved", { winner: winner?.name ?? t("race:participant.player") });
   }
-  const moment = actionMoment(event, players, events, t);
+  const moment = actionMoment(event, players, t);
   if (moment) {
     return t("race:moment.line", {
       cause: moment.cause, owner: moment.target.owner, name: moment.target.name, effect: moment.effect,
@@ -113,14 +116,12 @@ export function eventText(event: GameEvent, players: PlayerState[], events: Game
 export function actionMoment(
   event: GameEvent,
   players: PlayerState[],
-  events: GameEvent[] = [],
   t: TFunction = i18n.t,
 ): ActionMoment | null {
   if (!["ABILITY_TRIGGERED", "RACER_MOVED", "RACER_WARPED", "RACER_TRIPPED"].includes(event.type)) return null;
   const source = participant(t, players, event.sourcePlayerId, event.sourceAthleteId, event.sourceAthleteName);
   const target = participant(t, players, event.playerId ?? event.sourcePlayerId, event.athleteId ?? event.sourceAthleteId);
   const self = source.playerId === target.playerId && source.athleteId === target.athleteId;
-  const roll = events.find((item) => item.type === "DICE_ROLLED" && item.playerId === event.playerId && item.athleteId === event.athleteId);
   const key = event.abilityName ?? event.source;
   const followed = event.triggerAthleteId
     ? participant(t, players, event.triggerPlayerId, event.triggerAthleteId, event.triggerAthleteName)
@@ -132,10 +133,7 @@ export function actionMoment(
     CoachBoost: self
       ? t("race:moment.cause.CoachBoostSelf", { source: source.name })
       : t("race:moment.cause.CoachBoost", { source: source.name, target: target.name }),
-    LongLegs: t("race:moment.cause.LongLegs", {
-      target: target.name,
-      rolls: roll?.values ? t("race:moment.rollValues", { values: roll.values.join(" / ") }) : "",
-    }),
+    LongLegs: t("race:moment.cause.LongLegs", { target: target.name }),
     HugeBabyBlocker: t("race:moment.cause.HugeBabyBlocker", { source: source.name, target: target.name }),
     HugeBabyPush: t("race:moment.cause.HugeBabyPush", { source: source.name, target: target.name }),
     LackeyLoyalty: t("race:moment.cause.LackeyLoyalty"),
@@ -184,9 +182,7 @@ export function actionMoment(
         : t("race:moment.effect.backward", { count: Math.abs(distance) });
   else if (key === "SuckerfishTarget") effect = t("race:moment.effect.suckerfishTarget");
   else if (key === "DuelistDuel") effect = t("race:moment.effect.duelistDuel");
-  else if (key === "LongLegs") effect = roll?.value !== undefined
-    ? t("race:moment.effect.longLegsChosen", { value: roll.value })
-    : t("race:moment.effect.longLegsPick");
+  else if (key === "LongLegs") effect = t("race:moment.effect.longLegsJog");
   else if (key === "HareHubris") effect = t("race:moment.effect.hareHubris");
   else if (key === "HareSpeed") effect = t("race:moment.effect.hareSpeed");
   else if (key === "LovableLoserBonus") effect = t("race:moment.effect.lovableLoserBonus");

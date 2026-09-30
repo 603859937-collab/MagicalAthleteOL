@@ -12,7 +12,7 @@ def context(source, options):
 
 
 def test_timeout_for_repeated_ability_uses_second_context_not_replayed_first():
-    source = SimpleNamespace(name='LongLegs', choice_type='DIE',
+    source = SimpleNamespace(name='GeniusPrediction', choice_type='DIE',
                              get_auto_selection_decision=lambda engine, ctx: max(ctx.options))
     broker = DecisionBroker()
     agent = InteractiveAgent(broker)

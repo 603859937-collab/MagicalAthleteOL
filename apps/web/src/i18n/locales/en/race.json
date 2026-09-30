@@ -44,7 +44,7 @@
       "BabaYagaTrip": "{{target}} and {{source}} stopped on the same space",
       "CoachBoostSelf": "{{source}} hustled for themself this move",
       "CoachBoost": "{{target}} started this move on {{source}}'s space",
-      "LongLegs": "{{target}} used both dice this move{{rolls}}",
+      "LongLegs": "{{target}} decided to jog",
       "HugeBabyBlocker": "{{target}} was about to stop on {{source}}'s space",
       "HugeBabyPush": "{{source}} landed on {{target}}'s space",
       "LackeyLoyalty": "Another racer rolled a 6 this move",
@@ -87,8 +87,7 @@
       "backward": "Back {{count}} spaces",
       "suckerfishTarget": "Destination follows the target",
       "duelistDuel": "Winner takes this extra move",
-      "longLegsChosen": "Used the {{value}}",
-      "longLegsPick": "Picked the die for this move",
+      "longLegsJog": "Skips the die and moves 5",
       "hareHubris": "Skips this main move",
       "hareSpeed": "This move +2",
       "lovableLoserBonus": "Points +1",
@@ -98,8 +97,7 @@
       "coachBoost": "This move +1",
       "hugeBabyBlocker": "Adjusted 1 space back",
       "movementAdjust": "Movement {{value}}"
-    },
-    "rollValues": " ({{values}})"
+    }
   },
   "decision": {
     "titleFallback": "{{athlete}}'s power",
@@ -122,7 +120,8 @@
       "AlchemistAlchemy": "Change this main move to 4?",
       "RocketScientistBoost": "Add this die's value to your move again? You will trip afterwards.",
       "DicemongerDeal": "Reroll? Borrowing another racer's Dicey Deals moves them 1 space.",
-      "MagicalReroll": "Reroll? Twice per turn at most."
+      "MagicalReroll": "Reroll? Twice per turn at most.",
+      "LongLegs": "Skip the main-move die and move 5 spaces instead? Those spaces still count as your main move."
     },
     "optionDetail": "{{owner}} · space {{position}}"
   },

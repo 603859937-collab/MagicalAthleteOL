@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, Self, override
+from typing import TYPE_CHECKING, Self, override
 
 from magsim.ai.evaluation import (
     get_benefit_at,
@@ -11,67 +11,93 @@ from magsim.ai.evaluation import (
 from magsim.core.abilities import Ability
 from magsim.core.agent import (
     Agent,
-    SelectionDecisionContext,
-    SelectionDecisionMixin,
-    SelectionInteractive,
+    BooleanDecisionMixin,
+    BooleanInteractive,
+    DecisionContext,
 )
-from magsim.core.events import GameEvent
+from magsim.core.events import (
+    AbilityTriggeredEvent,
+    AbilityTriggeredEventOrSkipped,
+    GameEvent,
+    TurnStartEvent,
+)
 
 if TYPE_CHECKING:
     from magsim.core.state import ActiveRacerState
     from magsim.core.types import AbilityName
     from magsim.engine.game_engine import GameEngine
 
+# Rulebook "Jog": the skipped roll is replaced by this flat distance. It still
+# counts as the main move, so Gunk's -1 and Coach's +1 apply on top of it.
+JOG_DISTANCE = 5
+
 
 @dataclass
-class LegsMoveAbility(Ability, SelectionDecisionMixin[int]):
+class LegsMoveAbility(Ability, BooleanDecisionMixin):
     name: AbilityName = "LongLegs"
-    triggers: tuple[type[GameEvent], ...] = ()
-    choice_type: ClassVar[str] = "DIE"
+    triggers: tuple[type[GameEvent], ...] = (TurnStartEvent,)
 
-    def choose_roll(
+    @override
+    def execute(
         self,
         event: GameEvent,
         owner: ActiveRacerState,
         engine: GameEngine,
         agent: Agent,
-        values: tuple[int, ...],
-    ) -> int:
-        return agent.make_selection_decision(
-            engine,
-            SelectionDecisionContext[SelectionInteractive[int], int](
-                source=self,
-                event=event,
-                game_state=engine.state,
-                source_racer_idx=owner.idx,
-                options=values,
-            ),
+    ) -> AbilityTriggeredEventOrSkipped:
+        if (
+            not isinstance(event, TurnStartEvent)
+            or event.target_racer_idx != owner.idx
+            or owner.main_move_consumed
+        ):
+            return "skip_trigger"
+
+        ctx = DecisionContext[BooleanInteractive](
+            source=self,
+            event=event,
+            game_state=engine.state,
+            source_racer_idx=owner.idx,
+        )
+        if not agent.make_boolean_decision(engine, ctx):
+            return "skip_trigger"
+
+        # Consumed by handle_perform_main_roll: no die is rolled for this move.
+        owner.roll_override = (self.name, JOG_DISTANCE)
+        return AbilityTriggeredEvent(
+            responsible_racer_idx=owner.idx,
+            source=self.name,
+            phase=event.phase,
+            target_racer_idx=owner.idx,
         )
 
     @override
-    def get_baseline_selection_decision(
+    def get_baseline_boolean_decision(
         self,
         engine: GameEngine,
-        ctx: SelectionDecisionContext[Self, int],
-    ) -> int | None:
-        return max(ctx.options, default=None)
+        ctx: DecisionContext[Self],
+    ) -> bool:
+        return True
 
     @override
-    def get_auto_selection_decision(
+    def get_auto_boolean_decision(
         self,
         engine: GameEngine,
-        ctx: SelectionDecisionContext[Self, int],
-    ) -> int | None:
+        ctx: DecisionContext[Self],
+    ) -> bool:
         if (me := engine.get_active_racer(ctx.source_racer_idx)) is None:
-            return max(ctx.options, default=None)
+            return True
+
+        # 5 is above the 3.5 average, so jogging is the default; only skip it
+        # when the landing tile is a hazard and not a prize.
         mods = get_current_modifiers(engine, me.idx)
+        target = me.position + JOG_DISTANCE + mods
 
-        def score(value: int) -> tuple[bool, bool, int]:
-            destination = me.position + value + mods
-            return (
-                get_benefit_at(engine, destination) is not None,
-                get_hazard_at(engine, destination) is None,
-                value,
-            )
+        if benefit := get_benefit_at(engine, target):
+            engine.log_info(f"{me.repr} jogs to {benefit} using {self.name}!")
+            return True
 
-        return max(ctx.options, key=score, default=None)
+        if hazard := get_hazard_at(engine, target):
+            engine.log_info(f"{me.repr} declines {self.name} because of {hazard}!")
+            return False
+
+        return True

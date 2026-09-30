@@ -25,7 +25,7 @@ def test_optional_target_can_be_declined_and_replayed(ability):
 
 
 def test_required_die_choice_cannot_be_skipped():
-    broker = DecisionBroker(pending=pending("LongLegs"))
+    broker = DecisionBroker(pending=pending("GeniusPrediction"))
     assert all(option["id"] != "skip" for option in broker.pending.public_options())
     with pytest.raises(ValueError, match="INVALID_DECISION_OPTION"):
         broker.choose("choice", "skip")

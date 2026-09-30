@@ -50,11 +50,11 @@ LOBBY
 
 `DRAFTING` 公开 `draftPool`、`activePlayerId`、各玩家 `team` 与招募轮次。自动发牌由 `autoDeal` 标记，`cardsPerPlayer` 是每人应得的牌数；自动发牌时服务端广播每名玩家的 `TEAM_DEALT` 事件。`CHARACTER_SELECTION` 只公开 `selectionLocked`；全部玩家锁定后，`activeRacers` 同时揭示。`raceNumber` 为 1–4，`trackName`、`raceRewards` 和 `scores` 始终来自服务端。
 
-比赛状态还包含 `pendingDecision`、`pendingRoll`、`raceLog` 和 `resolutionStatus`。`resolutionStatus` 在轮次等待玩家掷骰时为 `WAITING_FOR_ROLL`，技能选择期间为 `WAITING_FOR_DECISION`。`pendingRoll.nextPlayerId` 是当前唯一可以提交 `ROLL_DICE` 的玩家，不一定等于回合的 `activePlayerId`；Long Legs 会连续建立两个同玩家步骤，Duelist 会依次把投骰权交给挑战者和目标。待选和分步投骰状态均包含 60 秒的 `deadlineAt`，超时后由服务端自动选择或投骰并继续。重连会恢复同一个流程 ID、已投点数和截止时间。
+比赛状态还包含 `pendingDecision`、`pendingRoll`、`raceLog` 和 `resolutionStatus`。`resolutionStatus` 在轮次等待玩家掷骰时为 `WAITING_FOR_ROLL`，技能选择期间为 `WAITING_FOR_DECISION`。`pendingRoll.nextPlayerId` 是当前唯一可以提交 `ROLL_DICE` 的玩家，不一定等于回合的 `activePlayerId`；Duelist 会依次把投骰权交给挑战者和目标。待选和分步投骰状态均包含 60 秒的 `deadlineAt`，超时后由服务端自动选择或投骰并继续。重连会恢复同一个流程 ID、已投点数和截止时间。
 
 ## 状态广播
 
-有效行动产生 `STATE_UPDATED`。`events` 用于移动动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。骰子结果通过 `rollResults` 明确广播给房间内所有客户端，每个结果带全局一致的 `id`，客户端必须以此字段中的 `values` 为权威点数。分步投骰的每颗骰子拥有独立结果 ID，并以 `rollSessionId` 分组；`kind` 区分 `MAIN_ROLL`、`ABILITY_ROLL` 和 `ROLL_OFF`，`participants` 标识该颗骰子的玩家及赛车手。`rollSerial` 在单场比赛内单调递增；一次待决策预览及其最终事件引用同一个结果 ID。
+有效行动产生 `STATE_UPDATED`。`events` 用于移动动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。骰子结果通过 `rollResults` 明确广播给房间内所有客户端，每个结果带全局一致的 `id`，客户端必须以此字段中的 `values` 为权威点数。长腿的慢跑跳过掷骰，对应事件与结果会带 `noDice: true` 且 `values` 为空，客户端不应播放骰子动画。分步投骰的每颗骰子拥有独立结果 ID，并以 `rollSessionId` 分组；`kind` 区分 `MAIN_ROLL`、`ABILITY_ROLL` 和 `ROLL_OFF`，`participants` 标识该颗骰子的玩家及赛车手。`rollSerial` 在单场比赛内单调递增；一次待决策预览及其最终事件引用同一个结果 ID。
 
 比赛掷骰被服务端确认后，会先广播不改变 revision 的 `ROLL_STARTED`，供所有客户端同步启动投掷动画；实际点数仍只在随后的 `STATE_UPDATED.events` 中公布。
 

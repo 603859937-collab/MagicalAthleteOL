@@ -662,6 +662,12 @@ class MagsimGameEngine:
                     )
                     return self._transition_with_log(next_state, events)
                 if progress is TurnProgress.WAITING_FOR_ROLL:
+                    racer = engine.state.racers[engine.state.current_racer_idx]
+                    if racer.roll_override is not None and engine.roll_broker.pending is None:
+                        # Overrides (Legs' jog) stand in for the die, and the player
+                        # already chose to skip it, so the move runs right away.
+                        engine.request_main_roll()
+                        continue
                     pending_roll = self._pending_roll(state, engine)
                     next_state = replace(
                         state,
@@ -769,6 +775,7 @@ class MagsimGameEngine:
                 "rollSerial": event.roll_serial,
                 "rollSessionId": event.roll_session_id,
                 "rollResultId": event.roll_result_id,
+                "noDice": event.dice_value is None,
             })
         elif name == "AbilityRollResultEvent":
             participants = [

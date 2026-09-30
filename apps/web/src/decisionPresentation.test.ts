@@ -10,11 +10,14 @@ it("localizes copied skill choices without changing numeric choices", () => {
   expect(decisionOptionLabel("6")).toBe("6");
 });
 
-it("distinguishes predicting a future roll from selecting a die already rolled", () => {
+it("distinguishes predicting a future roll, selecting a rolled die and jogging", () => {
   const prediction = { abilityName: "GeniusPrediction", choiceType: "DIE" } as PendingDecision;
-  const selection = { abilityName: "LongLegs", choiceType: "DIE" } as PendingDecision;
+  const selection = { abilityName: "OtherDieChoice", choiceType: "DIE" } as PendingDecision;
+  const jog = { abilityName: "LongLegs", choiceType: "BOOLEAN", athleteName: "Legs" } as PendingDecision;
   expect(decisionPrompt(prediction)).toContain("预测");
   expect(decisionPrompt(selection)).toBe("选择本次使用的骰点");
+  // Legs skips the die entirely instead of picking one.
+  expect(decisionPrompt(jog)).toContain("移动 5 格");
 });
 
 it("explains the swap cost and optional decline", () => {

@@ -13,7 +13,7 @@ export function latestAuthoritativeRollValue(snapshot: RoomSnapshot): number | n
   for (let index = snapshot.game.raceLog.length - 1; index >= 0; index -= 1) {
     const event = snapshot.game.raceLog[index];
     if (["DICE_ROLLED", "DIE_ROLLED", "ABILITY_DICE_ROLLED"].includes(event.type)
-      && isDieValue(event.value)) return event.value;
+      && !event.noDice && isDieValue(event.value)) return event.value;
   }
   return null;
 }
@@ -23,7 +23,8 @@ export function collectUnseenRollValues(message: RollUpdate, shownRolls: Set<str
     return message.rollResults.flatMap((result) => {
       if (shownRolls.has(result.id)) return [];
       shownRolls.add(result.id);
-      return result.values;
+      // An overridden main move (Legs' jog) reports a distance, not a die face.
+      return result.noDice ? [] : result.values;
     });
   }
 
@@ -31,7 +32,7 @@ export function collectUnseenRollValues(message: RollUpdate, shownRolls: Set<str
   const newlyShown = new Set<string>();
   const values = message.events.flatMap((event, index) => {
     if (!["DICE_ROLLED", "DIE_ROLLED", "ABILITY_DICE_ROLLED"].includes(event.type)
-      || typeof event.value !== "number") return [];
+      || event.noDice || typeof event.value !== "number") return [];
     const key = event.rollResultId ?? (typeof event.rollSerial === "number"
       ? `${raceKey}:${event.rollSerial}`
       : `${raceKey}:${message.revision}:event:${index}`);

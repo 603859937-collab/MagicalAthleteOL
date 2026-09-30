@@ -83,7 +83,12 @@ def handle_perform_main_roll(engine: GameEngine, event: PerformMainRollEvent) ->
 
     if racer.roll_override is not None:
         source, base = racer.roll_override
-        engine.state.roll_state.dice_value = None  # Not a dice roll
+        # An override stands in for the die, so no roll identity survives.
+        engine.state.roll_state.dice_value = None
+        engine.state.roll_state.dice_values = ()
+        engine.state.roll_state.dice_result_ids = ()
+        engine.state.roll_state.roll_session_id = None
+        engine.state.roll_state.roll_result_id = None
         racer.can_reroll = False
 
         report_base_value_change(
@@ -96,13 +101,6 @@ def handle_perform_main_roll(engine: GameEngine, event: PerformMainRollEvent) ->
 
         racer.roll_override = None  # Consume it
     else:
-        long_legs = next(
-            (ability for ability in racer.active_abilities if ability.name == "LongLegs"),
-            None,
-        )
-        reroll_prefix = engine.state.roll_state.reroll_prefix
-        reroll_prefix_result_ids = engine.state.roll_state.reroll_prefix_result_ids
-        dice_count = 1 if reroll_prefix else (2 if long_legs is not None else 1)
         scheduled_serial = (
             engine.current_processing_event.serial
             if engine.current_processing_event is not None
@@ -111,42 +109,15 @@ def handle_perform_main_roll(engine: GameEngine, event: PerformMainRollEvent) ->
         completed_roll = engine.request_roll_sequence(
             key=("main", scheduled_serial, racer.idx, current_serial),
             kind="MAIN_ROLL",
-            participants=(racer.idx,) * dice_count,
-            ability_name="LongLegs" if long_legs is not None else None,
+            participants=(racer.idx,),
         )
-        all_values = reroll_prefix + completed_roll.values
-        all_result_ids = reroll_prefix_result_ids + tuple(
-            completed_roll.result_id(index) for index in range(len(completed_roll.values))
-        )
-        selected_index = 0
-        if long_legs is not None:
-            if all_values[0] != all_values[1]:
-                selected_value = long_legs.choose_roll(
-                    event,
-                    racer,
-                    engine,
-                    engine.get_agent(racer.idx),
-                    all_values,
-                )
-                selected_index = all_values.index(selected_value)
-            engine.push_event(
-                AbilityTriggeredEvent(
-                    responsible_racer_idx=racer.idx,
-                    source="LongLegs",
-                    phase=event.phase,
-                    target_racer_idx=racer.idx,
-                ),
-            )
-        base = cast("D6Values", all_values[selected_index])
+        base = cast("D6Values", completed_roll.values[0])
+        result_id = completed_roll.result_id(0)
         engine.state.roll_state.dice_value = base
-        engine.state.roll_state.dice_values = tuple(
-            cast("D6Values", value) for value in all_values
-        )
-        engine.state.roll_state.dice_result_ids = all_result_ids
-        engine.state.roll_state.reroll_prefix = ()
-        engine.state.roll_state.reroll_prefix_result_ids = ()
+        engine.state.roll_state.dice_values = (base,)
+        engine.state.roll_state.dice_result_ids = (result_id,)
         engine.state.roll_state.roll_session_id = completed_roll.id
-        engine.state.roll_state.roll_result_id = all_result_ids[selected_index]
+        engine.state.roll_state.roll_result_id = result_id
         racer.can_reroll = True
 
     engine.state.roll_state.base_value = base
@@ -286,14 +257,6 @@ def trigger_reroll(engine: GameEngine, source_idx: int, source: Source) -> None:
     engine.log_info(
         f"RE-ROLL TRIGGERED by {engine.get_racer(source_idx).repr} ({source})",
     )
-    if len(engine.state.roll_state.dice_values) > 1:
-        engine.state.roll_state.reroll_prefix = engine.state.roll_state.dice_values[:-1]
-        engine.state.roll_state.reroll_prefix_result_ids = (
-            engine.state.roll_state.dice_result_ids[:-1]
-        )
-    else:
-        engine.state.roll_state.reroll_prefix = ()
-        engine.state.roll_state.reroll_prefix_result_ids = ()
     engine.state.roll_state.serial_id += 1
     engine.push_event(
         PerformMainRollEvent(

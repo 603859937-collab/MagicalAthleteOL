@@ -421,7 +421,7 @@ export default function App() {
       const nextShownRolls = new Set(shownRolls.current);
       let diceValues = collectUnseenRollValues(message, nextShownRolls);
       if (diceValues.length === 0 && localRollPendingRef.current) {
-        diceValues = message.events.flatMap((event) => event.type === "DICE_ROLLED" && typeof event.value === "number" ? [event.value] : []);
+        diceValues = message.events.flatMap((event) => event.type === "DICE_ROLLED" && !event.noDice && typeof event.value === "number" ? [event.value] : []);
       }
       if (diceValues.length === 0 && (localRollPendingRef.current || rollingPlayerRef.current !== null)) {
         localRollPendingRef.current = false;
@@ -594,7 +594,7 @@ export default function App() {
       }
       // Some engine notifications follow their effect. Do not replay them as a second action.
       if (isRedundantAbilityEvent(event, events)) continue;
-      const currentMoment = actionMoment(event, working.game.players, events, t);
+      const currentMoment = actionMoment(event, working.game.players, t);
       setMoment(currentMoment);
       const focusId = event.type === "ABILITY_TRIGGERED" ? event.sourceAthleteId ?? event.athleteId : event.athleteId;
       if (focusId && ["ABILITY_TRIGGERED", "RACER_MOVED", "RACER_WARPED", "RACER_TRIPPED", "RACER_FINISHED"].includes(event.type)) {

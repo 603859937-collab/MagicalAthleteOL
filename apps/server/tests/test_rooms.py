@@ -191,6 +191,33 @@ def test_roll_preview_and_final_event_share_the_same_result_id() -> None:
     assert preview_results[0]["id"] == final_results[0]["id"]
 
 
+def test_jogged_main_move_publishes_no_die_to_animate() -> None:
+    engine = MagsimGameEngine(random.Random(31))
+    players = (Player("p0", "Alice"), Player("p1", "Bob"))
+    teams = {
+        "p0": (ATHLETE_BY_ID["legs"], ATHLETE_BY_ID["banana"]),
+        "p1": (ATHLETE_BY_ID["skipper"], ATHLETE_BY_ID["blimp"]),
+    }
+    state = replace(
+        engine.create_game(players),
+        phase=GamePhase.CHARACTER_SELECTION,
+        teams=teams,
+        first_turn_player_id="p0",
+    )
+    state = engine.select_racers(state, "p0", ("legs", "banana")).state
+    state = engine.select_racers(state, "p1", ("skipper", "blimp")).state
+    decision = state.pending_decision
+    assert decision is not None and decision["abilityName"] == "LongLegs"
+
+    jogged = engine.resolve_decision(state, "p0", decision["id"], "1")
+    roll = next(event for event in jogged.events if event["type"] == "DICE_ROLLED")
+    assert roll["noDice"] is True
+
+    results = RoomManager._roll_results(GameTransition(jogged.state, jogged.events), revision=1)
+    assert [result["values"] for result in results] == [[]]
+    assert results[0]["noDice"] is True
+
+
 @pytest.mark.anyio
 async def test_leaving_lobby_releases_seat_and_transfers_host() -> None:
     from magical_athlete.protocol import JoinRoomIntent, LeaveRoomIntent

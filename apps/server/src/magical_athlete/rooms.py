@@ -591,6 +591,7 @@ class RoomManager:
                     )
                 if isinstance(serial, int):
                     seen_serials.add(serial)
+                no_dice = bool(event.get("noDice"))
                 result = results_by_id.get(result_id)
                 if result is None:
                     result = {
@@ -598,7 +599,10 @@ class RoomManager:
                         "kind": "MAIN_ROLL",
                         "playerId": event.get("playerId"),
                         "athleteId": event.get("athleteId"),
-                        "values": [event["value"]],
+                        # An overridden main move (Legs' jog) rolls no die, so it
+                        # must not push a face onto the table.
+                        "values": [] if no_dice else [event["value"]],
+                        "noDice": no_dice,
                         "rollSessionId": event.get("rollSessionId"),
                     }
                     results.append(result)
