@@ -27,6 +27,7 @@ export interface PlayerState {
   name: string;
   position: number;
   connected: boolean;
+  isBot: boolean;
   score: number;
   selectionLocked: boolean;
   selectedAthlete: ActiveRacer | null;
@@ -180,6 +181,7 @@ export type GameEvent = {
   decisionId?: string;
   optionId?: string;
   automatic?: boolean;
+  bot?: boolean;
   sequence?: number;
   kind?: "MAIN_ROLL" | "ABILITY_ROLL" | "ROLL_OFF";
   rollSessionId?: string;
@@ -194,6 +196,7 @@ export type GameEvent = {
 export type ClientIntent =
   | { type: "LEAVE_ROOM"; actionId: string }
   | { type: "KICK_PLAYER"; actionId: string; targetPlayerId: string }
+  | { type: "ADD_BOT"; actionId: string }
   | { type: "JOIN_ROOM"; roomId: string; playerName: string; playerId?: string; reconnectToken?: string }
   | { type: "START_GAME"; actionId: string }
   | { type: "SET_VARIANT"; actionId: string; doubleRacer: boolean }

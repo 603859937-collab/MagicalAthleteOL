@@ -20,6 +20,7 @@ from magical_athlete.rooms import (
     RoomPlayer,
 )
 from magical_athlete.snapshots import (
+    IncompatibleSnapshotError,
     RoomSnapshot,
     SnapshotPlayer,
     decode_snapshot,
@@ -104,7 +105,12 @@ class RoomDurableObject(DurableObject):
         raw = await self.ctx.storage.get("snapshot")
         if raw is None:
             return None
-        snapshot = decode_snapshot(bytes(raw))
+        try:
+            snapshot = decode_snapshot(bytes(raw))
+        except IncompatibleSnapshotError:
+            # Stale schema from an older deploy; the room is disposable.
+            await self.ctx.storage.deleteAll()
+            return None
         room = Room(
             id=snapshot.room_id,
             engine=MagsimGameEngine(),
@@ -112,12 +118,14 @@ class RoomDurableObject(DurableObject):
             revision=snapshot.revision,
             decision_deadline=snapshot.decision_deadline,
             roll_deadline=snapshot.roll_deadline,
+            bot_deadline=snapshot.bot_deadline,
             players={
                 player_id: RoomPlayer(
                     player=item.player,
                     reconnect_token=item.reconnect_token,
                     connected=False,
                     seen_action_ids=set(item.seen_action_ids),
+                    is_bot=item.is_bot,
                 )
                 for player_id, item in snapshot.players.items()
             },
@@ -150,6 +158,7 @@ class RoomDurableObject(DurableObject):
                     player=member.player,
                     reconnect_token=member.reconnect_token,
                     seen_action_ids=set(member.seen_action_ids),
+                    is_bot=member.is_bot,
                 )
                 for player_id, member in self.room.players.items()
             },
@@ -158,6 +167,7 @@ class RoomDurableObject(DurableObject):
             decision_deadline=self.room.decision_deadline,
             roll_deadline=self.room.roll_deadline,
             last_active_at=self.last_active_at,
+            bot_deadline=self.room.bot_deadline,
         )
         await self.ctx.storage.put("snapshot", encode_snapshot(snapshot))
         expiry = self.last_active_at + ROOM_TTL
@@ -166,6 +176,8 @@ class RoomDurableObject(DurableObject):
             deadlines.append(self.room.decision_deadline)
         if self.room.roll_deadline is not None:
             deadlines.append(self.room.roll_deadline)
+        if self.room.bot_deadline is not None:
+            deadlines.append(self.room.bot_deadline)
         alarm_at = min(deadlines)
         await self.ctx.storage.setAlarm(int(alarm_at.timestamp() * 1000))
 
@@ -258,15 +270,18 @@ class RoomDurableObject(DurableObject):
             raw = await self.ctx.storage.get("snapshot")
             if raw is None:
                 return
-            await self._load(decode_snapshot(bytes(raw)).room_id)
+            if await self._load("") is None:
+                return
         assert self.room is not None
         now = datetime.now(UTC)
+        await self.manager.resolve_bot_action(self.room, now)
         await self.manager.resolve_expired_decision(self.room, now)
         await self.manager.resolve_expired_roll(self.room, now)
         if (
             not self.ctx.getWebSockets()
             and self.room.decision_deadline is None
             and self.room.roll_deadline is None
+            and self.room.bot_deadline is None
             and now >= self.last_active_at + ROOM_TTL
         ):
             await self.ctx.storage.deleteAll()

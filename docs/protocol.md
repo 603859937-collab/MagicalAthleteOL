@@ -19,6 +19,7 @@ WebSocket 建立后第一条消息必须是 `JOIN_ROOM`：
 ```json
 { "type": "SET_VARIANT", "actionId": "a1", "doubleRacer": true }
 { "type": "SET_AUTO_DEAL", "actionId": "a2", "autoDeal": true }
+{ "type": "ADD_BOT", "actionId": "a10" }
 { "type": "START_GAME", "actionId": "a3" }
 { "type": "ROLL_START", "actionId": "a4" }
 { "type": "DRAFT_ATHLETE", "actionId": "a5", "athleteId": "centaur" }
@@ -29,6 +30,8 @@ WebSocket 建立后第一条消息必须是 `JOIN_ROOM`：
 ```
 
 `SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`SET_AUTO_DEAL` 同样只由房主在开局前的 `LOBBY` 使用：开启后 `START_GAME` 直接给每人随机发牌（普通局 4 张，双赛车手变体 8 张），跳过 `DRAFT_ROLL` 与 `DRAFTING`，直接进入第一场的 `RACE_ROLL`。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。比赛轮次由服务端自动推进到技能选择或 `WAITING_FOR_ROLL`；`ROLL_DICE` 只在后者有效，并且只能由 `pendingRoll.nextPlayerId`（没有 `pendingRoll` 时为 `activePlayerId`）提交。每次意图只生成当前步骤的一颗权威骰，不接受客户端点数或移动终点。`RESOLVE_DECISION` 只接受公开候选项中的 ID，且只能由 `pendingDecision.playerId` 提交。
+
+`ADD_BOT` 同样只由房主在开局前的 `LOBBY` 使用：每次加入一名机器人，房间最多 6 人。机器人没有 WebSocket，`game.players[].isBot` 为 `true`。服务端会替机器人行动：掷起始骰、招募、选将、掷比赛骰，以及在技能选择时采用与超时自动选择相同的智能策略。每次机器人行动前会有约 1 秒的停顿，`STATE_UPDATED` 中机器人做出的选择同样带 `optionId` 与 `optionLabel`，技能选择事件额外带 `bot: true`。机器人可以被房主用 `KICK_PLAYER` 在大厅移出。
 
 重复的 `actionId` 不会重复执行，服务端返回 `ACTION_ACK`。
 

@@ -89,3 +89,26 @@ def test_host_can_auto_deal_and_skip_the_snake_draft() -> None:
         assert [event["type"] for event in started["events"]].count("TEAM_DEALT") == 2
         assert all(len(player["team"]) == 8 for player in started["game"]["players"])
         assert len(started["game"]["hand"]) == 8
+
+
+def test_host_can_add_a_bot_from_the_lobby() -> None:
+    client = TestClient(app)
+    room_id = client.post("/api/rooms").json()["roomId"]
+
+    headers = {"origin": "http://localhost:5173"}
+    with client.websocket_connect("/ws", headers=headers) as alice:
+        alice.send_json({"type": "JOIN_ROOM", "roomId": room_id, "playerName": "Alice"})
+        alice.receive_json()
+
+        alice.send_json({"type": "ADD_BOT", "actionId": "bot-1"})
+        update = alice.receive_json()
+
+        bot = update["game"]["players"][-1]
+        assert bot["isBot"] is True
+        assert update["events"] == [
+            {"type": "PLAYER_JOINED", "playerId": bot["id"], "bot": True}
+        ]
+
+        alice.send_json({"type": "START_GAME", "actionId": "start-1"})
+        started = alice.receive_json()
+        assert started["game"]["phase"] == "DRAFT_ROLL"

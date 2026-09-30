@@ -6,7 +6,7 @@ from datetime import datetime
 
 from .game import GameState, Player
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class IncompatibleSnapshotError(ValueError):
@@ -18,6 +18,7 @@ class SnapshotPlayer:
     player: Player
     reconnect_token: str
     seen_action_ids: set[str]
+    is_bot: bool = False
 
 
 @dataclass(slots=True)
@@ -29,6 +30,7 @@ class RoomSnapshot:
     decision_deadline: datetime | None
     roll_deadline: datetime | None
     last_active_at: datetime
+    bot_deadline: datetime | None = None
 
 
 def encode_snapshot(snapshot: RoomSnapshot) -> bytes:

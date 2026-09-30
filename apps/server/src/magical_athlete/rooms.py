@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 import secrets
 import string
 from datetime import UTC, datetime, timedelta
@@ -8,8 +9,17 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 from uuid import uuid4
 
-from .game import GameEngine, GameRuleError, GameState, GameTransition, MagsimGameEngine, Player
+from .game import (
+    GameEngine,
+    GamePhase,
+    GameRuleError,
+    GameState,
+    GameTransition,
+    MagsimGameEngine,
+    Player,
+)
 from .protocol import (
+    AddBotIntent,
     AdvanceRaceIntent,
     DraftAthleteIntent,
     ErrorMessage,
@@ -27,6 +37,9 @@ from .protocol import (
 
 
 ROLL_ANIMATION_LEAD_SECONDS = 0.35
+# Bots pause briefly before acting so their moves read as deliberate on every client.
+BOT_ACTION_DELAY_SECONDS = 1.1
+ACTION_TIME_LIMIT_SECONDS = 60
 
 
 class RoomError(Exception):
@@ -48,6 +61,7 @@ class RoomPlayer:
     connected: bool = True
     socket: RoomSocket | None = None
     seen_action_ids: set[str] = field(default_factory=set)
+    is_bot: bool = False
 
 
 @dataclass(slots=True)
@@ -62,6 +76,8 @@ class Room:
     decision_deadline: datetime | None = None
     roll_task: asyncio.Task[None] | None = None
     roll_deadline: datetime | None = None
+    bot_task: asyncio.Task[None] | None = None
+    bot_deadline: datetime | None = None
 
     def public_state(self, viewer_id: str | None = None) -> dict[str, Any]:
         if self.game_state is None:
@@ -81,6 +97,8 @@ class Room:
         connected = {player_id: member.connected for player_id, member in self.players.items()}
         for player in game["players"]:
             player["connected"] = connected.get(player["id"], False)
+            member = self.players.get(player["id"])
+            player["isBot"] = member.is_bot if member is not None else False
         return {"roomId": self.id, "revision": self.revision, "game": game}
 
 
@@ -106,9 +124,16 @@ class InMemoryRoomRepository:
 
 
 class RoomManager:
-    def __init__(self, repository: InMemoryRoomRepository, *, local_timers: bool = True) -> None:
+    def __init__(
+        self,
+        repository: InMemoryRoomRepository,
+        *,
+        local_timers: bool = True,
+        rng: random.Random | None = None,
+    ) -> None:
         self.repository = repository
         self.local_timers = local_timers
+        self._rng = rng or random.Random()
 
     async def join(self, websocket: RoomSocket, intent: JoinRoomIntent) -> tuple[Room, str]:
         room = await self.repository.get(intent.room_id)
@@ -161,6 +186,7 @@ class RoomManager:
                 },
                 exclude=websocket,
             )
+            self._sync_bot_timer_locked(room)
             return room, player_id
 
     async def handle_intent(
@@ -170,6 +196,7 @@ class RoomManager:
         intent: StartGameIntent
         | LeaveRoomIntent
         | KickPlayerIntent
+        | AddBotIntent
         | SetVariantIntent
         | SetAutoDealIntent
         | RollStartIntent
@@ -194,9 +221,14 @@ class RoomManager:
                 await member.socket.send_json({"type": "ROOM_LEFT"})
                 await self._announce_player_left_locked(room, removed)
                 await member.socket.close()
+                self._sync_bot_timer_locked(room)
                 return
             if isinstance(intent, KickPlayerIntent):
                 await self._kick_player_locked(room, member, intent)
+                self._sync_bot_timer_locked(room)
+                return
+            if isinstance(intent, AddBotIntent):
+                await self._add_bot_locked(room, member, intent)
                 return
             if intent.action_id in member.seen_action_ids:
                 await member.socket.send_json(
@@ -206,65 +238,17 @@ class RoomManager:
             member.seen_action_ids.add(intent.action_id)
             if len(member.seen_action_ids) > 500:
                 member.seen_action_ids = {intent.action_id}
+            await self._apply_intent_locked(room, member, intent)
 
-            try:
-                assert room.game_state is not None
-                if isinstance(intent, StartGameIntent):
-                    transition = room.engine.start(room.game_state, player_id)
-                elif isinstance(intent, SetVariantIntent):
-                    transition = room.engine.set_variant(
-                        room.game_state, player_id, intent.double_racer
-                    )
-                elif isinstance(intent, SetAutoDealIntent):
-                    transition = room.engine.set_auto_deal(
-                        room.game_state, player_id, intent.auto_deal
-                    )
-                elif isinstance(intent, RollStartIntent):
-                    transition = room.engine.roll_start(room.game_state, player_id)
-                elif isinstance(intent, DraftAthleteIntent):
-                    transition = room.engine.draft_athlete(
-                        room.game_state, player_id, intent.athlete_id
-                    )
-                elif isinstance(intent, SelectRacersIntent):
-                    transition = room.engine.select_racers(
-                        room.game_state, player_id, intent.athlete_ids
-                    )
-                elif isinstance(intent, RollDiceIntent):
-                    pending_roll = room.game_state.pending_roll
-                    rolling_player_id = (
-                        pending_roll.get("nextPlayerId")
-                        if pending_roll is not None
-                        else room.game_state.active_player_id
-                    )
-                    if (
-                        room.game_state.phase == "RACING"
-                        and rolling_player_id == player_id
-                        and room.game_state.magsim_engine is not None
-                        and room.game_state.pending_decision is None
-                        and room.game_state.resolution_status == "WAITING_FOR_ROLL"
-                    ):
-                        await self._broadcast_locked(
-                            room,
-                            {
-                                "type": "ROLL_STARTED",
-                                "actionId": intent.action_id,
-                                "playerId": player_id,
-                            },
-                        )
-                        # Keep the start signal visible long enough for background tabs and
-                        # slower WebGL clients to commit the first animation frame.
-                        await asyncio.sleep(ROLL_ANIMATION_LEAD_SECONDS)
-                    transition = room.engine.roll_dice(room.game_state, player_id)
-                elif isinstance(intent, ResolveDecisionIntent):
-                    transition = room.engine.resolve_decision(
-                        room.game_state,
-                        player_id,
-                        intent.decision_id,
-                        intent.option_id,
-                    )
-                else:
-                    transition = room.engine.advance_race(room.game_state, player_id)
-            except GameRuleError as error:
+    async def _apply_intent_locked(
+        self, room: Room, member: RoomPlayer, intent: Any
+    ) -> bool:
+        try:
+            transition = await self._execute_intent_locked(
+                room, member.player.id, intent, bot=member.is_bot
+            )
+        except GameRuleError as error:
+            if member.socket is not None:
                 await member.socket.send_json(
                     ErrorMessage(
                         code=error.code,
@@ -272,22 +256,78 @@ class RoomManager:
                         actionId=intent.action_id,
                     ).model_dump(by_alias=True)
                 )
-                return
+            return False
+        await self._commit_transition_locked(room, transition, action_id=intent.action_id)
+        return True
 
-            room.game_state = transition.state
-            room.revision += 1
-            self._sync_decision_timer_locked(room)
-            self._sync_roll_timer_locked(room)
-            roll_results = self._roll_results(transition, room.revision)
-            await self._broadcast_locked(
-                room,
-                {
-                    "type": "STATE_UPDATED",
-                    "actionId": intent.action_id,
-                    "events": list(transition.events),
-                    "rollResults": roll_results,
-                },
+    async def _execute_intent_locked(
+        self, room: Room, player_id: str, intent: Any, *, bot: bool = False
+    ) -> GameTransition:
+        assert room.game_state is not None
+        if isinstance(intent, StartGameIntent):
+            return room.engine.start(room.game_state, player_id)
+        if isinstance(intent, SetVariantIntent):
+            return room.engine.set_variant(room.game_state, player_id, intent.double_racer)
+        if isinstance(intent, SetAutoDealIntent):
+            return room.engine.set_auto_deal(room.game_state, player_id, intent.auto_deal)
+        if isinstance(intent, RollStartIntent):
+            return room.engine.roll_start(room.game_state, player_id)
+        if isinstance(intent, DraftAthleteIntent):
+            return room.engine.draft_athlete(room.game_state, player_id, intent.athlete_id)
+        if isinstance(intent, SelectRacersIntent):
+            return room.engine.select_racers(room.game_state, player_id, intent.athlete_ids)
+        if isinstance(intent, RollDiceIntent):
+            pending_roll = room.game_state.pending_roll
+            rolling_player_id = (
+                pending_roll.get("nextPlayerId")
+                if pending_roll is not None
+                else room.game_state.active_player_id
             )
+            if (
+                room.game_state.phase == "RACING"
+                and rolling_player_id == player_id
+                and room.game_state.magsim_engine is not None
+                and room.game_state.pending_decision is None
+                and room.game_state.resolution_status == "WAITING_FOR_ROLL"
+            ):
+                await self._broadcast_locked(
+                    room,
+                    {
+                        "type": "ROLL_STARTED",
+                        "actionId": intent.action_id,
+                        "playerId": player_id,
+                    },
+                )
+                # Keep the start signal visible long enough for background tabs and
+                # slower WebGL clients to commit the first animation frame.
+                await asyncio.sleep(ROLL_ANIMATION_LEAD_SECONDS)
+            return room.engine.roll_dice(room.game_state, player_id)
+        if isinstance(intent, ResolveDecisionIntent):
+            return room.engine.resolve_decision(
+                room.game_state,
+                player_id,
+                intent.decision_id,
+                intent.option_id,
+                bot=bot,
+            )
+        return room.engine.advance_race(room.game_state, player_id)
+
+    async def _commit_transition_locked(
+        self, room: Room, transition: GameTransition, *, action_id: str | None = None
+    ) -> None:
+        room.game_state = transition.state
+        room.revision += 1
+        self._sync_decision_timer_locked(room)
+        self._sync_roll_timer_locked(room)
+        envelope: dict[str, Any] = {
+            "type": "STATE_UPDATED",
+            "events": list(transition.events),
+            "rollResults": self._roll_results(transition, room.revision),
+        }
+        if action_id is not None:
+            envelope["actionId"] = action_id
+        await self._broadcast_locked(room, envelope)
+        self._sync_bot_timer_locked(room)
 
     @staticmethod
     def _lobby_open(room: Room) -> bool:
@@ -351,6 +391,48 @@ class RoomManager:
         if kicked.socket is not None:
             await kicked.socket.close(code=4002, reason="removed by host")
 
+    async def _add_bot_locked(
+        self, room: Room, member: RoomPlayer, intent: AddBotIntent
+    ) -> None:
+        async def reject(code: str, message: str) -> None:
+            await member.socket.send_json(
+                ErrorMessage(
+                    code=code, message=message, actionId=intent.action_id
+                ).model_dump(by_alias=True)
+            )
+
+        if not self._lobby_open(room):
+            await reject("GAME_ALREADY_STARTED", "游戏已开始，不能添加机器人")
+            return
+        if member.player.id != self._host_id(room):
+            await reject("NOT_HOST", "只有房主可以添加机器人")
+            return
+        if len(room.players) >= 6:
+            await reject("ROOM_FULL", "房间已满")
+            return
+
+        bot_number = sum(1 for item in room.players.values() if item.is_bot) + 1
+        player_id = uuid4().hex
+        room.players[player_id] = RoomPlayer(
+            player=Player(id=player_id, name=f"Bot {bot_number}"),
+            reconnect_token=secrets.token_urlsafe(24),
+            socket=None,
+            is_bot=True,
+        )
+        room.game_state = room.engine.create_game(
+            tuple(item.player for item in room.players.values())
+        )
+        room.revision += 1
+        await self._broadcast_locked(
+            room,
+            {
+                "type": "STATE_UPDATED",
+                "events": [{"type": "PLAYER_JOINED", "playerId": player_id, "bot": True}],
+                "rollResults": [],
+            },
+        )
+        self._sync_bot_timer_locked(room)
+
     def _sync_decision_timer_locked(self, room: Room) -> None:
         pending = room.game_state.pending_decision if room.game_state else None
         if room.decision_task is not None:
@@ -359,7 +441,8 @@ class RoomManager:
         room.decision_deadline = None
         if pending is None:
             return
-        room.decision_deadline = datetime.now(UTC) + timedelta(seconds=60)
+        if not self._is_bot(room, pending.get("playerId")):
+            room.decision_deadline = datetime.now(UTC) + timedelta(seconds=ACTION_TIME_LIMIT_SECONDS)
         if not self.local_timers:
             return
         room.decision_task = asyncio.create_task(
@@ -375,13 +458,153 @@ class RoomManager:
         room.roll_deadline = None
         if pending is None:
             return
-        room.roll_deadline = datetime.now(UTC) + timedelta(seconds=60)
+        if not self._is_bot(room, pending.get("nextPlayerId")):
+            room.roll_deadline = datetime.now(UTC) + timedelta(seconds=ACTION_TIME_LIMIT_SECONDS)
         if not self.local_timers:
             return
         room.roll_task = asyncio.create_task(
             self._roll_timeout(room, pending["id"], pending["throwIndex"]),
             name=f"roll-timeout-{room.id}",
         )
+
+    def _is_bot(self, room: Room, player_id: str | None) -> bool:
+        member = room.players.get(player_id) if player_id else None
+        return member is not None and member.is_bot
+
+    def _bot_pending_action(self, room: Room) -> tuple[str, str] | None:
+        """Return (action kind, actor player id) for the next bot obligation, if any."""
+        state = room.game_state
+        bots = {player_id for player_id, member in room.players.items() if member.is_bot}
+        if state is None or not bots:
+            return None
+        if state.phase in (GamePhase.DRAFT_ROLL, GamePhase.RACE_ROLL):
+            for candidate in state.roll_candidates:
+                if candidate in bots and candidate not in state.roll_values:
+                    return ("ROLL_START", candidate)
+            return None
+        if state.phase == GamePhase.DRAFTING:
+            active = state.active_player_id
+            return ("DRAFT_ATHLETE", active) if active in bots else None
+        if state.phase == GamePhase.CHARACTER_SELECTION:
+            for player_id in bots:
+                if player_id not in state.selections:
+                    return ("SELECT_RACERS", player_id)
+            return None
+        if state.phase == GamePhase.RACING:
+            pending_decision = state.pending_decision
+            if pending_decision is not None:
+                owner = pending_decision.get("playerId")
+                return ("RESOLVE_DECISION", owner) if owner in bots else None
+            pending_roll = state.pending_roll
+            if pending_roll is not None:
+                roller = pending_roll.get("nextPlayerId")
+                return ("ROLL_DICE", roller) if roller in bots else None
+            if state.resolution_status == "WAITING_FOR_ROLL" and state.active_player_id in bots:
+                return ("ROLL_DICE", state.active_player_id)
+            return None
+        if state.phase == GamePhase.RACE_RESULTS:
+            host_id = self._host_id(room)
+            return ("ADVANCE_RACE", host_id) if host_id in bots else None
+        return None
+
+    def _build_bot_intent(self, room: Room, kind: str, player_id: str) -> Any | None:
+        state = room.game_state
+        if state is None:
+            return None
+        if kind == "ROLL_START":
+            return RollStartIntent(type="ROLL_START", actionId=uuid4().hex)
+        if kind == "DRAFT_ATHLETE":
+            pool = [card.id for card in state.draft_pool]
+            if not pool:
+                return None
+            return DraftAthleteIntent(
+                type="DRAFT_ATHLETE",
+                actionId=uuid4().hex,
+                athleteId=self._rng.choice(pool),
+            )
+        if kind == "SELECT_RACERS":
+            count = room.engine.public_state(state, player_id)["selectionCount"]
+            team = [
+                card.id
+                for card in state.teams.get(player_id, ())
+                if card.id not in state.used_athlete_ids
+            ]
+            if len(team) < count:
+                return None
+            return SelectRacersIntent(
+                type="SELECT_RACERS",
+                actionId=uuid4().hex,
+                athleteIds=tuple(self._rng.sample(team, count)),
+            )
+        if kind == "ROLL_DICE":
+            return RollDiceIntent(type="ROLL_DICE", actionId=uuid4().hex)
+        if kind == "RESOLVE_DECISION":
+            decision = state.pending_decision
+            options = list(decision.get("options", ())) if decision else []
+            if decision is None or not options:
+                return None
+            return ResolveDecisionIntent(
+                type="RESOLVE_DECISION",
+                actionId=uuid4().hex,
+                decisionId=decision["id"],
+                optionId=str(options[0]["id"]),
+            )
+        if kind == "ADVANCE_RACE":
+            return AdvanceRaceIntent(type="ADVANCE_RACE", actionId=uuid4().hex)
+        return None
+
+    def _sync_bot_timer_locked(self, room: Room) -> None:
+        if room.bot_task is not None:
+            room.bot_task.cancel()
+            room.bot_task = None
+        room.bot_deadline = None
+        action = self._bot_pending_action(room)
+        if action is None:
+            return
+        room.bot_deadline = datetime.now(UTC) + timedelta(seconds=BOT_ACTION_DELAY_SECONDS)
+        if not self.local_timers:
+            return
+        room.bot_task = asyncio.create_task(
+            self._bot_turn(room, action), name=f"bot-turn-{room.id}"
+        )
+
+    async def _bot_turn(self, room: Room, action: tuple[str, str]) -> None:
+        try:
+            await asyncio.sleep(BOT_ACTION_DELAY_SECONDS)
+            async with room.lock:
+                room.bot_task = None
+                if self._bot_pending_action(room) == action:
+                    await self._take_bot_action_locked(room, action)
+                else:
+                    self._sync_bot_timer_locked(room)
+        except asyncio.CancelledError:
+            return
+        except Exception:  # noqa: BLE001 - a stalled bot must not break the room loop.
+            room.bot_deadline = None
+
+    async def resolve_bot_action(self, room: Room, now: datetime | None = None) -> bool:
+        async with room.lock:
+            if room.bot_deadline is None or room.bot_deadline > (now or datetime.now(UTC)):
+                return False
+            action = self._bot_pending_action(room)
+            room.bot_deadline = None
+            if action is None:
+                return False
+            await self._take_bot_action_locked(room, action)
+            return True
+
+    async def _take_bot_action_locked(self, room: Room, action: tuple[str, str]) -> None:
+        kind, player_id = action
+        member = room.players.get(player_id)
+        if member is None or not member.is_bot:
+            room.bot_deadline = None
+            return
+        intent = self._build_bot_intent(room, kind, player_id)
+        if intent is None:
+            room.bot_deadline = None
+            return
+        if not await self._apply_intent_locked(room, member, intent):
+            room.bot_deadline = None
 
     async def _roll_timeout(
         self,
@@ -390,7 +613,7 @@ class RoomManager:
         throw_index: int,
     ) -> None:
         try:
-            await asyncio.sleep(60)
+            await asyncio.sleep(ACTION_TIME_LIMIT_SECONDS)
             async with room.lock:
                 state = room.game_state
                 pending = state.pending_roll if state else None
@@ -412,6 +635,7 @@ class RoomManager:
                 room.roll_deadline = None
                 self._sync_decision_timer_locked(room)
                 self._sync_roll_timer_locked(room)
+                self._sync_bot_timer_locked(room)
                 await self._broadcast_locked(
                     room,
                     {
@@ -425,7 +649,7 @@ class RoomManager:
 
     async def _decision_timeout(self, room: Room, decision_id: str) -> None:
         try:
-            await asyncio.sleep(60)
+            await asyncio.sleep(ACTION_TIME_LIMIT_SECONDS)
             async with room.lock:
                 state = room.game_state
                 if state is None or state.pending_decision is None or state.pending_decision["id"] != decision_id:
@@ -441,6 +665,7 @@ class RoomManager:
                 if transition.state.pending_decision is not None:
                     self._sync_decision_timer_locked(room)
                 self._sync_roll_timer_locked(room)
+                self._sync_bot_timer_locked(room)
                 await self._broadcast_locked(
                     room,
                     {
@@ -472,6 +697,7 @@ class RoomManager:
             if transition.state.pending_decision is not None:
                 self._sync_decision_timer_locked(room)
             self._sync_roll_timer_locked(room)
+            self._sync_bot_timer_locked(room)
             await self._broadcast_locked(room, {
                 "type": "STATE_UPDATED",
                 "events": list(transition.events),
@@ -501,6 +727,7 @@ class RoomManager:
             room.roll_deadline = None
             self._sync_decision_timer_locked(room)
             self._sync_roll_timer_locked(room)
+            self._sync_bot_timer_locked(room)
             await self._broadcast_locked(room, {
                 "type": "STATE_UPDATED",
                 "events": list(transition.events),

@@ -58,6 +58,9 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .seat-kick:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
 .seat.red > span { background: #ee3825; }.seat.blue > span { background: #4a91d2; }.seat.yellow > span { background: #f2bd27; }.seat.green > span { background: #52ad5b; }.seat.pink > span { background: #dd68a7; }.seat.purple > span { background: #8e62bb; }
 .seat.empty { color: #89847b; border-style: dashed; box-shadow: none; background: transparent; }
+.seat.bot { background: #eef3f8; }
+.seat-badge { margin-left: 6px; padding: 1px 6px; border: 2px solid #151515; border-radius: 999px; background: #287fc2; color: white; font-size: .62rem; font-style: normal; font-weight: 900; vertical-align: middle; }
+.lobby-actions { display: flex; justify-content: center; }
 .variant-control { display: grid; grid-template-columns: 1fr 1fr; border: 3px solid #151515; border-radius: 4px; overflow: hidden; }
 .variant-control button { min-height: 44px; padding: 0 16px; border: 0; background: white; font-weight: 800; }
 .variant-control button + button { border-left: 3px solid #151515; }

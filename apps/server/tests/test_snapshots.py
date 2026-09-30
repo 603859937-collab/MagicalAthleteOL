@@ -19,7 +19,7 @@ def test_snapshot_round_trip_preserves_game_and_action_deduplication() -> None:
     snapshot = RoomSnapshot(
         room_id="ABCD",
         players={
-            "p1": SnapshotPlayer(players[0], "secret", {"start-1", "roll-1"}),
+            "p1": SnapshotPlayer(players[0], "secret", {"start-1", "roll-1"}, is_bot=True),
             "p2": SnapshotPlayer(players[1], "secret-2", set()),
         },
         game_state=state,
@@ -35,6 +35,9 @@ def test_snapshot_round_trip_preserves_game_and_action_deduplication() -> None:
     assert restored.revision == 7
     assert restored.game_state == state
     assert restored.players["p1"].seen_action_ids == {"start-1", "roll-1"}
+    assert restored.players["p1"].is_bot is True
+    assert restored.players["p2"].is_bot is False
+    assert restored.bot_deadline is None
 
 
 def test_unknown_snapshot_schema_is_rejected() -> None:

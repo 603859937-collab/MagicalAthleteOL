@@ -15,7 +15,7 @@ const athlete = (id: string, position: number, state: Partial<{ tripped: boolean
 });
 const ids = ["genius", "banana", "centaur", "baba_yaga", "magician", "hare"];
 const players = ids.map((id, index): PlayerState => ({
-  id: `p${index}`, name: `Player ${index + 1}`, position: index < 3 ? 8 : 0, connected: true, score: 0,
+  id: `p${index}`, name: `Player ${index + 1}`, position: index < 3 ? 8 : 0, connected: true, isBot: false, score: 0,
   selectionLocked: true, selectedAthlete: athlete(id, index < 3 ? 8 : index * 5, index === 1 ? { tripped: true } : index === 4 ? { finished: true, finishPosition: 1 } : index === 5 ? { eliminated: true } : {}),
   activeRacers: [athlete(id, index < 3 ? 8 : index * 5, index === 1 ? { tripped: true } : index === 4 ? { finished: true, finishPosition: 1 } : index === 5 ? { eliminated: true } : {})],
   team: [], usedAthleteIds: [], rollValues: null,

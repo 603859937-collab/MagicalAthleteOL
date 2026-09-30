@@ -26,13 +26,14 @@
 
 ## About
 
-Magical Athlete Online is a browser implementation of the [CMYK board game of the same name](https://www.cmyk.games/products/magical-athlete) with **real-time multiplayer for 2–6 players**. Create a four-letter room code, invite your friends, and play through an open snake draft, secret racer selection, and four wildly unpredictable magical races. The host can also switch to auto-deal before the game starts and skip the draft entirely.
+Magical Athlete Online is a browser implementation of the [CMYK board game of the same name](https://www.cmyk.games/products/magical-athlete) with **real-time multiplayer for 2–6 players**. Create a four-letter room code, invite your friends, and play through an open snake draft, secret racer selection, and four wildly unpredictable magical races. The host can also switch to auto-deal before the game starts and skip the draft entirely, or fill empty seats with bots that roll and pick skills on their own.
 
 Dice rolls, movement, athlete abilities, scoring, and phase progression all run on the server, so every player watches the same race.
 
 ## Highlights
 
 - **Complete game flow**: open draft, secret selection, four fixed races, and cumulative scoring in one pass; the host can switch to auto-deal and skip the draft.
+- **Bots with a brain**: the host can seat up to six bots; they roll their own dice, draft, and resolve every interactive skill through the same rule engine.
 - **36 magical athletes**: built on the `magsim` rule engine, each with its own interactive ability.
 - **Real-time multiplayer rooms**: WebSocket state broadcast with reconnect, identity restore, and action de-duplication.
 - **Server-authoritative rules**: clients cannot decide dice values or skip phases; the rules live in exactly one place.
@@ -65,7 +66,7 @@ Dice rolls, movement, athlete abilities, scoring, and phase progression all run 
   <img src="docs/assets/en-wait.png" alt="Waiting room with a room code and open seats" width="100%">
 </p>
 
-<p align="center"><sub>Creating a room gives you a four-letter code and a share link. Once 2–6 players take a seat, the host starts the game; before that, the host can switch between manual draft and auto-deal.</sub></p>
+<p align="center"><sub>Creating a room gives you a four-letter code and a share link. Once 2–6 players take a seat, the host starts the game; before that, the host can add bots and switch between manual draft and auto-deal.</sub></p>
 
 ### Public draft
 
@@ -80,7 +81,7 @@ Dice rolls, movement, athlete abilities, scoring, and phase progression all run 
 ### Play with friends
 
 1. Open [Play online](https://xeonliu.github.io/MagicalAthleteOL/), enter a player name, and create a room.
-2. Send the room code to your friends and wait for 2–6 players; the host starts the game.
+2. Send the room code to your friends and wait for 2–6 players; the host starts the game. Missing a player? The host can add bots from the lobby and they will play every roll and skill choice automatically.
 3. Roll two dice to decide the draft order, then build your team from the public pool in snake order. If the host enables "Auto-deal" before the game starts, the draft is skipped and everyone gets 4 random cards (8 in the double-racer variant).
 4. Each race, secretly pick your racers and lock the lineup, then roll to decide who goes first.
 5. On your turn, click "Roll" or drag the dice on the table into the board and release. When ability options appear, pick one before the countdown ends.
