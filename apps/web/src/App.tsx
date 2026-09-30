@@ -1,3 +1,5 @@
+import { SelectionCard } from "./components/SelectionCard";
+import { useBackgroundMusic } from "./useBackgroundMusic";
 import { AthleteRules } from "./components/AthleteRules";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { decisionTitle, decisionPrompt, decisionOptionLabel } from "./decisionPresentation";
@@ -117,6 +119,7 @@ export default function App() {
   const [rollingPlayerId, setRollingPlayerId] = useState<string | null>(null);
   const [rollingActionId, setRollingActionId] = useState<string | null>(null);
   const [diceResetKey, setDiceResetKey] = useState(0);
+  const musicToggle = useBackgroundMusic();
   const [restingDiceValue, setRestingDiceValue] = useState(1);
   const [cameraFocus, setCameraFocus] = useState<{ athleteId: string; playerId?: string; close: boolean } | null>(null);
   const [raceDetailsOpen, setRaceDetailsOpen] = useState(false);
@@ -444,7 +447,7 @@ export default function App() {
     if (!game) return;
     setSelectedIds((current) => current.includes(id)
       ? current.filter((item) => item !== id)
-      : current.length < game.selectionCount ? [...current, id] : [...current.slice(1), id]);
+      : current.length < game.selectionCount ? [...current, id] : current);
   }
 
   function throwRaceDice(throwId: string) {
@@ -614,6 +617,7 @@ export default function App() {
     return (
       <main className="entry">
         <div className="entry-shade" />
+        {musicToggle}
         <section className="entry-brand"><p className="kicker">THE MAGICAL RACE IS ON</p><h1>MAGICAL<br />ATHLETE</h1></section>
         <section className="join-dock" aria-label="加入游戏">
           <label><span>玩家名称</span><input value={playerName} maxLength={24} onChange={(event) => setPlayerName(event.target.value)} placeholder="你的名字" /></label>
@@ -628,7 +632,7 @@ export default function App() {
   }
 
   return (
-    <main className={`table ${game!.phase === "RACING" && use3DRaceTable ? "immersive-race" : ""} ${raceDetailsOpen ? "race-details-open" : ""}`}>
+    <main className={`table ${game?.phase === "CHARACTER_SELECTION" ? "selection-view" : ""} ${game!.phase === "RACING" && use3DRaceTable ? "immersive-race" : ""} ${raceDetailsOpen ? "race-details-open" : ""}`}>
       <header className="topbar">
         <div className="wordmark">MAGICAL ATHLETE</div>
         <div className="race-progress">
@@ -636,7 +640,7 @@ export default function App() {
             <span>{index + 1}</span><small>{track}</small>
           </div>)}
         </div>
-        <div className="room-code"><small>房间</small><strong>{snapshot.roomId}</strong><span className={`status-dot ${status}`} /></div>
+        <div className="room-code">{musicToggle}<small>房间</small><strong>{snapshot.roomId}</strong><span className={`status-dot ${status}`} /></div>
       </header>
 
       {game!.phase === "LOBBY" && (
@@ -674,7 +678,7 @@ export default function App() {
         <section className="draft-stage stage">
           <div className="stage-title row"><div><p className="kicker">DRAFT {game!.draftRound} / {game!.draftRoundCount}</p><h2>{game!.activePlayerId === playerId ? "轮到你招募" : `等待 ${game!.players.find((p) => p.id === game!.activePlayerId)?.name} 选择`}</h2></div><p>公开招募区 · 蛇形顺序</p></div>
           <div className="draft-layout">
-            <div className="draft-pool">{game!.draftPool.map((athlete) => <RacerCard key={athlete.id} athlete={athlete} disabled={game!.activePlayerId !== playerId} onClick={() => send({ type: "DRAFT_ATHLETE", athleteId: athlete.id })} />)}</div>
+            <div className="draft-pool">{game!.draftPool.map((athlete) => <SelectionCard key={athlete.id} athlete={athlete} accent={cardAccents[athlete.id] ?? "#f2bd27"} recruit disabled={game!.activePlayerId !== playerId || status !== "connected"} reason="等待轮到你招募" onChoose={() => send({ type: "DRAFT_ATHLETE", athleteId: athlete.id })} />)}</div>
             <aside className="team-board"><h3>队伍</h3>{game!.players.map((player, index) => <div className="team-row" key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><div>{player.team.map((athlete) => <span title={athlete.nameZh} key={athlete.id}>{athlete.nameZh.slice(0, 1)}</span>)}</div><small>{player.team.length} / {game!.doubleRacerVariant ? 8 : 4}</small></div>)}</aside>
           </div>
         </section>
@@ -682,9 +686,10 @@ export default function App() {
 
       {game!.phase === "CHARACTER_SELECTION" && (
         <section className="selection-stage stage">
-          <div className="stage-title row"><div><p className="kicker">RACE {game!.raceNumber} · {tracks[game!.raceNumber - 1]}</p><h2>秘密选择本场赛车手</h2></div><div className="reward"><span>🏆 {game!.raceRewards[0]}</span><span>◉ {game!.raceRewards[1]}</span></div></div>
-          <div className="my-team">{me?.team.map((athlete) => <RacerCard key={athlete.id} athlete={athlete} used={me.usedAthleteIds.includes(athlete.id)} selected={selectedIds.includes(athlete.id)} disabled={me.selectionLocked} onClick={() => toggleRacer(athlete.id)} />)}</div>
-          <div className="selection-footer"><div>{game!.players.map((player) => <span key={player.id} className={player.selectionLocked ? "locked" : ""}>{player.name} {player.selectionLocked ? "✓" : "…"}</span>)}</div><button className="command primary" disabled={selectedIds.length !== game!.selectionCount || me?.selectionLocked} onClick={() => send({ type: "SELECT_RACERS", athleteIds: selectedIds })}>{me?.selectionLocked ? "阵容已锁定" : `锁定 ${game!.selectionCount} 名赛车手`}</button></div>
+          <div className="selection-heading"><p className="kicker">RACE {game!.raceNumber} · {tracks[game!.raceNumber - 1]}</p><h2>选好角色，准备上场</h2><p>选择 {game!.selectionCount} 名赛车手，其他玩家不会看到你的阵容。</p></div>
+          <div className="selection-meta"><strong>你的队伍 · {me?.team.length ?? 0} 名</strong><span>本场奖励 ① {game!.raceRewards[0]} 分 · ② {game!.raceRewards[1]} 分</span></div>
+          <div className="my-team">{me?.team.map((athlete) => <SelectionCard key={athlete.id} athlete={athlete} accent={cardAccents[athlete.id] ?? "#f2bd27"} used={me.usedAthleteIds.includes(athlete.id)} selected={selectedIds.includes(athlete.id)} disabled={me.selectionLocked || (!selectedIds.includes(athlete.id) && selectedIds.length >= game!.selectionCount)} reason={me.selectionLocked ? "阵容已锁定" : `已选满 ${game!.selectionCount} 名，请先取消一名角色`} onChoose={() => toggleRacer(athlete.id)} />)}</div>
+          <div className="selection-dock"><div className="selection-dock-inner"><div className="selection-chosen" aria-live="polite"><strong>{me?.team.filter((athlete) => selectedIds.includes(athlete.id)).map((athlete) => athlete.nameZh).join(" · ") || "还未选择角色"}</strong><span>{selectedIds.length} / {game!.selectionCount}</span></div><button className="selection-confirm" disabled={selectedIds.length !== game!.selectionCount || me?.selectionLocked || status !== "connected"} onClick={() => send({ type: "SELECT_RACERS", athleteIds: selectedIds })}>{me?.selectionLocked ? "阵容已锁定" : status !== "connected" ? "等待重新连接" : "确认上场"}</button><p className="selection-ready">{game!.players.filter((player) => player.selectionLocked).length} / {game!.players.length} 位玩家已准备</p></div></div>
         </section>
       )}
 
