@@ -1,6 +1,6 @@
 <h1 align="center">Magical Athlete Online</h1>
 
-<h3 align="center">把荒诞的魔法竞速桌游，带到每个人的浏览器里</h3>
+<h3 align="center">把充满魔力的胡闹运动会，带到每个人的浏览器里</h3>
 
 <p align="center">
   <a href="https://xeonliu.github.io/MagicalAthleteOL/"><b>在线游玩</b></a> |
@@ -25,9 +25,9 @@
 
 ## 关于
 
-Magical Athlete Online 是一个支持 **2–6 人实时联机**的网页桌游实现。创建四位房间号、邀请朋友加入，然后经历公开蛇形招募、秘密选将和四场充满意外的魔法竞速。
+Magical Athlete Online 是 CMYK 同名桌游的网页实现，支持 **2–6 人实时联机**。创建四位房间号、邀请朋友加入，然后经历公开蛇形招募、秘密选将和四场充满意外的魔法竞速。
 
-浏览器只负责提交玩家意图。掷骰、移动、角色能力、计分和阶段推进全部由服务端权威状态机处理，因此每位玩家看到的都是同一场比赛。
+本游戏掷骰、移动、角色能力、计分和阶段推进在服务器进行处理，保证每位玩家看到同一场比赛。
 
 ## 核心特性
 
@@ -77,7 +77,11 @@ Magical Athlete Online 是一个支持 **2–6 人实时联机**的网页桌游�
 5. 轮到你时，点击「掷骰」或将桌上的骰子向棋盘内拖动后松开。出现技能选项时，在倒计时内完成选择。
 6. 每场结算后，由房主进入下一场。四场结束后按累计积分排名。
 
-比赛中可用「跟随 / 全局」切换镜头，用「角色与技能」展开本场角色卡牌；横屏时点顶部「赛场动态」会把事件栏固定在右侧，棋盘收窄到左半屏，再点一次收起。两人局每场派出两名赛车手；三人局可由房主在开局前选择双赛车手变体。
+比赛中可用「跟随 / 全局」切换镜头，用「角色与技能」展开本场角色卡牌；横屏时点顶部「赛场动态」会把事件栏固定在右侧，棋盘收窄到左半屏，再点一次收起。
+
+两人局每场派出两名赛车手；三人局可由房主在开局前选择双赛车手变体。
+
+## 部署
 
 ### Docker Compose
 
@@ -222,6 +226,6 @@ VITE_API_ORIGIN=https://<worker>.<subdomain>.workers.dev npm run build
 
 ## 代码来源
 
-`apps/server/src/magsim` 是从上游 `magsim` 包 vendored 进来的普通 Python 模块。更新规则时，需要同步该目录与 [`magsim-LICENSE`](apps/server/THIRD_PARTY_LICENSES/magsim-LICENSE)，并运行服务端测试确认 adapter 的事件映射没有回归。
+本仓库中的第三方代码按对应许可证使用，[服务器端规则](apps/server/src/magsim) 自 [`pschonev/magsim`](https://github.com/pschonev/magsim)（许可证 [`magsim-LICENSE`](apps/server/THIRD_PARTY_LICENSES/magsim-LICENSE)）修改。
 
-Magical Athlete 的名称、规则与美术资产归其各自权利人所有。本仓库中的第三方代码按对应许可证使用。
+Magical Athlete 的名称、规则与美术资产归其各自权利人所有。
