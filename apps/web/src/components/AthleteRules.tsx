@@ -61,7 +61,7 @@ export function AthleteRules({ athlete, children }: { athlete: AthleteCard; chil
   return <div ref={anchor} className="racer-card-with-rules"
     onPointerEnter={(event) => { if (event.pointerType !== "touch") show(); }}
     onPointerLeave={(event) => { if (event.pointerType !== "touch") hideSoon(); }}
-    onFocus={show} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) hideSoon(); }}>
+    onFocus={(event) => { if (event.target.matches(":focus-visible")) show(); }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) hideSoon(); }}>
     {children}
     <button type="button" className="racer-rules-button" aria-label={`查看${athlete.nameZh}的详细规则`}
       aria-describedby={open ? id : undefined} aria-expanded={open} onClick={show}>说明</button>

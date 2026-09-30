@@ -1,6 +1,6 @@
 let context: AudioContext | null = null;
 
-function getContext() {
+export function getGameAudioContext() {
   if (typeof window === "undefined") return null;
   if (typeof AudioContext === "undefined") return null;
   try { context ??= new AudioContext(); } catch { return null; }
@@ -9,7 +9,7 @@ function getContext() {
 }
 
 function tone(frequency: number, duration: number, start = 0, type: OscillatorType = "sine", volume = 0.045) {
-  const audio = getContext();
+  const audio = getGameAudioContext();
   if (!audio) return;
   const now = audio.currentTime + start;
   const oscillator = audio.createOscillator();
@@ -50,10 +50,10 @@ export function playPodiumSound(place: 1 | 2) {
   }
 }
 
-export function unlockGameAudio() { getContext(); }
+export function unlockGameAudio() { getGameAudioContext(); }
 
 export function playFireworkSound(place: 1 | 2) {
-  const audio = getContext();
+  const audio = getGameAudioContext();
   if (!audio || audio.state !== "running") return;
   playPodiumSound(place);
   for (let burst = 0; burst < 3; burst++) {
