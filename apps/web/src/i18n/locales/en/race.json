@@ -1,0 +1,138 @@
+{
+  "listSeparator": ", ",
+  "participant": {
+    "racer": "Racer",
+    "player": "Player"
+  },
+  "source": {
+    "dice": "Dice",
+    "tile": "Track space",
+    "ability": "Power"
+  },
+  "ability": {
+    "unknown": "Power"
+  },
+  "event": {
+    "startDiceRolled": "{{who}} rolled {{values}}",
+    "rollOffTied": "Highest roll tied, tied players roll again",
+    "athleteDrafted": "{{who}} made a draft pick",
+    "teamDealt": "{{who}} was dealt {{cards}} racers automatically",
+    "racersLocked": "{{who}} locked their lineup",
+    "diceRolled": "{{who}} rolled {{value}}",
+    "dieRolled": "{{who}} rolled die {{index}}: {{value}}",
+    "abilityDiceRolled": "{{who}} rolled {{value}} in the duel",
+    "abilityRollResolved": "{{winner}} won the duel",
+    "rollOffWon": "{{who}} takes first turn",
+    "decisionRequired": "{{who}}'s {{athlete}} uses \"{{ability}}\", waiting for a choice",
+    "decisionResolved": "{{who}}'s \"{{ability}}\" pick: {{chosen}}",
+    "decisionResolvedDefault": "submitted",
+    "decisionTimedOut": "{{who}} timed out, so \"{{ability}}\" was decided automatically",
+    "tripRecovered": "{{who}}'s {{athlete}} recovers from a trip and skips this move",
+    "racerEliminated": "{{who}}'s {{athlete}} is eliminated",
+    "racerFinished": "{{who}}'s {{athlete}} finishes {{position}}",
+    "raceFinished": "Race {{number}} is over",
+    "playerJoined": "{{who}} joined the room",
+    "playerLeft": "{{name}} left the room",
+    "playerKicked": "{{name}} was removed by the host",
+    "playerDisconnected": "{{who}} went offline"
+  },
+  "moment": {
+    "line": "{{cause}} → {{owner}}'s {{name}}: {{effect}}",
+    "cause": {
+      "CentaurTrample": "{{source}} passed {{target}}",
+      "BananaTrip": "{{target}} passed {{source}}",
+      "BabaYagaTrip": "{{target}} and {{source}} stopped on the same space",
+      "CoachBoostSelf": "{{source}} hustled for themself this move",
+      "CoachBoost": "{{target}} started this move on {{source}}'s space",
+      "LongLegs": "{{target}} used both dice this move{{rolls}}",
+      "HugeBabyBlocker": "{{target}} was about to stop on {{source}}'s space",
+      "HugeBabyPush": "{{source}} landed on {{target}}'s space",
+      "LackeyLoyalty": "Another racer rolled a 6 this move",
+      "InchwormCreep": "Another racer rolled a 1 this move",
+      "ScoochStep": "Another racer just triggered a power",
+      "SisyphusCurse": "{{source}} rolled a 6 this move",
+      "RocketScientistBoost": "{{source}} launched the rocket this move",
+      "HareHubris": "{{source}} started the turn alone in the lead",
+      "HareSpeed": "{{source}} took their main move",
+      "LovableLoserBonus": "{{source}} started the turn alone in last place",
+      "LeaptoadJump": "{{source}} reached a space with another racer",
+      "HypnotistWarp": "{{source}} picked {{target}} this turn",
+      "FlipFlopSwap": "{{source}} swapped spaces this turn",
+      "GunkSlimeModifier": "{{source}} is on the board, so {{target}} moved slower",
+      "HecklerHeckle": "Ended the turn within 1 space of where it started",
+      "CheerleaderSupport": "{{source}} cheered for last place this turn",
+      "PartyPull": "{{source}} started their turn and pulled racers in",
+      "PartySelfBoost": "{{source}} shared a space before this move",
+      "SuckerfishTargetFollow": "{{target}} followed {{followed}}",
+      "SuckerfishTargetLocked": "{{source}} is following a locked destination",
+      "MoveDeltaTile": "{{target}} landed on space {{from}} and triggered a movement tile",
+      "TripTile": "{{target}} landed on a trip space",
+      "SuckerfishRideFollow": "{{followed}} left the space, so {{target}} followed",
+      "SuckerfishRideIdle": "A racer on the space moved, so {{source}} followed",
+      "ThirdWheelJoin": "{{source}} joined a space with exactly two racers",
+      "SkipperTurn": "A 1 was rolled",
+      "DuelistDuel": "{{target}} won the duel"
+    },
+    "causeFallback": {
+      "system": "Carried out the dice move",
+      "ability": "{{source}} triggered an effect on {{target}}"
+    },
+    "effect": {
+      "triggered": "Power triggered",
+      "tripped": "Tripped",
+      "swapped": "Swapped spaces",
+      "warped": "Warped to space {{to}}",
+      "unchanged": "Did not move",
+      "forward": "Ahead {{count}} spaces",
+      "backward": "Back {{count}} spaces",
+      "suckerfishTarget": "Destination follows the target",
+      "duelistDuel": "Winner takes this extra move",
+      "longLegsChosen": "Used the {{value}}",
+      "longLegsPick": "Picked the die for this move",
+      "hareHubris": "Skips this main move",
+      "hareSpeed": "This move +2",
+      "lovableLoserBonus": "Points +1",
+      "leaptoadJump": "Skips occupied spaces without spending steps",
+      "gunkSlime": "This move -1",
+      "skipperTurn": "Takes the next turn",
+      "coachBoost": "This move +1",
+      "hugeBabyBlocker": "Adjusted 1 space back",
+      "movementAdjust": "Movement {{value}}"
+    },
+    "rollValues": " ({{values}})"
+  },
+  "decision": {
+    "titleFallback": "{{athlete}}'s power",
+    "skip": "Decline",
+    "suckerfishFollow": "Follow {{name}} from space {{from}} to space {{to}}?",
+    "chooseDie": "Choose the die value to use",
+    "chooseTile": "Choose the space to warp to",
+    "chooseCopy": "Choose the racer power to copy",
+    "chooseRacer": "Choose the target racer",
+    "useAbility": "Use \"{{ability}}\" this time?",
+    "prompt": {
+      "GeniusPrediction": "Predict the next die value. Guess right for an extra turn.",
+      "MastermindPredict": "Predict which other racer will finish first.",
+      "FlipFlopSwap": "Swap spaces with a racer, skipping your normal move this turn. You can also decline.",
+      "HypnotistWarp": "Warp another racer to your space. You can also decline.",
+      "DuelistDuel": "Duel a racer on your space. Both roll; the higher roll moves 2, and the challenger wins ties. You can also decline.",
+      "ThirdWheelJoin": "Warp to a space holding exactly two racers. You can also decline.",
+      "CopyLead": "The lead is tied. Choose which racer to copy.",
+      "CheerleaderSupport": "Move every racer in last place 2 spaces, then move yourself 1?",
+      "AlchemistAlchemy": "Change this main move to 4?",
+      "RocketScientistBoost": "Add this die's value to your move again? You will trip afterwards.",
+      "DicemongerDeal": "Reroll? Borrowing another racer's Dicey Deals moves them 1 space.",
+      "MagicalReroll": "Reroll? Twice per turn at most."
+    },
+    "optionDetail": "{{owner}} · space {{position}}"
+  },
+  "score": {
+    "racing": "{{score}} points + {{race}} this race",
+    "idle": "{{score}} points"
+  },
+  "rollOff": {
+    "draft": "{{name}} takes the first draft pick",
+    "race": "{{name}} takes first turn this race",
+    "tie": "{{names}} tied, so they roll again"
+  }
+}

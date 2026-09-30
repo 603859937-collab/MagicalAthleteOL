@@ -18,16 +18,17 @@ WebSocket 建立后第一条消息必须是 `JOIN_ROOM`：
 
 ```json
 { "type": "SET_VARIANT", "actionId": "a1", "doubleRacer": true }
-{ "type": "START_GAME", "actionId": "a2" }
-{ "type": "ROLL_START", "actionId": "a3" }
-{ "type": "DRAFT_ATHLETE", "actionId": "a4", "athleteId": "centaur" }
-{ "type": "SELECT_RACERS", "actionId": "a5", "athleteIds": ["centaur", "banana"] }
-{ "type": "ROLL_DICE", "actionId": "a6" }
-{ "type": "RESOLVE_DECISION", "actionId": "a7", "decisionId": "d1", "optionId": "1" }
-{ "type": "ADVANCE_RACE", "actionId": "a8" }
+{ "type": "SET_AUTO_DEAL", "actionId": "a2", "autoDeal": true }
+{ "type": "START_GAME", "actionId": "a3" }
+{ "type": "ROLL_START", "actionId": "a4" }
+{ "type": "DRAFT_ATHLETE", "actionId": "a5", "athleteId": "centaur" }
+{ "type": "SELECT_RACERS", "actionId": "a6", "athleteIds": ["centaur", "banana"] }
+{ "type": "ROLL_DICE", "actionId": "a7" }
+{ "type": "RESOLVE_DECISION", "actionId": "a8", "decisionId": "d1", "optionId": "1" }
+{ "type": "ADVANCE_RACE", "actionId": "a9" }
 ```
 
-`SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。比赛轮次由服务端自动推进到技能选择或 `WAITING_FOR_ROLL`；`ROLL_DICE` 只在后者有效，并且只能由 `pendingRoll.nextPlayerId`（没有 `pendingRoll` 时为 `activePlayerId`）提交。每次意图只生成当前步骤的一颗权威骰，不接受客户端点数或移动终点。`RESOLVE_DECISION` 只接受公开候选项中的 ID，且只能由 `pendingDecision.playerId` 提交。
+`SET_VARIANT` 只由房主在三人大厅使用。两人游戏始终是双赛车手，4–6 人始终是单赛车手。`SET_AUTO_DEAL` 同样只由房主在开局前的 `LOBBY` 使用：开启后 `START_GAME` 直接给每人随机发牌（普通局 4 张，双赛车手变体 8 张），跳过 `DRAFT_ROLL` 与 `DRAFTING`，直接进入第一场的 `RACE_ROLL`。`ROLL_START` 用于招募前和需要平局决胜的比赛前掷骰。比赛轮次由服务端自动推进到技能选择或 `WAITING_FOR_ROLL`；`ROLL_DICE` 只在后者有效，并且只能由 `pendingRoll.nextPlayerId`（没有 `pendingRoll` 时为 `activePlayerId`）提交。每次意图只生成当前步骤的一颗权威骰，不接受客户端点数或移动终点。`RESOLVE_DECISION` 只接受公开候选项中的 ID，且只能由 `pendingDecision.playerId` 提交。
 
 重复的 `actionId` 不会重复执行，服务端返回 `ACTION_ACK`。
 
@@ -37,13 +38,17 @@ WebSocket 建立后第一条消息必须是 `JOIN_ROOM`：
 
 ```text
 LOBBY
-  -> DRAFT_ROLL -> DRAFTING
+  -> DRAFT_ROLL -> DRAFTING   (默认：公开蛇形招募)
   -> RACE_ROLL -> CHARACTER_SELECTION -> RACING -> RACE_RESULTS
   -> CHARACTER_SELECTION / RACE_ROLL ...
   -> FINISHED
+
+LOBBY
+  -> RACE_ROLL                (房主开启 autoDeal：自动发牌，跳过招募)
+  -> CHARACTER_SELECTION -> ...
 ```
 
-`DRAFTING` 公开 `draftPool`、`activePlayerId`、各玩家 `team` 与招募轮次。`CHARACTER_SELECTION` 只公开 `selectionLocked`；全部玩家锁定后，`activeRacers` 同时揭示。`raceNumber` 为 1–4，`trackName`、`raceRewards` 和 `scores` 始终来自服务端。
+`DRAFTING` 公开 `draftPool`、`activePlayerId`、各玩家 `team` 与招募轮次。自动发牌由 `autoDeal` 标记，`cardsPerPlayer` 是每人应得的牌数；自动发牌时服务端广播每名玩家的 `TEAM_DEALT` 事件。`CHARACTER_SELECTION` 只公开 `selectionLocked`；全部玩家锁定后，`activeRacers` 同时揭示。`raceNumber` 为 1–4，`trackName`、`raceRewards` 和 `scores` 始终来自服务端。
 
 比赛状态还包含 `pendingDecision`、`pendingRoll`、`raceLog` 和 `resolutionStatus`。`resolutionStatus` 在轮次等待玩家掷骰时为 `WAITING_FOR_ROLL`，技能选择期间为 `WAITING_FOR_DECISION`。`pendingRoll.nextPlayerId` 是当前唯一可以提交 `ROLL_DICE` 的玩家，不一定等于回合的 `activePlayerId`；Long Legs 会连续建立两个同玩家步骤，Duelist 会依次把投骰权交给挑战者和目标。待选和分步投骰状态均包含 60 秒的 `deadlineAt`，超时后由服务端自动选择或投骰并继续。重连会恢复同一个流程 ID、已投点数和截止时间。
 

@@ -1,0 +1,224 @@
+{
+  "entry": {
+    "kicker": "THE MAGICAL RACE IS ON",
+    "joinLabel": "Join game",
+    "playerName": "Player name",
+    "playerNamePlaceholder": "Your name",
+    "roomCode": "Room code",
+    "roomCodePlaceholder": "ABCD",
+    "join": "Join room",
+    "cancelJoin": "Cancel join",
+    "createRoom": "Create room"
+  },
+  "status": {
+    "connecting": "Connecting",
+    "connected": "Online",
+    "disconnected": "Disconnected"
+  },
+  "errors": {
+    "createRoom": "Could not create a room",
+    "network": "Cannot reach the server. Please try again.",
+    "missingFields": "Enter a room code and a player name",
+    "kicked": "The host removed you from the room",
+    "send": "Could not send that action",
+    "notConnected": "Not connected to a room yet"
+  },
+  "serverErrors": {
+    "ALREADY_JOINED": "You are already in a room",
+    "ALREADY_ROLLED": "You already rolled for this round",
+    "ATHLETE_ALREADY_LOCKED": "Your lineup for this race is already locked",
+    "ATHLETE_ALREADY_USED": "Each racer can only race once per game",
+    "ATHLETE_NOT_IN_POOL": "That racer is not in the draft pool",
+    "ATHLETE_NOT_IN_TEAM": "That racer is not on your team",
+    "CANNOT_KICK_SELF": "You cannot remove yourself, leave the room instead",
+    "DECISION_PENDING": "Finish the current power choice first",
+    "GAME_ALREADY_STARTED": "The game has already started",
+    "GAME_NOT_RUNNING": "The race has not started yet",
+    "INTERNAL_ERROR": "The server could not process that action, please retry",
+    "INVALID_MESSAGE": "That message was not understood",
+    "INVALID_PLAYER_COUNT": "A game needs 2 to 6 players",
+    "INVALID_RACER_COUNT": "Pick the required number of different racers this race",
+    "INVALID_RECONNECT_TOKEN": "That reconnect token is no longer valid",
+    "JOIN_REQUIRED": "Join a room first",
+    "NOT_DECIDING_PLAYER": "Only the deciding player can submit that choice",
+    "NOT_DRAFTING": "The draft is not open right now",
+    "NOT_HOST": "Only the host can do that",
+    "NOT_IN_ROLL_OFF": "You are not in this roll-off",
+    "NOT_ROLLING_PLAYER": "Another player should be rolling right now",
+    "NOT_SELECTING_ATHLETES": "The lineup phase is not open right now",
+    "NOT_YOUR_PICK": "It is not your draft pick yet",
+    "NOT_YOUR_TURN": "It is not your turn yet",
+    "NO_PENDING_DECISION": "There is no power choice to answer right now",
+    "NO_RACE_TO_ADVANCE": "There is no race to continue right now",
+    "ONLY_HOST_CAN_ADVANCE": "Only the host can start the next race",
+    "ONLY_HOST_CAN_CONFIGURE": "Only the host can change the game mode",
+    "ONLY_HOST_CAN_START": "Only the host can start the game",
+    "PLAYER_NOT_FOUND": "That player is not in the room",
+    "ROLL_NOT_AVAILABLE": "You cannot roll right now",
+    "ROLL_OFF_NOT_ACTIVE": "No starting roll is needed right now",
+    "ROOM_CODE_EXHAUSTED": "Could not create a room right now, please retry",
+    "ROOM_FULL": "That room is full",
+    "ROOM_NOT_FOUND": "That room does not exist",
+    "STALE_DECISION": "That choice has expired or is no longer valid",
+    "VARIANT_REQUIRES_THREE": "The double racer switch is only for 3-player games"
+  },
+  "common": {
+    "player": "Player",
+    "you": "You",
+    "close": "Close",
+    "automatic": "Chosen automatically"
+  },
+  "language": {
+    "label": "Language",
+    "switchTo": "Switch to {{language}}"
+  },
+  "racer": {
+    "retired": "Out of play",
+    "eliminated": "Eliminated",
+    "finished": "Finished",
+    "finishPosition": "{{position}} place",
+    "tripped": "Tripped",
+    "rules": "Rules",
+    "rulesLabel": "View the full rules for {{name}}",
+    "usedUp": "This racer already raced this game, so it cannot be picked again.",
+    "selectable": {
+      "retired": "Out of play, cannot race",
+      "blocked": "Not selectable right now",
+      "recruit": "Recruit this racer",
+      "deselect": "Deselect this racer",
+      "select": "Select this racer",
+      "details": "Details ›",
+      "detailsLabel": "View details for {{name}}",
+      "closeDetails": "Close details",
+      "fullRules": "Full rules and edge cases"
+    }
+  },
+  "topbar": {
+    "room": "Room",
+    "feed": "Race feed",
+    "closeFeed": "Close race feed"
+  },
+  "lobby": {
+    "title": "Waiting for racers",
+    "roomCode": "Room code",
+    "connected": "Connected",
+    "offline": "Offline",
+    "kick": "Remove",
+    "emptySeat": "Open seat",
+    "shareRoomCode": "Share the room code",
+    "threePlayerMode": "3-player mode",
+    "standard": "Standard · 1 per race",
+    "doubleRacer": "Double racer · 2 per race",
+    "dealMode": "Card dealing",
+    "dealManual": "Manual draft · snake order",
+    "dealAuto": "Auto-deal · {{cards}} per player",
+    "leave": "Leave room",
+    "start": "Start game",
+    "waitingHost": "Waiting for the host"
+  },
+  "rollOff": {
+    "draftTitle": "Roll for the first pick",
+    "raceTitle": "Roll for first turn",
+    "hint": "Compare the higher dice first, then the lower. An exact tie rerolls.",
+    "showing": "Showing the roll-off…",
+    "resultContinues": "Continues after the result",
+    "waiting": "Waiting for other players",
+    "roll": "Roll two dice"
+  },
+  "draft": {
+    "yourTurn": "Your pick",
+    "waitingFor": "Waiting for {{name}} to pick",
+    "pool": "Draft pool · snake order",
+    "team": "Team",
+    "notYet": "Waiting for your turn"
+  },
+  "selection": {
+    "title": "Pick your racers",
+    "hintOne": "Choose {{count}} racer. Other players will not see your lineup.",
+    "hintMany": "Choose {{count}} racers. Other players will not see your lineup.",
+    "yourTeam": "Your team · {{count}}",
+    "rewards": "Race rewards ① {{first}} points · ② {{second}} points",
+    "locked": "Lineup locked",
+    "full": "{{count}} already picked. Deselect one first.",
+    "nothingPicked": "Nothing picked yet",
+    "reconnecting": "Waiting to reconnect",
+    "confirm": "Confirm lineup",
+    "ready": "{{ready}} / {{total}} players ready"
+  },
+  "race": {
+    "loading": "Loading the 3D race table",
+    "otherPlayers": "Other players",
+    "roll": "Roll",
+    "hideCards": "Hide racers",
+    "showCards": "Racers & powers",
+    "cardsTitle": "Racer cards this race",
+    "cardsHeading": "Racers in play"
+  },
+  "decision": {
+    "rollPreview": "Rolled",
+    "finalMove": "moves {{value}}",
+    "waitingFor": "Waiting for {{name}} to choose",
+    "replayBadge": "Chosen",
+    "replayTimeout": "{{name}} timed out, so \"{{label}}\" was chosen automatically",
+    "replayChosen": "{{name}} picked \"{{label}}\""
+  },
+  "results": {
+    "finalKicker": "FINAL SCORE",
+    "raceKicker": "RACE {{number}} COMPLETE",
+    "jointChampions": "Joint champions",
+    "winner": "{{name}} wins",
+    "raceTitle": "Race results",
+    "next": "Next race",
+    "waitingHost": "Waiting for the host",
+    "points": "{{score}} points"
+  },
+  "feed": {
+    "empty": "No events yet this race"
+  },
+  "momentFlow": {
+    "source": "Triggered by",
+    "target": "Affected",
+    "space": "space"
+  },
+  "race3d": {
+    "position": "Race position",
+    "eliminated": "Eliminated",
+    "finished": "Finished",
+    "trippedSuffix": " · Tripped",
+    "roll": "Roll",
+    "preparing": "Getting the dice ready…",
+    "rollingValue": "Rolling {{value}}",
+    "playerRolling": "{{name}} is rolling",
+    "playingAction": "Playing this action…",
+    "dragToThrow": "Drag the dice in and release",
+    "waitingFor": "Waiting for {{name}}",
+    "table": "3D race table",
+    "camera": "Camera",
+    "follow": "Follow",
+    "overview": "Overview"
+  },
+  "preview": {
+    "player": "Player {{index}}",
+    "title": "Board preview",
+    "selectTrack": "Choose a board",
+    "view": "Board view",
+    "perspective": "3D table",
+    "topDown": "Top-down board",
+    "hidePieces": "Hide pieces",
+    "showPieces": "Show pieces",
+    "demoMove": "Demo move",
+    "abilityCloseUp": "Ability close-up"
+  },
+  "audio": {
+    "label": "Background music",
+    "off": "Turn background music off",
+    "on": "Turn background music on",
+    "music": "♪ Music",
+    "enabled": "On",
+    "disabled": "Off"
+  },
+  "board": {
+    "trip": "TRIP!",
+    "start": "Start"
+  }
+}

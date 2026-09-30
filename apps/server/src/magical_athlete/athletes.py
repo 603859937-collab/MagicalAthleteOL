@@ -3,115 +3,66 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class AthleteCard:
+    """Identity of one racer.
+
+    Display text lives in the web bundle, keyed by the language-independent
+    ``id``, so the server never carries a translation. Only `name` (the English
+    card face from the rulebook) and the rules-engine handle are kept here.
+    """
+
     id: str
     name: str
-    name_zh: str
-    ability_title_zh: str
-    ability_summary: str
     engine_name: str
-    ability_details: str = ""
 
     def public_data(self) -> dict[str, str]:
         return {
             "id": self.id,
             "name": self.name,
-            "nameZh": self.name_zh,
-            "abilityTitleZh": self.ability_title_zh,
-            "abilitySummary": self.ability_summary,
-            "abilityDetails": self.ability_details,
         }
 
 
-def card(
-    athlete_id: str,
-    name: str,
-    name_zh: str,
-    ability_title_zh: str,
-    ability_summary: str,
-    engine_name: str | None = None,
-    *,
-    details: str,
-) -> AthleteCard:
-    return AthleteCard(
-        athlete_id, name, name_zh, ability_title_zh, ability_summary,
-        engine_name or name.replace(" ", ""), details,
-    )
+def card(athlete_id: str, name: str, engine_name: str | None = None) -> AthleteCard:
+    return AthleteCard(athlete_id, name, engine_name or name.replace(" ", ""))
 
 
-# Visible card faces and racer clarifications: rulebook pages 21–25.
+# Racer identities: rulebook pages 21-25. Card text lives in the web bundle.
 ATHLETE_CATALOG = (
-    card('alchemist', 'Alchemist', '炼金术士', '点石成金', '主要移动掷出 1 或 2 时，可改为移动 4 格。',
-         details='在主要移动的骰子点数确定后选择是否使用。改为移动 4 格，不是额外移动 4 格；主要移动的其他加减效果仍适用。'),
-    card('baba_yaga', 'Baba Yaga', '芭芭雅嘎', '撒腿就跑', '其他角色停在我这格，或我停在他们那格时，使他们绊倒。', 'BabaYaga',
-         details='移动和传送后停在同格都可触发，途中经过不算。决斗家仍可与我决斗，但照样绊倒；催眠师把我传送过去，也会被绊倒。绊倒只跳过下一次主要移动，不会封锁能力。'),
-    card('banana', 'Banana', '香蕉', '滑倒吧', '其他角色从我身后移动到我前方时，使其绊倒。',
-         details='“经过”指一次移动从我后方开始、在我前方结束；从同格出发或停在我这格不算。目标先完成整次移动，再绊倒；传送不算经过。'),
-    card('blimp', 'Blimp', '飞艇', '吹起来', '回合开始在第二个弯道前，主要移动 +3；在弯道上或之后则 -1。',
-         details='以本回合开始时的位置判断加速或减速。加减的是主要移动格数，不是骰子点数，也不影响其他能力带来的移动。'),
-    card('centaur', 'Centaur', '半人马', '蹄击', '我从其他角色身后移动到其前方时，使其后退 2 格。',
-         details='后退最远到起点，不能退到起点之后。这里的后退属于移动，可以触发与移动有关的能力；传送越过角色不算经过。'),
-    card('cheerleader', 'Cheerleader', '啦啦队长', '加油加油', '主要移动前，可让所有并列最后者前进 2 格；若使用，我再前进 1 格。',
-         details='并列最后的角色全部移动，我只额外移动 1 格。若我自己也是最后者，先移动 2 格，再单独移动 1 格，是两次移动。之后仍进行主要移动。'),
-    card('coach', 'Coach', '教练', '冲刺训练', '与我同格的所有角色，主要移动 +1，包括我自己。',
-         details='只增加主要移动的格数，不改变骰子点数。长腿用能力代替掷骰的移动仍算主要移动，也能获得这项加成。'),
-    card('copycat', 'Copycat', '模仿猫', '照猫画虎', '持续拥有当前领先者的能力；并列领先时由我选择。',
-         details='并非只在我的回合复制。领先者不包括已冲线者；不复制“赛前”能力。若与被复制者的能力冲突，以对方为准；并列领先时，不能在一个行动中途更换复制对象。'),
-    card('dicemonger', 'Dicemonger', '骰商', '骰子交易', '任何角色每回合可重掷主要移动一次；其他角色这样重掷时，我移动 1 格。',
-         details='我自己也能重掷，但不会因此移动 1 格。其他角色使用我的重掷时，我先移动，他们再移动。重掷后旧点数作废；重掷动作本身仍可触发挪步者。'),
-    card('duelist', 'Duelist', '决斗家', '决斗', '与其他角色同格时，可决斗掷骰；高点者移动 2 格，平局我赢。',
-         details='非我的回合也能决斗，一回合可多次触发，但不能打断进行中的行动，例如掷骰和对应移动之间。与芭芭雅嘎决斗仍会绊倒；绊倒不妨碍能力。'),
-    card('egg', 'Egg', '蛋', '大洗牌', '赛前从牌堆抽 3 名新角色，选 1 名并获得其能力。',
-         details='仍使用蛋的棋子。也会获得所选角色的“赛前”能力；不是直接随机决定一名，也不是从本场对手中复制。'),
-    card('flip_flop', 'Flip Flop', '人字拖', '人字互换', '可不掷主要移动骰，改为与另一名角色交换位置。', 'FlipFlop',
-         details='交换属于同时传送，不算移动，也不掷骰。双方不会在交换途中短暂同格，因此不会因这种临时重叠触发能力。交换代替本次主要移动。'),
-    card('genius', 'Genius', '天才', '神机妙算', '可预测自己主要移动的骰子点数；猜中后，本回合结束再行动一回合。',
-         details='与抢跑者同场时，若预测并掷出 1，抢跑者的后触发能力会抢走下一回合。双角色模式下，只给天才额外回合，不给同一玩家的另一名角色。'),
-    card('gunk', 'Gunk', '黏液怪', '黏住他们', '所有其他角色的主要移动 -1。',
-         details='无需与我同格。我只减少移动格数，不改变骰子点数；例如对方掷出 6，跟班仍会触发。长腿的固定移动同样受影响。'),
-    card('hare', 'Hare', '野兔', '骄傲自满', '主要移动 +2；回合开始时若独自领先，则跳过主要移动。',
-         details='并列领先不会触发跳过。独自领先时不因这个能力获得积分；能力移动与主要移动不同，不受这次跳过限制。'),
-    card('heckler', 'Heckler', '起哄者', '幸灾乐祸', '任意角色回合结束时，若距其本回合起点不超过 1 格，我移动 2 格。',
-         details='比较的是该角色回合开始与结束的位置，不是赛道的起点。前进 1 格、原地不动或后退 1 格都符合；因绊倒而恢复、跳过主要移动的回合也适用。'),
-    card('huge_baby', 'Huge Baby', '巨婴', '真是巨大', '除起点外，其他角色不能与我同格；会被放到我后方一格。', 'HugeBaby',
-         details='这次后移不算移动，而视为停在后方那格。若我停到香蕉那格并将它挤到后面，算我经过香蕉，因此我会绊倒。派对动物把我拉到其所在格时，该格其他角色也会被挤退。'),
-    card('hypnotist', 'Hypnotist', '催眠师', '嘘……', '主要移动前，可把另一名角色传送到我所在格。',
-         details='传送不算移动，但会触发停在同格的能力；把芭芭雅嘎传送过来，自己仍会绊倒。使用后仍有主要移动；此时机每回合只发生一次。'),
-    card('inchworm', 'Inchworm', '尺蠖', '蠕动', '其他角色主要移动掷出 1 时，跳过该次移动，我移动 1 格。',
-         details='只看主要移动的骰子点数，不看移动加减后的格数。与抢跑者同场时，我先移动 1 格，再由抢跑者取得下一回合。'),
-    card('lackey', 'Lackey', '跟班', '遵命，老爷', '其他角色主要移动掷出 6 时，我先移动 2 格，再由其移动。',
-         details='黏液怪等能力只改变移动格数，不改变掷出的 6，因此不会阻止我触发。决斗等能力的骰子不是主要移动骰。'),
-    card('leaptoad', 'Leaptoad', '跳跳蛙', '跳蛙', '移动时，跳过有其他角色占据的格子，不计入移动格数。',
-         details='向后移动也适用。每跳过一个被占据的格子，都是一次能力发生；连续跳过两格时，挪步者可分别移动 1 格。传送不属于移动。'),
-    card('legs', 'Legs', '长腿', '慢跑', '可不掷主要移动骰，改为移动 5 格。',
-         details='这 5 格仍算主要移动，受黏液怪的 -1 和教练的 +1 等效果影响。使用时没有主要移动的骰子点数；也可以不使用能力，正常掷骰。'),
-    card('lovable_loser', 'Lovable Loser', '可爱输家', '好可怜', '主要移动前，若我独自处于最后一名，获得 1 分。', 'LovableLoser',
-         details='必须是唯一的最后者，并列最后不算。得分发生在主要移动前，不是额外移动；这个时机每回合只发生一次。'),
-    card('magician', 'Magician', '魔术师', '消失', '我的主要移动最多可重掷两次。',
-         details='只能重掷最近一次掷出的骰子，必须使用最后一次结果，不能选回旧点数。每次重掷都会触发挪步者，即使后来又重掷了该结果。'),
-    card('mastermind', 'Mastermind', '幕后主脑', '万事通', '首个回合开始时预测冠军；猜中则比赛立即结束，我获得第二名。',
-         details='可以预测自己，并在猜中时同时获得第一名和第二名的奖励。预测在本场首个回合开始时进行，不是每回合重新选择。'),
-    card('mouth', 'Mouth', '大嘴', '大口吞下', '我停下时，若同格恰好只有一名其他角色，将其淘汰出本场。',
-         details='同格有两名或更多其他角色时不吞噬；不是把对方带着走。若本场只剩一名角色，立即结束，并给其适用的第一或第二名；不存在的第二名无人得分。'),
-    card('party_animal', 'Party Animal', '派对动物', '万人迷', '主要移动前，其他角色向我移动 1 格；每名同格角色使我主要移动 +1。', 'PartyAnimal',
-         details='前方角色向后、后方角色向前移动；已同格者无需移动。若巨婴被拉到我所在格，该格其他角色会被挤到后方一格。两人同时停成一对时，浪漫主义者可各触发一次。'),
-    card('romantic', 'Romantic', '浪漫主义者', '啊，爱情', '任何角色停下时，若同格恰好有另一名角色，我移动 2 格。',
-         details='不要求我在附近，也没有固定的追随对象。传送后停下也算；三人及以上同格不触发。若两人一起移动并停成一对，可分别触发一次。绊倒时仍能使用此能力。'),
-    card('rocket_scientist', 'Rocket Scientist', '火箭科学家', '轰隆升空', '主要移动掷骰后，可将移动格数变为点数的两倍；使用后绊倒。', 'RocketScientist',
-         details='先看骰子结果，再决定是否使用。先完成移动，再绊倒；下次主要移动被跳过，但能力仍可触发。'),
-    card('scoocher', 'Scoocher', '挪步者', '挪一挪', '其他角色的能力发生时，我移动 1 格。',
-         details='不是其他角色每次移动都触发。黏液怪每次实际造成 -1、骰商或魔术师每次重掷、跳跳蛙每跳过一格，都分别触发。真正无限循环只执行一轮后停止；与吸盘鱼连续前进不因此截断。'),
-    card('sisyphus', 'Sisyphus', '西西弗斯', '继续滚', '赛前获得 4 分；主要移动掷出 6 时，改为传送回起点并失去 1 分。',
-         details='传送代替该次主要移动，之后不再移动。掷出超过四次 6 时，只要仍有积分就继续扣分。传送不算移动，不触发经过或跟随移动。'),
-    card('skipper', 'Skipper', '抢跑者', '老水手', '任何角色主要移动掷出 1 时，下一回合由我行动。',
-         details='我行动后，正常顺序从我左边继续；若我又掷出 1，可再次行动。与尺蠖同场时，先结算其移动。双角色模式下，我先行动，再由同一玩家的其他角色行动。'),
-    card('stickler', 'Stickler', '较真者', '严格来说', '其他角色必须刚好移动到终点才能冲线；超过所需格数则不移动。',
-         details='限制主要移动和能力造成的所有移动，不限制我自己。例如决斗家距终点 1 格时赢得移动 2 格，不能因此冲线。'),
-    card('suckerfish', 'Suckerfish', '吸盘鱼', '吸住不放', '原本与我同格的角色移动时，我可跟随到其新位置。',
-         details='不是有人经过我就能跟随。选择跟随后，必须跟完对方整次移动，不能中途停下；可借此冲过终点。对方传送不算移动，因此不能跟随传送。'),
-    card('third_wheel', 'Third Wheel', '电灯泡', '顺势加入', '主要移动前，可传送到恰好有两名角色的格子。', 'ThirdWheel',
-         details='到达后该格通常变为三人，不是浪漫主义者所需的恰好两人。传送后仍可进行主要移动；传送不算移动，但会触发停在格子上的效果。'),
-    card('twin', 'Twin', '双胞胎', '双倍下注', '赛前可选择曾赢得前一场比赛的角色，获得其能力参赛。',
-         details='可选择此前任一场的获胜角色，仍使用双胞胎棋子。也获得该角色的“赛前”能力；不是复制当前对手的行动。'),
+    card('alchemist', 'Alchemist'),
+    card('baba_yaga', 'Baba Yaga', 'BabaYaga'),
+    card('banana', 'Banana'),
+    card('blimp', 'Blimp'),
+    card('centaur', 'Centaur'),
+    card('cheerleader', 'Cheerleader'),
+    card('coach', 'Coach'),
+    card('copycat', 'Copycat'),
+    card('dicemonger', 'Dicemonger'),
+    card('duelist', 'Duelist'),
+    card('egg', 'Egg'),
+    card('flip_flop', 'Flip Flop', 'FlipFlop'),
+    card('genius', 'Genius'),
+    card('gunk', 'Gunk'),
+    card('hare', 'Hare'),
+    card('heckler', 'Heckler'),
+    card('huge_baby', 'Huge Baby', 'HugeBaby'),
+    card('hypnotist', 'Hypnotist'),
+    card('inchworm', 'Inchworm'),
+    card('lackey', 'Lackey'),
+    card('leaptoad', 'Leaptoad'),
+    card('legs', 'Legs'),
+    card('lovable_loser', 'Lovable Loser', 'LovableLoser'),
+    card('magician', 'Magician'),
+    card('mastermind', 'Mastermind'),
+    card('mouth', 'Mouth'),
+    card('party_animal', 'Party Animal', 'PartyAnimal'),
+    card('romantic', 'Romantic'),
+    card('rocket_scientist', 'Rocket Scientist', 'RocketScientist'),
+    card('scoocher', 'Scoocher'),
+    card('sisyphus', 'Sisyphus'),
+    card('skipper', 'Skipper'),
+    card('stickler', 'Stickler'),
+    card('suckerfish', 'Suckerfish'),
+    card('third_wheel', 'Third Wheel', 'ThirdWheel'),
+    card('twin', 'Twin'),
 )
 
 ATHLETE_BY_ID = {athlete.id: athlete for athlete in ATHLETE_CATALOG}

@@ -3,8 +3,8 @@ import type { PlayerState, RoomSnapshot } from "./protocol";
 import { actionMoment, eventText, rollOffPresentation } from "./eventPresentation";
 
 const players = [
-  { id: "p1", name: "小明", rollValues: [6, 2], activeRacers: [{ id: "centaur", nameZh: "半人马" }], team: [] },
-  { id: "p2", name: "小红", rollValues: null, activeRacers: [{ id: "banana", nameZh: "香蕉" }], team: [] },
+  { id: "p1", name: "小明", rollValues: [6, 2], activeRacers: [{ id: "centaur", name: "Centaur" }], team: [] },
+  { id: "p2", name: "小红", rollValues: null, activeRacers: [{ id: "banana", name: "Banana" }], team: [] },
 ] as unknown as PlayerState[];
 const before = { revision: 1, roomId: "TEST", game: { phase: "DRAFT_ROLL", players } } as RoomSnapshot;
 const after = { ...before, revision: 2, game: { ...before.game, phase: "DRAFTING", players: players.map((p) => ({ ...p, rollValues: null })) } } as RoomSnapshot;
@@ -88,6 +88,12 @@ describe("race feed sentences", () => {
   it("names the athlete that landed on a trip tile", () => {
     const line = eventText({ type: "RACER_TRIPPED", playerId: "p2", athleteId: "banana", source: "TripTile" }, players);
     expect(line).toBe("香蕉落在绊倒格 → 小红的香蕉：绊倒");
+  });
+
+  it("announces an automatic deal with the number of cards", () => {
+    const line = eventText({ type: "TEAM_DEALT", playerId: "p1",
+      athleteIds: ["centaur", "banana", "coach", "hare"] }, players);
+    expect(line).toBe("小明 自动获得 4 名赛车手");
   });
 
   it("reports which option a player picked, in Chinese", () => {

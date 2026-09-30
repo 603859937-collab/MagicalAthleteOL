@@ -44,6 +44,7 @@ class GameState:
     selections: dict[str, tuple[AthleteCard, ...]] = field(default_factory=dict)
     scores: dict[str, int] = field(default_factory=dict)
     double_racer_variant: bool = False
+    auto_deal: bool = False
     race_number: int = 0
     positions: dict[str, int] = field(default_factory=dict)
     active_player_id: str | None = None
@@ -76,6 +77,7 @@ class GameEngine(Protocol):
     def create_game(self, players: tuple[Player, ...]) -> GameState: ...
     def start(self, state: GameState, player_id: str) -> GameTransition: ...
     def set_variant(self, state: GameState, player_id: str, double_racer: bool) -> GameTransition: ...
+    def set_auto_deal(self, state: GameState, player_id: str, auto_deal: bool) -> GameTransition: ...
     def roll_start(self, state: GameState, player_id: str) -> GameTransition: ...
     def draft_athlete(self, state: GameState, player_id: str, athlete_id: str) -> GameTransition: ...
     def select_racers(self, state: GameState, player_id: str, athlete_ids: tuple[str, ...]) -> GameTransition: ...
@@ -117,6 +119,18 @@ class MagsimGameEngine:
             ({"type": "VARIANT_CHANGED", "doubleRacerVariant": double_racer},),
         )
 
+    def set_auto_deal(
+        self, state: GameState, player_id: str, auto_deal: bool
+    ) -> GameTransition:
+        if state.phase != GamePhase.LOBBY:
+            raise GameRuleError("GAME_ALREADY_STARTED", "开局后不能修改游戏模式")
+        if not state.players or state.players[0].id != player_id:
+            raise GameRuleError("ONLY_HOST_CAN_CONFIGURE", "只有房主可以修改游戏模式")
+        return GameTransition(
+            replace(state, auto_deal=auto_deal),
+            ({"type": "AUTO_DEAL_CHANGED", "autoDeal": auto_deal},),
+        )
+
     def start(self, state: GameState, player_id: str) -> GameTransition:
         if state.phase != GamePhase.LOBBY:
             raise GameRuleError("GAME_ALREADY_STARTED", "游戏已经开始")
@@ -125,15 +139,47 @@ class MagsimGameEngine:
         if state.players[0].id != player_id:
             raise GameRuleError("ONLY_HOST_CAN_START", "只有房主可以开始游戏")
         player_ids = tuple(player.id for player in state.players)
+        ready = replace(
+            state,
+            roll_candidates=player_ids,
+            remaining_athlete_ids=tuple(card.id for card in ATHLETE_CATALOG),
+        )
+        if state.auto_deal:
+            next_state, events = self._deal_teams(replace(ready, phase=GamePhase.RACE_ROLL))
+            return GameTransition(next_state, tuple(events))
         return GameTransition(
-            replace(
-                state,
-                phase=GamePhase.DRAFT_ROLL,
-                roll_candidates=player_ids,
-                remaining_athlete_ids=tuple(card.id for card in ATHLETE_CATALOG),
-            ),
+            replace(ready, phase=GamePhase.DRAFT_ROLL),
             ({"type": "DRAFT_ROLL_STARTED"},),
         )
+
+    def _cards_per_player(self, state: GameState) -> int:
+        if not state.players:
+            return 0
+        return self._draft_round_count(state) * self._draft_pool_size(state) // len(state.players)
+
+    def _deal_teams(self, state: GameState) -> tuple[GameState, list[dict[str, Any]]]:
+        deal_size = self._cards_per_player(state)
+        pool_ids = self._rng.sample(
+            list(state.remaining_athlete_ids), deal_size * len(state.players)
+        )
+        teams = dict(state.teams)
+        events: list[dict[str, Any]] = []
+        for offset, player in enumerate(state.players):
+            dealt = tuple(
+                ATHLETE_BY_ID[athlete_id]
+                for athlete_id in pool_ids[offset * deal_size : (offset + 1) * deal_size]
+            )
+            teams[player.id] = dealt
+            events.append({
+                "type": "TEAM_DEALT",
+                "playerId": player.id,
+                "athleteIds": [card.id for card in dealt],
+            })
+        remaining = tuple(
+            athlete_id for athlete_id in state.remaining_athlete_ids if athlete_id not in pool_ids
+        )
+        events.append({"type": "RACE_ROLL_STARTED", "raceNumber": state.race_number + 1})
+        return replace(state, teams=teams, remaining_athlete_ids=remaining), events
 
     def roll_start(self, state: GameState, player_id: str) -> GameTransition:
         if state.phase not in (GamePhase.DRAFT_ROLL, GamePhase.RACE_ROLL):
@@ -483,7 +529,7 @@ class MagsimGameEngine:
             "id": pending.id,
             "playerId": owner_map[pending.racer_idx],
             "athleteId": athlete.id,
-            "athleteName": athlete.name_zh,
+            "athleteName": athlete.name,
             "abilityName": pending.ability_name,
             "prompt": pending.prompt,
             "choiceType": pending.choice_type,
@@ -494,12 +540,14 @@ class MagsimGameEngine:
             if target_idx in athlete_map:
                 target_owner = owner_map[target_idx]
                 owner_name = next(p.name for p in state.players if p.id == target_owner)
-                option["description"] = f"{owner_name} · 第 {value.position} 格"
+                option["ownerName"] = owner_name
+                option["position"] = value.position
         effect_preview = getattr(pending, "effect_preview", None)
         if effect_preview is not None:
             target_idx = effect_preview["racerIndex"]
             public["effectPreview"] = {
-                "athleteName": athlete_map[target_idx].name_zh,
+                "athleteId": athlete_map[target_idx].id,
+                "athleteName": athlete_map[target_idx].name,
                 "from": effect_preview["from"],
                 "to": effect_preview["to"],
             }
@@ -517,7 +565,7 @@ class MagsimGameEngine:
             participant = {
                 "playerId": state.racer_owner_by_index[racer_idx],
                 "athleteId": athlete.id,
-                "athleteName": athlete.name_zh,
+                "athleteName": athlete.name,
             }
             if index < len(pending.values):
                 participant["value"] = pending.values[index]
@@ -532,7 +580,7 @@ class MagsimGameEngine:
             "values": list(pending.values),
             "nextPlayerId": state.racer_owner_by_index[next_racer_idx],
             "nextAthleteId": next_athlete.id,
-            "nextAthleteName": next_athlete.name_zh,
+            "nextAthleteName": next_athlete.name,
             "throwIndex": pending.next_index,
             "throwCount": len(pending.participants),
         }
@@ -700,7 +748,7 @@ class MagsimGameEngine:
             base.update({
                 "sourcePlayerId": state.racer_owner_by_index.get(source_index),
                 "sourceAthleteId": source_athlete.id,
-                "sourceAthleteName": source_athlete.name_zh,
+                "sourceAthleteName": source_athlete.name,
             })
         trigger_index = getattr(event, "trigger_racer_idx", None)
         trigger_athlete = state.racer_athlete_by_index.get(trigger_index)
@@ -708,7 +756,7 @@ class MagsimGameEngine:
             base.update({
                 "triggerPlayerId": state.racer_owner_by_index.get(trigger_index),
                 "triggerAthleteId": trigger_athlete.id,
-                "triggerAthleteName": trigger_athlete.name_zh,
+                "triggerAthleteName": trigger_athlete.name,
             })
         if name == "RollResultEvent":
             events.append({
@@ -763,7 +811,7 @@ class MagsimGameEngine:
                 **base,
                 "sourcePlayerId": state.racer_owner_by_index.get(source_index),
                 "sourceAthleteId": source_athlete.id if source_athlete else None,
-                "sourceAthleteName": source_athlete.name_zh if source_athlete else None,
+                "sourceAthleteName": source_athlete.name if source_athlete else None,
                 "abilityName": str(event.source),
                 "movementDistance": getattr(event, "movement_distance", 0),
             })
@@ -821,6 +869,8 @@ class MagsimGameEngine:
             "trackName": TRACK_SCHEDULE[state.race_number],
             "raceRewards": list(RACE_REWARDS[state.race_number]),
             "doubleRacerVariant": self._is_double_variant(state),
+            "autoDeal": state.auto_deal,
+            "cardsPerPlayer": self._cards_per_player(state),
             "selectionCount": 2 if self._is_double_variant(state) else 1,
             "draftPool": [card.public_data() for card in state.draft_pool],
             "draftRound": state.draft_round + 1,

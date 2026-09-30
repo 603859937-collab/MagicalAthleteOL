@@ -1,3 +1,4 @@
+import i18n from "./i18n";
 import type { ClientIntent, ServerMessage } from "./protocol";
 import { websocketUrl } from "./runtimeConfig";
 
@@ -72,7 +73,7 @@ export class GameClient {
 
   send(intent: ClientIntent): void {
     if (this.socket?.readyState !== WebSocket.OPEN) {
-      throw new Error("尚未连接到房间");
+      throw new Error(i18n.t("app:errors.notConnected"));
     }
     this.socket.send(JSON.stringify(intent));
   }

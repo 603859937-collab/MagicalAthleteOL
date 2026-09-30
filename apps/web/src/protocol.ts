@@ -11,10 +11,6 @@ export type GamePhase =
 export interface AthleteCard {
   id: string;
   name: string;
-  nameZh: string;
-  abilityTitleZh: string;
-  abilitySummary: string;
-  abilityDetails?: string;
 }
 
 export interface ActiveRacer extends AthleteCard {
@@ -49,7 +45,7 @@ export interface RaceResult {
   eliminated: boolean;
 }
 
-export interface DecisionOption { id: string; label: string; description?: string }
+export interface DecisionOption { id: string; label: string; ownerName?: string; position?: number }
 export interface RollPreview {
   rollSerial: number;
   value: number;
@@ -67,7 +63,7 @@ export interface PendingDecision {
   prompt: string;
   choiceType: "BOOLEAN" | "RACER" | "TILE" | "DIE";
   options: DecisionOption[];
-  effectPreview?: { athleteName: string; from: number; to: number };
+  effectPreview?: { athleteId?: string; athleteName: string; from: number; to: number };
   rollPreview?: RollPreview;
   deadlineAt?: string;
 }
@@ -105,6 +101,8 @@ export interface GameState {
   trackName: "Standard" | "WildWilds";
   raceRewards: [number, number];
   doubleRacerVariant: boolean;
+  autoDeal: boolean;
+  cardsPerPlayer: number;
   selectionCount: number;
   draftPool: AthleteCard[];
   draftRound: number;
@@ -155,6 +153,7 @@ export type GameEvent = {
   playerId?: string;
   playerIds?: string[];
   athleteId?: string;
+  athleteIds?: string[];
   values?: number[];
   value?: number;
   baseValue?: number;
@@ -196,6 +195,7 @@ export type ClientIntent =
   | { type: "JOIN_ROOM"; roomId: string; playerName: string; playerId?: string; reconnectToken?: string }
   | { type: "START_GAME"; actionId: string }
   | { type: "SET_VARIANT"; actionId: string; doubleRacer: boolean }
+  | { type: "SET_AUTO_DEAL"; actionId: string; autoDeal: boolean }
   | { type: "ROLL_START"; actionId: string }
   | { type: "DRAFT_ATHLETE"; actionId: string; athleteId: string }
   | { type: "SELECT_RACERS"; actionId: string; athleteIds: string[] }

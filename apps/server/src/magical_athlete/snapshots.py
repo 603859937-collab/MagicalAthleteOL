@@ -6,7 +6,7 @@ from datetime import datetime
 
 from .game import GameState, Player
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class IncompatibleSnapshotError(ValueError):

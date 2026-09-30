@@ -40,7 +40,9 @@ def test_paused_follow_choice_does_not_publish_rolled_back_movement():
     state = engine.resolve_decision(state, "b", state.pending_decision["id"], "skip").state
     roll = engine.roll_dice(state, "b")
     assert roll.state.pending_decision["abilityName"] == "SuckerfishRide"
-    assert roll.state.pending_decision["effectPreview"] == {"athleteName": "教练", "from": 0, "to": 6}
+    assert roll.state.pending_decision["effectPreview"]["athleteName"] == "Coach"
+    assert roll.state.pending_decision["effectPreview"]["from"] == 0
+    assert roll.state.pending_decision["effectPreview"]["to"] == 6
     assert not any(e["type"] == "RACER_MOVED" for e in roll.events)
     resumed = engine.resolve_decision(roll.state, "a", roll.state.pending_decision["id"], "1")
     moves = [e for e in resumed.events if e["type"] == "RACER_MOVED"]

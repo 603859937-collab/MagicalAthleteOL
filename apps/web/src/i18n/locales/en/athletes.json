@@ -1,0 +1,218 @@
+{
+  "alchemist": {
+    "name": "Alchemist",
+    "abilityTitle": "Transmute 'n' Scoot",
+    "summary": "When I roll a 1 or 2 for my main move, I can move 4 instead.",
+    "details": "Decide after the main-move die is settled. I move 4 instead - it is not 4 extra spaces on top of the roll. Other main-move modifiers still apply."
+  },
+  "baba_yaga": {
+    "name": "Baba Yaga",
+    "abilityTitle": "Leg It",
+    "summary": "Trip any racer that stops on my space, or when I stop on theirs.",
+    "details": "Arriving by a move or by a warp both trigger it; passing through does not. The Duelist can still duel me, but trips anyway. If the Hypnotist warps me onto their space, they trip too. Tripping only skips the next main move; it never shuts off powers."
+  },
+  "banana": {
+    "name": "Banana",
+    "abilityTitle": "The Slip",
+    "summary": "If a racer passes me, that racer trips.",
+    "details": "\"Passing\" means a move that begins behind me and ends ahead of me. Starting on my space, or stopping on my space, does not count. The target finishes their whole move first, then trips. A warp is never passing."
+  },
+  "blimp": {
+    "name": "Blimp",
+    "abilityTitle": "Blow It",
+    "summary": "When I start my turn before the second corner of the track, I get +3 to my main move. On or after that corner, I get -1.",
+    "details": "Judge the bonus or the penalty from where I stand when the turn begins. It changes main-move spaces, not the die value, and it never touches movement from other powers."
+  },
+  "centaur": {
+    "name": "Centaur",
+    "abilityTitle": "Hoofwhack",
+    "summary": "When I pass a racer, they move -2.",
+    "details": "A racer can never be hoofwhacked back past the Start space. That push is movement, so movement powers can trigger from it. Warping past a racer is not passing."
+  },
+  "cheerleader": {
+    "name": "Cheerleader",
+    "abilityTitle": "Rah Rah",
+    "summary": "Before my main move, I can make the racer(s) in last place move 2. If I do, I move 1.",
+    "details": "Everyone tied for last moves, but I still move only 1 no matter how many racers are in last. If I am in last place too, those are two separate moves: move 2, then move 1. My main move still happens afterwards."
+  },
+  "coach": {
+    "name": "Coach",
+    "abilityTitle": "Good Hustle",
+    "summary": "Everyone on my space gets +1 to their main move, including me.",
+    "details": "Only main-move spaces change, never the die value. Legs' fixed move still counts as a main move, so it gets the bonus too."
+  },
+  "copycat": {
+    "name": "Copycat",
+    "abilityTitle": "Copy That",
+    "summary": "I have the power of the racer currently in the lead. If there's a tie, I pick.",
+    "details": "I copy at all times, not only on my turn. Racers who have already crossed the finish line are not the lead. I never copy \"before my race\" powers. If my power and the copied racer's ever conflict, theirs takes priority. With a tied lead I cannot switch my power mid-action."
+  },
+  "dicemonger": {
+    "name": "Dicemonger",
+    "abilityTitle": "Dicey Deals",
+    "summary": "Anyone can reroll their main move once per turn. When another racer does it, I move 1.",
+    "details": "I may reroll my own main move too, but I do not move 1 for my own reroll. When another racer uses my reroll, I move first and they move after. The old value is void. The reroll action itself still triggers Scoocher."
+  },
+  "duelist": {
+    "name": "Duelist",
+    "abilityTitle": "Duel!",
+    "summary": "Whenever a racer shares my space, I can shout DUEL! We roll our dice and whoever rolls highest moves 2. I win ties.",
+    "details": "I can duel several times in a turn, including when it is not my turn - I just have to be sharing the space. I cannot interrupt an action in progress, like between a roll and its move. Dueling Baba Yaga still trips me, and being tripped never blocks a power."
+  },
+  "egg": {
+    "name": "Egg",
+    "abilityTitle": "Scramble",
+    "summary": "Before my race, draw 3 new racers from the deck and pick one. I have its powers.",
+    "details": "I still use the Egg token. I also get the chosen racer's \"before my race\" power. It is not a random pick, and not a copy of anyone already in this race."
+  },
+  "flip_flop": {
+    "name": "Flip Flop",
+    "abilityTitle": "Flop Flip",
+    "summary": "I can skip rolling for my main move and swap spaces with another racer instead.",
+    "details": "The flop flip is a warp: it does not count as a move and I do not roll. I never share a space with the racer I switch with - we flop flip simultaneously. The swap replaces my main move."
+  },
+  "genius": {
+    "name": "Genius",
+    "abilityTitle": "Think Good",
+    "summary": "I can predict what number I'll roll for my main move. If I'm right, I take another turn after this one.",
+    "details": "With Skipper on the track, if I predict a 1 and roll it, Skipper's later-triggering power steals the next turn. In a double racer game only the Genius gets the extra turn, not my other racer."
+  },
+  "gunk": {
+    "name": "Gunk",
+    "abilityTitle": "Goop 'Em",
+    "summary": "Other racers get -1 to their main move.",
+    "details": "I do not need to share a space. My goop reduces the move amount, not the die roll number, so a rolled 6 is still a 6 and the Lackey still does their job. Legs' fixed move is affected too."
+  },
+  "hare": {
+    "name": "Hare",
+    "abilityTitle": "Hubris",
+    "summary": "I get +2 to my main move. When I start my turn alone in the lead, I skip my main move.",
+    "details": "A tied lead does not trigger the skip, and I score nothing for leading. Power movement is not a main move, so the skip does not restrict it."
+  },
+  "heckler": {
+    "name": "Heckler",
+    "abilityTitle": "Schadenfreude",
+    "summary": "When a racer ends their turn within 1 space of where they started, I move 2.",
+    "details": "Compare that racer's own start and end positions for the turn, not the track's Start space. Moving 1 forward, staying put, or moving 1 back all qualify. It also works on racers recovering from a trip who skip their main move."
+  },
+  "huge_baby": {
+    "name": "Huge Baby",
+    "abilityTitle": "Really Huge",
+    "summary": "No one can ever be on my space, besides the Start. When that would happen, put that racer on the space behind me instead.",
+    "details": "That push-back is not a move: the racer is treated as having stopped on the space behind me instead. If I stop on Banana's space and move them back, it counts as passing them, so I trip. If Party Animal pulls me onto their space, the others already there get pushed back as well."
+  },
+  "hypnotist": {
+    "name": "Hypnotist",
+    "abilityTitle": "Hssssst",
+    "summary": "Before my main move, I can warp a racer to my space.",
+    "details": "The warp is not a move, but it does trigger powers about stopping on a space - warping Baba Yaga to me still trips me. My main move still happens afterwards. This timing comes up once per turn."
+  },
+  "inchworm": {
+    "name": "Inchworm",
+    "abilityTitle": "Wriggle",
+    "summary": "When another racer rolls a 1 for their main move, they skip that move and I move 1.",
+    "details": "Only the main-move die matters, not the spaces left after modifiers. With Skipper on the track I wriggle 1 first, and then Skipper takes the next turn."
+  },
+  "lackey": {
+    "name": "Lackey",
+    "abilityTitle": "Very Good Sir",
+    "summary": "When another racer rolls a 6 for their main move, I move 2 before they move.",
+    "details": "Powers like Gunk change how far you move, not the rolled 6, so they never stop me. Dice from powers like the duel are not main-move dice."
+  },
+  "leaptoad": {
+    "name": "Leaptoad",
+    "abilityTitle": "Jumpfrog",
+    "summary": "While moving, I skip spaces with other racers on them.",
+    "details": "Yes, even when I am moving backwards. Each skipped occupied space is its own power trigger, so skipping two in a row lets Scoocher move 1 twice. A warp is not moving, so nothing is skipped."
+  },
+  "legs": {
+    "name": "Legs",
+    "abilityTitle": "Jog",
+    "summary": "I can skip rolling for my main move and move 5 instead.",
+    "details": "Those 5 spaces still count as my main move, so Gunk's -1 and Coach's +1 apply. No main-move die is rolled when I jog. I can also decline and roll normally."
+  },
+  "lovable_loser": {
+    "name": "Lovable Loser",
+    "abilityTitle": "D'Aww",
+    "summary": "Before my main move, I get a bronze 1 point chip if I'm alone in last place.",
+    "details": "I must be alone in last place; a tie for last does not count. The chip is taken before my main move. This timing comes up once per turn."
+  },
+  "magician": {
+    "name": "Magician",
+    "abilityTitle": "Poof",
+    "summary": "I can reroll my main move up to two times.",
+    "details": "Only the most recent roll can be rerolled, and I must use whatever my last roll is - I cannot go back to an earlier number. Every reroll triggers Scoocher, even a reroll of a number I later reroll again."
+  },
+  "mastermind": {
+    "name": "Mastermind",
+    "abilityTitle": "Know-It-All",
+    "summary": "At the start of my first turn, I predict which racer will win. If I'm right, the race ends immediately and I finish 2nd.",
+    "details": "I can predict myself and then take both the 1st and 2nd place awards. The prediction is made once, at the start of the race's first turn - it is not re-chosen each turn."
+  },
+  "mouth": {
+    "name": "M.O.U.T.H.",
+    "abilityTitle": "Chomp",
+    "summary": "When I stop on a space with exactly one other racer, they're eliminated from the race.",
+    "details": "Two or more other racers on the space means no chomp. The victim is not carried along. If only one racer is left in the race, the race ends immediately and that racer gets 1st or 2nd, whichever applies; an unfilled 2nd place awards no points."
+  },
+  "party_animal": {
+    "name": "Party Animal",
+    "abilityTitle": "Animal Magnetism",
+    "summary": "Before my main move, all racers move 1 toward me. Each other racer on my space gives me +1 to my main move.",
+    "details": "Racers ahead of me move back and racers behind me move forward; anyone already on my space stays put. If Huge Baby is pulled onto my space, everyone else there gets put 1 space back. When two racers move together and stop as a pair, Romantic triggers once for each."
+  },
+  "romantic": {
+    "name": "Romantic",
+    "abilityTitle": "Ah, Love!",
+    "summary": "When anyone stops on a space with exactly one other racer, I move 2.",
+    "details": "I do not need to be nearby, and I have no fixed partner. Arriving by a warp counts. Three or more racers on a space does not trigger it. If two racers move together and stop as a pair, it triggers once for each. I can still use it while tripped."
+  },
+  "rocket_scientist": {
+    "name": "Rocket Scientist",
+    "abilityTitle": "Kablooey",
+    "summary": "When I roll for my main move, I can move double that number. If I do, I trip.",
+    "details": "I roll first, then decide whether to kablooey. I finish the move and then trip, so I skip my next main move - but my powers still work."
+  },
+  "scoocher": {
+    "name": "Scoocher",
+    "abilityTitle": "Scooch Scooch",
+    "summary": "When another racer's power happens, I move 1.",
+    "details": "It is not every time another racer moves. Gunk's -1 as it actually applies, each Dicemonger or Magician reroll, and each space a Jumpfrog skips all trigger separately. A true infinite loop runs once in order and then ends; hopping on after Suckerfish is not cut short."
+  },
+  "sisyphus": {
+    "name": "Sisyphus",
+    "abilityTitle": "Keep Rollin'",
+    "summary": "Before my race, I take 4 point chips. When I roll a 6 for my main move, I warp to the Start and lose 1 point chip.",
+    "details": "The warp replaces that main move, so I do not move afterwards. Rolling more than four 6s keeps costing chips as long as I have any. The warp is not a move, so nothing triggers from passing or from following."
+  },
+  "skipper": {
+    "name": "Skipper",
+    "abilityTitle": "Salty Dog",
+    "summary": "When anyone rolls a 1 for their main move, I go next in turn order.",
+    "details": "After I go, turn order continues to my left. If I roll a 1, I go again. With Inchworm on the track, resolve its move first. In a double racer game I go next, and then my other racer."
+  },
+  "stickler": {
+    "name": "Stickler",
+    "abilityTitle": "Actually...",
+    "summary": "Other racers can only move the exact amount they need. If they overshoot, they don't move.",
+    "details": "This covers movement from main moves, powers, and everything else, but it never applies to me. For example, if the Duelist wins a duel on the final space before the finish line, they do not cross."
+  },
+  "suckerfish": {
+    "name": "Suckerfish",
+    "abilityTitle": "Sucker!",
+    "summary": "When a racer on my space moves, I can move to their new space.",
+    "details": "It is not enough for someone to pass me. Once I start moving with a racer I cannot stop until they finish their full move - that is how I can cross the finish line. A warp is not a move, so I cannot follow one."
+  },
+  "third_wheel": {
+    "name": "Third Wheel",
+    "abilityTitle": "Roll Through",
+    "summary": "Before my main move, I can warp to any space with exactly 2 racers on it.",
+    "details": "After I arrive that space usually holds three, so it is not the pair Romantic is looking for. My main move still happens after the warp. The warp is not a move, but it does trigger powers about stopping on a space."
+  },
+  "twin": {
+    "name": "Twin",
+    "abilityTitle": "Double Dip",
+    "summary": "Before my race, I can pick a racer who won a previous race and use their powers.",
+    "details": "Any racer who won an earlier race this game qualifies, and I still use the Twin token. I also get that racer's \"before my race\" power. It is not a copy of whatever my current opponents are doing."
+  }
+}

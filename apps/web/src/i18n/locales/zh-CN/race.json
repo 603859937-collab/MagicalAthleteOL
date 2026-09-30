@@ -1,0 +1,138 @@
+{
+  "listSeparator": "、",
+  "participant": {
+    "racer": "赛车手",
+    "player": "玩家"
+  },
+  "source": {
+    "dice": "骰子",
+    "tile": "赛道格效果",
+    "ability": "技能效果"
+  },
+  "ability": {
+    "unknown": "技能"
+  },
+  "event": {
+    "startDiceRolled": "{{who}} 掷出 {{values}}",
+    "rollOffTied": "最高点相同，平局玩家重新掷骰",
+    "athleteDrafted": "{{who}} 完成一次招募",
+    "teamDealt": "{{who}} 自动获得 {{cards}} 名赛车手",
+    "racersLocked": "{{who}} 已锁定阵容",
+    "diceRolled": "{{who}} 掷出 {{value}}",
+    "dieRolled": "{{who}} 掷出第 {{index}} 颗骰子：{{value}}",
+    "abilityDiceRolled": "{{who}} 在决斗中掷出 {{value}}",
+    "abilityRollResolved": "{{winner}} 赢得决斗",
+    "rollOffWon": "{{who}} 获得先手",
+    "decisionRequired": "{{who}} 的{{athlete}}使用「{{ability}}」，等待选择",
+    "decisionResolved": "{{who}} 的「{{ability}}」选择：{{chosen}}",
+    "decisionResolvedDefault": "已提交",
+    "decisionTimedOut": "{{who}} 超时未选，「{{ability}}」由系统自动决定",
+    "tripRecovered": "{{who}} 的{{athlete}}从绊倒中恢复，跳过本次移动",
+    "racerEliminated": "{{who}} 的{{athlete}}被淘汰",
+    "racerFinished": "{{who}} 的{{athlete}}第 {{position}} 名冲线",
+    "raceFinished": "第 {{number}} 场比赛结束",
+    "playerJoined": "{{who}} 加入房间",
+    "playerLeft": "{{name}} 退出房间",
+    "playerKicked": "{{name}} 被房主移出房间",
+    "playerDisconnected": "{{who}} 暂时离线"
+  },
+  "moment": {
+    "line": "{{cause}} → {{owner}}的{{name}}：{{effect}}",
+    "cause": {
+      "CentaurTrample": "{{source}}经过{{target}}",
+      "BananaTrip": "{{target}}经过{{source}}",
+      "BabaYagaTrip": "{{target}}与{{source}}停在同一格",
+      "CoachBoostSelf": "{{source}}本次为自己加速",
+      "CoachBoost": "{{target}}在{{source}}所在格开始移动",
+      "LongLegs": "{{target}}本次使用两颗骰子{{rolls}}",
+      "HugeBabyBlocker": "{{target}}即将停在{{source}}所在格",
+      "HugeBabyPush": "{{source}}落在{{target}}所在格",
+      "LackeyLoyalty": "其他赛车手本次掷出了 6",
+      "InchwormCreep": "其他赛车手本次掷出了 1",
+      "ScoochStep": "另一名赛车手刚刚触发了技能",
+      "SisyphusCurse": "{{source}}本次掷出了 6",
+      "RocketScientistBoost": "{{source}}本次选择了火箭加速",
+      "HareHubris": "{{source}}在回合开始时独自领先",
+      "HareSpeed": "{{source}}本次进行主要移动",
+      "LovableLoserBonus": "{{source}}在回合开始时独自垫底",
+      "LeaptoadJump": "{{source}}本次移动遇到有赛车手的格子",
+      "HypnotistWarp": "{{source}}本回合选中了{{target}}",
+      "FlipFlopSwap": "{{source}}本回合选择交换位置",
+      "GunkSlimeModifier": "{{source}}在场，{{target}}本次移动受到减速",
+      "HecklerHeckle": "本回合结束位置距回合起点不超过 1 格",
+      "CheerleaderSupport": "{{source}}本回合选择为末位加油",
+      "PartyPull": "{{source}}开始回合，拉近其他赛车手",
+      "PartySelfBoost": "{{source}}本次移动前与其他赛车手同格",
+      "SuckerfishTargetFollow": "{{target}}跟随{{followed}}",
+      "SuckerfishTargetLocked": "{{source}}本次跟随已锁定落点",
+      "MoveDeltaTile": "{{target}}落在第 {{from}} 格，触发移动格效果",
+      "TripTile": "{{target}}落在绊倒格",
+      "SuckerfishRideFollow": "{{followed}}从同格离开，{{target}}选择跟随",
+      "SuckerfishRideIdle": "同格赛车手刚刚移动，{{source}}选择跟随",
+      "ThirdWheelJoin": "{{source}}选择加入恰好有两名赛车手的格子",
+      "SkipperTurn": "本次掷出了 1",
+      "DuelistDuel": "{{target}}赢得本次决斗"
+    },
+    "causeFallback": {
+      "system": "执行本次掷骰移动",
+      "ability": "{{source}}对{{target}}触发效果"
+    },
+    "effect": {
+      "triggered": "本次技能已触发",
+      "tripped": "绊倒",
+      "swapped": "交换位置",
+      "warped": "传送至第 {{to}} 格",
+      "unchanged": "位置不变",
+      "forward": "前进 {{count}} 格",
+      "backward": "后退 {{count}} 格",
+      "suckerfishTarget": "按跟随目标确定落点",
+      "duelistDuel": "胜者获得本次额外移动",
+      "longLegsChosen": "选用 {{value}} 点",
+      "longLegsPick": "选定本次移动骰点",
+      "hareHubris": "跳过本次主要移动",
+      "hareSpeed": "本次移动 +2",
+      "lovableLoserBonus": "得分 +1",
+      "leaptoadJump": "跳过占用格，不消耗步数",
+      "gunkSlime": "本次移动 -1",
+      "skipperTurn": "获得下一个回合",
+      "coachBoost": "本次移动 +1",
+      "hugeBabyBlocker": "落点向后调整 1 格",
+      "movementAdjust": "移动调整 {{value}}"
+    },
+    "rollValues": "（{{values}}）"
+  },
+  "decision": {
+    "titleFallback": "{{athlete}}的技能",
+    "skip": "不使用",
+    "suckerfishFollow": "是否跟随{{name}}，从第 {{from}} 格移动到第 {{to}} 格？",
+    "chooseDie": "选择本次使用的骰点",
+    "chooseTile": "选择本次传送到的格子",
+    "chooseCopy": "选择本次复制的角色能力",
+    "chooseRacer": "选择本次技能的目标角色",
+    "useAbility": "本次是否使用「{{ability}}」？",
+    "prompt": {
+      "GeniusPrediction": "预测接下来会掷出的骰点；猜中可获得额外回合。",
+      "MastermindPredict": "预测哪名其他赛车手会第一个冲线。",
+      "FlipFlopSwap": "选择一名角色交换位置；使用后将跳过本回合的正常移动。也可以不使用。",
+      "HypnotistWarp": "选择一名其他角色，将其传送到你所在的格子；也可以不使用。",
+      "DuelistDuel": "选择同格的一名角色决斗；双方掷骰，胜者前进 2 格，平局由发起者获胜。也可以不使用。",
+      "ThirdWheelJoin": "选择一个恰有两名角色的格子并传送过去；也可以不使用。",
+      "CopyLead": "领先者并列，选择其中一名角色复制能力。",
+      "CheerleaderSupport": "是否让所有并列最后的角色前进 2 格，再让自己前进 1 格？",
+      "AlchemistAlchemy": "是否把本次基础移动值改为 4？",
+      "RocketScientistBoost": "是否额外增加本次骰点的移动距离？使用后自己会绊倒。",
+      "DicemongerDeal": "是否重掷？借用其他角色的骰商能力时，对方会前进 1 格。",
+      "MagicalReroll": "是否重掷？每回合最多使用两次。"
+    },
+    "optionDetail": "{{owner}} · 第 {{position}} 格"
+  },
+  "score": {
+    "racing": "{{score}} 分 + 本场 {{race}} 分",
+    "idle": "{{score}} 分"
+  },
+  "rollOff": {
+    "draft": "{{name}} 获得首位招募权",
+    "race": "{{name}} 获得本场先手",
+    "tie": "{{names}} 点数相同，需要重掷"
+  }
+}

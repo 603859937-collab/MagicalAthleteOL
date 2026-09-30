@@ -20,6 +20,7 @@ from .protocol import (
     RollStartIntent,
     ResolveDecisionIntent,
     SelectRacersIntent,
+    SetAutoDealIntent,
     SetVariantIntent,
     StartGameIntent,
 )
@@ -170,6 +171,7 @@ class RoomManager:
         | LeaveRoomIntent
         | KickPlayerIntent
         | SetVariantIntent
+        | SetAutoDealIntent
         | RollStartIntent
         | DraftAthleteIntent
         | SelectRacersIntent
@@ -212,6 +214,10 @@ class RoomManager:
                 elif isinstance(intent, SetVariantIntent):
                     transition = room.engine.set_variant(
                         room.game_state, player_id, intent.double_racer
+                    )
+                elif isinstance(intent, SetAutoDealIntent):
+                    transition = room.engine.set_auto_deal(
+                        room.game_state, player_id, intent.auto_deal
                     )
                 elif isinstance(intent, RollStartIntent):
                     transition = room.engine.roll_start(room.game_state, player_id)
