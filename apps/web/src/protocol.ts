@@ -140,6 +140,8 @@ export interface DiceRollResult {
 }
 
 export type ServerMessage =
+  | { type: "ROOM_LEFT" }
+  | { type: "KICKED" }
   | (RoomSnapshot & { type: "WELCOME"; playerId: string; reconnectToken: string })
   | (RoomSnapshot & { type: "STATE_UPDATED"; actionId?: string; events: GameEvent[]; rollResults: DiceRollResult[] })
   | (RoomSnapshot & { type: "ROLL_STARTED"; actionId: string; playerId: string })
@@ -148,6 +150,8 @@ export type ServerMessage =
 
 export type GameEvent = {
   type: string;
+  playerName?: string;
+  reason?: string;
   playerId?: string;
   playerIds?: string[];
   athleteId?: string;
@@ -169,6 +173,8 @@ export type GameEvent = {
   triggerAthleteId?: string;
   triggerAthleteName?: string;
   abilityName?: string;
+  athleteName?: string;
+  optionLabel?: string;
   movementDistance?: number;
   decisionId?: string;
   optionId?: string;
@@ -185,6 +191,8 @@ export type GameEvent = {
 };
 
 export type ClientIntent =
+  | { type: "LEAVE_ROOM"; actionId: string }
+  | { type: "KICK_PLAYER"; actionId: string; targetPlayerId: string }
   | { type: "JOIN_ROOM"; roomId: string; playerName: string; playerId?: string; reconnectToken?: string }
   | { type: "START_GAME"; actionId: string }
   | { type: "SET_VARIANT"; actionId: string; doubleRacer: boolean }

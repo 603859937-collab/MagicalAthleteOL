@@ -14,6 +14,8 @@ from .protocol import (
     DraftAthleteIntent,
     ErrorMessage,
     JoinRoomIntent,
+    KickPlayerIntent,
+    LeaveRoomIntent,
     RollDiceIntent,
     RollStartIntent,
     ResolveDecisionIntent,
@@ -165,6 +167,8 @@ class RoomManager:
         room: Room,
         player_id: str,
         intent: StartGameIntent
+        | LeaveRoomIntent
+        | KickPlayerIntent
         | SetVariantIntent
         | RollStartIntent
         | DraftAthleteIntent
@@ -174,7 +178,24 @@ class RoomManager:
         | AdvanceRaceIntent,
     ) -> None:
         async with room.lock:
-            member = room.players[player_id]
+            member = room.players.get(player_id)
+            if member is None:
+                return
+            if isinstance(intent, LeaveRoomIntent):
+                if not self._lobby_open(room):
+                    await member.socket.send_json(ErrorMessage(
+                        code="GAME_ALREADY_STARTED", message="游戏已开始，不能退出房间",
+                        actionId=intent.action_id,
+                    ).model_dump(by_alias=True))
+                    return
+                removed = self._remove_member_locked(room, player_id)
+                await member.socket.send_json({"type": "ROOM_LEFT"})
+                await self._announce_player_left_locked(room, removed)
+                await member.socket.close()
+                return
+            if isinstance(intent, KickPlayerIntent):
+                await self._kick_player_locked(room, member, intent)
+                return
             if intent.action_id in member.seen_action_ids:
                 await member.socket.send_json(
                     {"type": "ACTION_ACK", "actionId": intent.action_id, "revision": room.revision}
@@ -261,6 +282,68 @@ class RoomManager:
                     "rollResults": roll_results,
                 },
             )
+
+    @staticmethod
+    def _lobby_open(room: Room) -> bool:
+        return room.game_state is not None and room.game_state.phase == "LOBBY"
+
+    @staticmethod
+    def _host_id(room: Room) -> str | None:
+        return next(iter(room.players), None)
+
+    def _remove_member_locked(self, room: Room, player_id: str) -> RoomPlayer:
+        member = room.players.pop(player_id)
+        room.game_state = room.engine.create_game(
+            tuple(item.player for item in room.players.values())
+        )
+        room.revision += 1
+        return member
+
+    async def _announce_player_left_locked(
+        self, room: Room, member: RoomPlayer, *, reason: str | None = None
+    ) -> None:
+        event: dict[str, Any] = {
+            "type": "PLAYER_LEFT",
+            "playerId": member.player.id,
+            "playerName": member.player.name,
+        }
+        if reason is not None:
+            event["reason"] = reason
+        await self._broadcast_locked(
+            room,
+            {"type": "STATE_UPDATED", "events": [event], "rollResults": []},
+        )
+
+    async def _kick_player_locked(
+        self, room: Room, member: RoomPlayer, intent: KickPlayerIntent
+    ) -> None:
+        async def reject(code: str, message: str) -> None:
+            await member.socket.send_json(
+                ErrorMessage(
+                    code=code, message=message, actionId=intent.action_id
+                ).model_dump(by_alias=True)
+            )
+
+        if not self._lobby_open(room):
+            await reject("GAME_ALREADY_STARTED", "游戏已开始，不能移出玩家")
+            return
+        if member.player.id != self._host_id(room):
+            await reject("NOT_HOST", "只有房主可以移出玩家")
+            return
+        if intent.target_player_id == member.player.id:
+            await reject("CANNOT_KICK_SELF", "不能移出自己，请使用退出房间")
+            return
+        target = room.players.get(intent.target_player_id)
+        if target is None:
+            await reject("PLAYER_NOT_FOUND", "该玩家不在房间中")
+            return
+
+        kicked = self._remove_member_locked(room, target.player.id)
+        if kicked.socket is not None:
+            await kicked.socket.send_json({"type": "KICKED"})
+        await self._announce_player_left_locked(room, kicked, reason="KICKED")
+        if kicked.socket is not None:
+            await kicked.socket.close(code=4002, reason="removed by host")
 
     def _sync_decision_timer_locked(self, room: Room) -> None:
         pending = room.game_state.pending_decision if room.game_state else None

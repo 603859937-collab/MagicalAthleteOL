@@ -28,3 +28,36 @@ describe("room routing", () => {
     expect(roomFromPath()).toBe("ABCD");
   });
 });
+
+it("ignores socket events after cancelling or replacing a connection", async () => {
+  const sockets: MockSocket[] = [];
+  class MockSocket extends EventTarget {
+    static OPEN = 1;
+    readyState = 1;
+    send = vi.fn();
+    close = vi.fn();
+    constructor(_url: string) { super(); sockets.push(this); }
+  }
+  vi.stubGlobal("WebSocket", MockSocket);
+  const { GameClient } = await import("./gameClient");
+  const client = new GameClient();
+  const message = vi.fn();
+  const status = vi.fn();
+  const intent = { type: "JOIN_ROOM" as const, roomId: "ABCD", playerName: "Alice" };
+  try {
+    client.connect(intent, message, status);
+    client.close();
+    sockets[0].dispatchEvent(new Event("open"));
+    sockets[0].dispatchEvent(new MessageEvent("message", { data: '{"type":"ROOM_LEFT"}' }));
+    expect(sockets[0].send).not.toHaveBeenCalled();
+    expect(message).not.toHaveBeenCalled();
+    client.connect(intent, message, status);
+    sockets[1].dispatchEvent(new Event("open"));
+    sockets[0].dispatchEvent(new Event("close"));
+    expect(status).toHaveBeenLastCalledWith("connected");
+    expect(sockets[1].send).toHaveBeenCalledWith(JSON.stringify(intent));
+  } finally {
+    client.close();
+    vi.unstubAllGlobals();
+  }
+});

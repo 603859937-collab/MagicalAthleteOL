@@ -189,3 +189,130 @@ def test_roll_preview_and_final_event_share_the_same_result_id() -> None:
     )
 
     assert preview_results[0]["id"] == final_results[0]["id"]
+
+
+@pytest.mark.anyio
+async def test_leaving_lobby_releases_seat_and_transfers_host() -> None:
+    from magical_athlete.protocol import JoinRoomIntent, LeaveRoomIntent
+
+    class Socket(RecordingSocket):
+        async def close(self, code=1000, reason="") -> None:
+            pass
+
+    repository = InMemoryRoomRepository()
+    room = await repository.create(4)
+    manager = RoomManager(repository)
+    first, second = Socket(), Socket()
+    _, host_id = await manager.join(first, JoinRoomIntent(
+        type="JOIN_ROOM", roomId=room.id, playerName="Alice"))
+    _, next_id = await manager.join(second, JoinRoomIntent(
+        type="JOIN_ROOM", roomId=room.id, playerName="Bob"))
+    await manager.handle_intent(room, host_id, LeaveRoomIntent(
+        type="LEAVE_ROOM", actionId="leave"))
+    await manager.disconnect(room, host_id, first)
+    assert list(room.players) == [next_id]
+    assert room.public_state()["game"]["players"][0]["id"] == next_id
+    assert first.messages[-1] == {"type": "ROOM_LEFT"}
+    assert second.messages[-1]["events"][0]["type"] == "PLAYER_LEFT"
+    await manager.handle_intent(room, next_id, LeaveRoomIntent(
+        type="LEAVE_ROOM", actionId="leave-last"))
+    assert room.public_state()["game"]["players"] == []
+    await manager.join(Socket(), JoinRoomIntent(
+        type="JOIN_ROOM", roomId=room.id, playerName="Carol"))
+    assert len(room.players) == 1
+
+
+@pytest.mark.anyio
+async def test_leaving_after_start_keeps_player() -> None:
+    from magical_athlete.protocol import LeaveRoomIntent
+
+    engine = MagsimGameEngine(random.Random(9))
+    players = (Player("p0", "Alice"), Player("p1", "Bob"))
+    socket = RecordingSocket()
+    room = Room(id="TEST", engine=engine,
+                game_state=engine.start(engine.create_game(players), "p0").state,
+                players={p.id: RoomPlayer(p, "token", socket=socket) for p in players})
+    await RoomManager(InMemoryRoomRepository()).handle_intent(
+        room, "p0", LeaveRoomIntent(type="LEAVE_ROOM", actionId="late"))
+    assert len(room.players) == 2
+    assert socket.messages[-1]["code"] == "GAME_ALREADY_STARTED"
+
+
+@pytest.mark.anyio
+async def test_host_can_kick_a_lobby_player() -> None:
+    from magical_athlete.protocol import JoinRoomIntent, KickPlayerIntent
+
+    class Socket(RecordingSocket):
+        async def close(self, code=1000, reason="") -> None:
+            pass
+
+    repository = InMemoryRoomRepository()
+    room = await repository.create(4)
+    manager = RoomManager(repository)
+    host, guest = Socket(), Socket()
+    _, host_id = await manager.join(host, JoinRoomIntent(
+        type="JOIN_ROOM", roomId=room.id, playerName="Alice"))
+    _, guest_id = await manager.join(guest, JoinRoomIntent(
+        type="JOIN_ROOM", roomId=room.id, playerName="Bob"))
+
+    await manager.handle_intent(room, host_id, KickPlayerIntent(
+        type="KICK_PLAYER", actionId="kick", targetPlayerId=guest_id))
+
+    assert list(room.players) == [host_id]
+    assert [player["id"] for player in room.public_state()["game"]["players"]] == [host_id]
+    assert guest.messages[-1] == {"type": "KICKED"}
+    assert host.messages[-1]["events"] == [
+        {"type": "PLAYER_LEFT", "playerId": guest_id, "playerName": "Bob", "reason": "KICKED"}
+    ]
+
+    await manager.join(Socket(), JoinRoomIntent(
+        type="JOIN_ROOM", roomId=room.id, playerName="Carol"))
+    assert len(room.players) == 2
+
+
+@pytest.mark.anyio
+async def test_kick_requires_host_and_known_target() -> None:
+    from magical_athlete.protocol import JoinRoomIntent, KickPlayerIntent
+
+    class Socket(RecordingSocket):
+        async def close(self, code=1000, reason="") -> None:
+            pass
+
+    repository = InMemoryRoomRepository()
+    room = await repository.create(4)
+    manager = RoomManager(repository)
+    host, guest = Socket(), Socket()
+    _, host_id = await manager.join(host, JoinRoomIntent(
+        type="JOIN_ROOM", roomId=room.id, playerName="Alice"))
+    _, guest_id = await manager.join(guest, JoinRoomIntent(
+        type="JOIN_ROOM", roomId=room.id, playerName="Bob"))
+
+    await manager.handle_intent(room, guest_id, KickPlayerIntent(
+        type="KICK_PLAYER", actionId="guest-kick", targetPlayerId=host_id))
+    assert guest.messages[-1]["code"] == "NOT_HOST"
+
+    await manager.handle_intent(room, host_id, KickPlayerIntent(
+        type="KICK_PLAYER", actionId="self-kick", targetPlayerId=host_id))
+    assert host.messages[-1]["code"] == "CANNOT_KICK_SELF"
+
+    await manager.handle_intent(room, host_id, KickPlayerIntent(
+        type="KICK_PLAYER", actionId="ghost-kick", targetPlayerId="ghost"))
+    assert host.messages[-1]["code"] == "PLAYER_NOT_FOUND"
+
+    assert list(room.players) == [host_id, guest_id]
+
+
+@pytest.mark.anyio
+async def test_kick_after_start_keeps_player() -> None:
+    from magical_athlete.protocol import KickPlayerIntent
+
+    engine = MagsimGameEngine(random.Random(9))
+    players = (Player("p0", "Alice"), Player("p1", "Bob"))
+    sockets = {player.id: RecordingSocket() for player in players}
+    room = Room(id="TEST", engine=engine,
+                game_state=engine.start(engine.create_game(players), "p0").state,
+                players={p.id: RoomPlayer(p, "token", socket=sockets[p.id]) for p in players})
+    await RoomManager(InMemoryRoomRepository()).handle_intent(
+        room, "p0", KickPlayerIntent(type="KICK_PLAYER", actionId="late", targetPlayerId="p1"))
+    assert len(room.players) == 2
+    assert sockets["p0"].messages[-1]["code"] == "GAME_ALREADY_STARTED"

@@ -283,3 +283,18 @@ def test_cheerleader_applies_to_all_tied_last_racers_not_a_single_target(option,
     broker.choose(broker.pending.id, option)
     engine.continue_turn()
     assert [r.position for r in engine.state.racers] == positions
+
+
+def test_resolved_decision_reports_the_label_the_player_saw():
+    engine, state = selection_game('genius')
+    choice = state.pending_decision
+    expected = next(option['label'] for option in choice['options'] if option['id'] == '4')
+
+    transition = engine.resolve_decision(state, 'a', choice['id'], '4')
+    resolved = [event for event in transition.events if event['type'] == 'DECISION_RESOLVED']
+
+    assert len(resolved) == 1
+    assert resolved[0]['optionLabel'] == expected == '5'
+    assert resolved[0]['athleteName'] == '天才'
+    assert resolved[0]['athleteId'] == 'genius'
+    assert any(event.get('optionLabel') == '5' for event in transition.state.race_log)

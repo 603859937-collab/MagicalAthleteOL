@@ -72,7 +72,9 @@ LOBBY
 
 比赛事件包括 `DIE_ROLLED`、`DICE_ROLLED`、`ABILITY_DICE_ROLLED`、`ABILITY_ROLL_RESOLVED`、`ABILITY_TRIGGERED`、`DECISION_REQUIRED`、`DECISION_RESOLVED`、`DECISION_TIMED_OUT`、`RACER_MOVED`、`RACER_TRIPPED`、`TRIP_RECOVERED`、`RACER_WARPED`、`RACERS_SWAPPED`、`RACER_FINISHED`、`RACER_ELIMINATED` 和 `TURN_CHANGED`。`DIE_ROLLED` / `ABILITY_DICE_ROLLED` 表示一次玩家实际投骰，`DICE_ROLLED` 表示主要移动最终选中并完成修正的结果。客户端按数组顺序播放，最后以同一消息中的 `game` 快照对齐。
 
-`RACER_MOVED.movementKind` 区分 `FORWARD`、`BACKWARD` 和 `PUSH`；`RACER_WARPED.movementKind` 可为 `WARP`、`SWAP` 或 `PUSH`。这些字段描述规则动作的种类，客户端物理碰撞不能据此反向修改游戏状态。`TRIP_RECOVERED` 表示该赛车手跳过本次主要移动并恢复正常状态，因此同一回合不会伴随 `DICE_ROLLED`。
+`RACER_MOVED.movementKind` 区分 `FORWARD`、`BACKWARD` 和 `PUSH`；`RACER_WARPED.movementKind` 可为 `WARP`、`SWAP` 或 `PUSH`。这些字段描述规则动作的种类，客户端物理碰撞不能据此反向修改游戏状态。`TRIP_RECOVERED` 表示该赛车手跳过本次主要移动并恢复正常状态，因此同一回合不会伴随 `DICE_ROLLED`。`RACER_TRIPPED` 既可能来自角色能力，也可能来自棋盘上的绊倒格，后者的 `source` 为 `TripTile` 且没有 `sourcePlayerId`。
+
+`DECISION_REQUIRED` 携带待选内容，`DECISION_RESOLVED` / `DECISION_TIMED_OUT` 额外给出 `athleteId`、`athleteName` 与 `optionLabel`（玩家实际看到的选项文字，超时自动选择时为空）。`raceLog` 按出现顺序记录上述比赛事件，并包含 `DECISION_REQUIRED`、`TRIP_RECOVERED`、`RACER_ELIMINATED` 与 `RACE_FINISHED`，客户端可直接把 `raceLog` 当作本场比赛的完整播报。
 
 全 3D 表现所需的事件归一化、同时事件分组和当前赛车手契约记录在 `docs/3d-race-plan.md`。这些目标字段完成服务端实现和测试前，不视为当前协议已经提供。
 

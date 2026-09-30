@@ -1,4 +1,5 @@
 import type { GameEvent, PlayerState, RoomSnapshot } from "./protocol";
+import { abilityTitle, decisionOptionLabel } from "./decisionPresentation";
 
 export type Participant = { playerId?: string; athleteId?: string; name: string; owner: string };
 export type ActionMoment = { source: Participant; target: Participant; cause: string; effect: string; from?: number; to?: number };
@@ -15,6 +16,57 @@ export function isRedundantAbilityEvent(event: GameEvent, events: GameEvent[]): 
     && (effect.source === event.abilityName || event.abilityName === "SuckerfishTarget" && effect.source === "SuckerfishRide")
     && effect.sourcePlayerId === event.sourcePlayerId && effect.sourceAthleteId === event.sourceAthleteId
     && (!event.athleteId || effect.athleteId === event.athleteId && effect.playerId === event.playerId));
+}
+
+function athleteName(players: PlayerState[], playerId?: string, athleteId?: string): string {
+  const owner = players.find((item) => item.id === playerId);
+  const card = owner?.activeRacers.find((item) => item.id === athleteId)
+    ?? owner?.team.find((item) => item.id === athleteId);
+  return card?.nameZh ?? "赛车手";
+}
+
+// One complete sentence per recorded event, so the feed never needs to drop detail.
+// `events` holds the siblings from the same update so repeated ability notices collapse.
+export function eventText(event: GameEvent, players: PlayerState[], events: GameEvent[] = []): string {
+  if (event.type === "ABILITY_TRIGGERED" && isRedundantAbilityEvent(event, events)) return "";
+  const player = players.find((item) => item.id === event.playerId);
+  const who = player?.name ?? "玩家";
+  if (event.type === "START_DICE_ROLLED") return `${who} 掷出 ${event.values?.join(" / ")}`;
+  if (event.type === "ROLL_OFF_TIED") return "最高点相同，平局玩家重新掷骰";
+  if (event.type === "ATHLETE_DRAFTED") return `${who} 完成一次招募`;
+  if (event.type === "RACERS_LOCKED") return `${who} 已锁定阵容`;
+  if (event.type === "DICE_ROLLED") return `${who} 掷出 ${event.value}`;
+  if (event.type === "DIE_ROLLED") return `${who} 掷出第 ${(event.throwIndex ?? 0) + 1} 颗骰子：${event.value}`;
+  if (event.type === "ABILITY_DICE_ROLLED") return `${who} 在决斗中掷出 ${event.value}`;
+  if (event.type === "ABILITY_ROLL_RESOLVED") {
+    const winner = players.find((item) => item.id === event.winnerPlayerId);
+    return `${winner?.name ?? "玩家"} 赢得决斗`;
+  }
+  const moment = actionMoment(event, players, events);
+  if (moment) return `${moment.cause} → ${moment.target.owner}的${moment.target.name}：${moment.effect}`;
+  if (event.type === "ROLL_OFF_WON") return `${who} 获得先手`;
+  if (event.type === "DECISION_REQUIRED") {
+    return `${who} 的${event.athleteName ?? athleteName(players, event.playerId, event.athleteId)}使用「${abilityTitle(event.abilityName)}」，等待选择`;
+  }
+  if (event.type === "DECISION_RESOLVED") {
+    const chosen = event.optionLabel ? decisionOptionLabel(event.optionLabel) : "";
+    return `${who} 的「${abilityTitle(event.abilityName)}」选择：${chosen || "已提交"}`;
+  }
+  if (event.type === "DECISION_TIMED_OUT") return `${who} 超时未选，「${abilityTitle(event.abilityName)}」由系统自动决定`;
+  if (event.type === "TRIP_RECOVERED") {
+    return `${who} 的${athleteName(players, event.playerId, event.athleteId)}从绊倒中恢复，跳过本次移动`;
+  }
+  if (event.type === "RACER_ELIMINATED") {
+    return `${who} 的${athleteName(players, event.playerId, event.athleteId)}被淘汰`;
+  }
+  if (event.type === "RACER_FINISHED") {
+    return `${who} 的${athleteName(players, event.playerId, event.athleteId)}第 ${event.finishPosition} 名冲线`;
+  }
+  if (event.type === "RACE_FINISHED") return `第 ${event.raceNumber} 场比赛结束`;
+  if (event.type === "PLAYER_JOINED") return `${who} 加入房间`;
+  if (event.type === "PLAYER_LEFT") return `${event.playerName ?? "玩家"} ${event.reason === "KICKED" ? "被房主移出房间" : "退出房间"}`;
+  if (event.type === "PLAYER_DISCONNECTED") return `${who} 暂时离线`;
+  return "";
 }
 
 export function actionMoment(event: GameEvent, players: PlayerState[], events: GameEvent[] = []): ActionMoment | null {

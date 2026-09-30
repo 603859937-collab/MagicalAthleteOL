@@ -2,12 +2,12 @@ import { SelectionCard } from "./components/SelectionCard";
 import { useBackgroundMusic } from "./useBackgroundMusic";
 import { AthleteRules } from "./components/AthleteRules";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { decisionTitle, decisionPrompt, decisionOptionLabel } from "./decisionPresentation";
+import { decisionResolution, decisionTitle, decisionPrompt, decisionOptionLabel, type DecisionOutcome } from "./decisionPresentation";
 import { ActionMoment } from "./components/ActionMoment";
-import { actionMoment, isRedundantAbilityEvent, rollOffPresentation, type ActionMoment as Moment } from "./eventPresentation";
+import { actionMoment, eventText, isRedundantAbilityEvent, rollOffPresentation, type ActionMoment as Moment } from "./eventPresentation";
 import { RaceTrack } from "./components/RaceTrack";
-import { actionId, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
-import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
+import { actionId, clearSession, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
+import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PendingDecision, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
 import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
 import { canRollRaceDice, raceDiceTurnKey } from "./raceControls";
 import { apiUrl, assetUrl } from "./runtimeConfig";
@@ -19,6 +19,12 @@ type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
 type WithoutActionId<T> = T extends { actionId: string } ? Omit<T, "actionId"> : never;
 type GameActionInput = WithoutActionId<GameAction>;
 type RollAnimation = { revision: number; values: number[]; index: number; autoThrow: boolean; throwKey: string };
+type DecisionReplay = {
+  decision: PendingDecision;
+  outcome: DecisionOutcome;
+  playerName: string;
+  chosenLabel: string;
+};
 type RacePlayback = {
   revision: number;
   values: number[];
@@ -49,31 +55,6 @@ const cardAccents: Record<string, string> = {
   rocket_scientist: "#d965ab", scoocher: "#d965ab", sisyphus: "#e8e4dc", skipper: "#b88ac8",
   stickler: "#68aeda", suckerfish: "#68aeda", third_wheel: "#319a55", twin: "#68aeda",
 };
-
-function eventText(event: GameEvent, players: PlayerState[]): string {
-  const player = players.find((item) => item.id === event.playerId);
-  if (event.type === "START_DICE_ROLLED") return `${player?.name ?? "玩家"} 掷出 ${event.values?.join(" / ")}`;
-  if (event.type === "ROLL_OFF_TIED") return "最高点相同，平局玩家重新掷骰";
-  if (event.type === "ATHLETE_DRAFTED") return `${player?.name ?? "玩家"} 完成一次招募`;
-  if (event.type === "RACERS_LOCKED") return `${player?.name ?? "玩家"} 已锁定阵容`;
-  if (event.type === "DICE_ROLLED") return `${player?.name ?? "玩家"} 掷出 ${event.value}`;
-  if (event.type === "DIE_ROLLED") return `${player?.name ?? "玩家"} 掷出第 ${(event.throwIndex ?? 0) + 1} 颗骰子：${event.value}`;
-  if (event.type === "ABILITY_DICE_ROLLED") return `${player?.name ?? "玩家"} 在决斗中掷出 ${event.value}`;
-  if (event.type === "ABILITY_ROLL_RESOLVED") {
-    const winner = players.find((item) => item.id === event.winnerPlayerId);
-    return `${winner?.name ?? "玩家"} 赢得决斗`;
-  }
-  const moment = actionMoment(event, players);
-  if (moment) return `${moment.cause} → ${moment.target.owner}的${moment.target.name}：${moment.effect}`;
-  if (event.type === "ROLL_OFF_WON") return `${player?.name ?? "玩家"} 获得先手`;
-  if (event.type === "DECISION_RESOLVED") return `${player?.name ?? "玩家"} 完成技能选择`;
-  if (event.type === "DECISION_TIMED_OUT") return `${player?.name ?? "玩家"} 超时，已自动选择`;
-  if (event.type === "RACER_FINISHED") return `${player?.name ?? "玩家"} 的赛车手第 ${event.finishPosition} 名冲线`;
-  if (event.type === "RACE_FINISHED") return `第 ${event.raceNumber} 场比赛结束`;
-  if (event.type === "PLAYER_JOINED") return `${player?.name ?? "新玩家"} 加入房间`;
-  if (event.type === "PLAYER_DISCONNECTED") return `${player?.name ?? "玩家"} 暂时离线`;
-  return "";
-}
 
 function RacerCard({ athlete, selected, disabled, used, compact, status, onClick }: {
   athlete: AthleteCard; selected?: boolean; disabled?: boolean; used?: boolean; compact?: boolean;
@@ -124,11 +105,11 @@ export default function App() {
   const [cameraFocus, setCameraFocus] = useState<{ athleteId: string; playerId?: string; close: boolean } | null>(null);
   const [raceDetailsOpen, setRaceDetailsOpen] = useState(false);
   const [feedOpen, setFeedOpen] = useState(false);
-  const [feedPosition, setFeedPosition] = useState<{ x: number; y: number } | null>(null);
   const [moment, setMoment] = useState<Moment | null>(null);
   const [rollOffResult, setRollOffResult] = useState<{ outcome: string; winnerId?: string } | null>(null);
   const [decisionSeconds, setDecisionSeconds] = useState(0);
   const [resolvingDecisionId, setResolvingDecisionId] = useState<string | null>(null);
+  const [decisionReplay, setDecisionReplay] = useState<DecisionReplay | null>(null);
   const client = useRef(new GameClient());
   const visibleSnapshot = useRef<RoomSnapshot | null>(null);
   const authoritativeSnapshot = useRef<RoomSnapshot | null>(null);
@@ -142,9 +123,8 @@ export default function App() {
   const activePlayback = useRef<RacePlayback | null>(null);
   const eventPlaybackActive = useRef(false);
   const finishingRollKey = useRef<string | null>(null);
-  const feedDragRef = useRef<{ offsetX: number; offsetY: number; moved: boolean } | null>(null);
-  const feedClickSuppressedRef = useRef(false);
   const revealTimer = useRef<number | null>(null);
+  const decisionReplayTimer = useRef<number | null>(null);
   const playbackId = useRef(0);
 
   useEffect(() => {
@@ -160,6 +140,7 @@ export default function App() {
     client.current.close();
     playbackId.current += 1;
     if (revealTimer.current !== null) window.clearTimeout(revealTimer.current);
+    if (decisionReplayTimer.current !== null) window.clearTimeout(decisionReplayTimer.current);
   }, []);
 
   const snapshot = viewState.display;
@@ -194,6 +175,28 @@ export default function App() {
     }
   }, [controlGame?.pendingDecision?.id, resolvingDecisionId]);
 
+  // A new choice always replaces the lingering result of the previous one.
+  useEffect(() => {
+    if (controlGame?.pendingDecision) setDecisionReplay(null);
+  }, [controlGame?.pendingDecision?.id]);
+
+  function rememberDecisionResult(decision: PendingDecision | null | undefined, events: GameEvent[], players: PlayerState[]) {
+    const outcome = decisionResolution(decision, events);
+    if (!decision || !outcome) return;
+    const chosen = decision.options.find((option) => option.id === outcome.optionId);
+    setDecisionReplay({
+      decision,
+      outcome,
+      playerName: players.find((player) => player.id === outcome.playerId)?.name ?? "玩家",
+      chosenLabel: chosen ? decisionOptionLabel(chosen.label) : "系统自动选择",
+    });
+    if (decisionReplayTimer.current !== null) window.clearTimeout(decisionReplayTimer.current);
+    decisionReplayTimer.current = window.setTimeout(() => {
+      decisionReplayTimer.current = null;
+      setDecisionReplay(null);
+    }, 3600);
+  }
+
   async function createRoom() {
     setError("");
     try {
@@ -205,6 +208,24 @@ export default function App() {
     } catch {
       setError("无法连接服务器，请稍后重试");
     }
+  }
+
+  function returnToEntry() {
+    client.current.close();
+    setStatus("disconnected");
+    visibleSnapshot.current = null;
+    authoritativeSnapshot.current = null;
+    setViewState({ authoritative: null, display: null, playbackBusy: false });
+    setPlayerId("");
+    setRoomId("");
+    setFeed([]);
+    setError("");
+    window.location.hash = "";
+  }
+
+  function exitRoom() {
+    if (status === "connected") send({ type: "LEAVE_ROOM" });
+    else if (!snapshot) returnToEntry();
   }
 
   function joinRoom() {
@@ -335,6 +356,16 @@ export default function App() {
   }
 
   function handleMessage(message: ServerMessage) {
+    if (message.type === "KICKED") {
+      clearSession();
+      returnToEntry();
+      setError("你已被房主移出房间");
+      return;
+    }
+    if (message.type === "ROOM_LEFT") {
+      clearSession();
+      return returnToEntry();
+    }
     if (message.type === "ERROR") {
       setResolvingDecisionId(null);
       if (localRollPendingRef.current) {
@@ -358,6 +389,7 @@ export default function App() {
       setError("");
       return;
     }
+    const previousDecision = authoritativeSnapshot.current?.game.pendingDecision ?? null;
     rememberAuthoritativeSnapshot(message);
     if (message.type === "ROLL_STARTED") {
       rollingPlayerRef.current = message.playerId;
@@ -368,8 +400,9 @@ export default function App() {
       return;
     }
     if (message.type === "STATE_UPDATED") {
-      const lines = message.events.map((event) => eventText(event, message.game.players)).filter(Boolean);
-      setFeed((current) => [...lines, ...current].slice(0, 10));
+      const lines = message.events.map((event) => eventText(event, message.game.players, message.events)).filter(Boolean);
+      setFeed((current) => [...lines, ...current].slice(0, 300));
+      rememberDecisionResult(previousDecision, message.events, message.game.players);
       const nextShownRolls = new Set(shownRolls.current);
       let diceValues = collectUnseenRollValues(message, nextShownRolls);
       if (diceValues.length === 0 && localRollPendingRef.current) {
@@ -622,8 +655,8 @@ export default function App() {
         <section className="join-dock" aria-label="加入游戏">
           <label><span>玩家名称</span><input value={playerName} maxLength={24} onChange={(event) => setPlayerName(event.target.value)} placeholder="你的名字" /></label>
           <label><span>房间号</span><input value={roomId} maxLength={8} onChange={(event) => setRoomId(event.target.value.toUpperCase())} placeholder="ABCD" /></label>
-          <button className="command primary" onClick={joinRoom}>加入房间</button>
-          <button className="command secondary" onClick={createRoom}>创建房间</button>
+          <button className="command primary" onClick={status === "disconnected" ? joinRoom : exitRoom}>{status === "disconnected" ? "加入房间" : "取消加入"}</button>
+          <button className="command secondary" disabled={status !== "disconnected"} onClick={createRoom}>创建房间</button>
           <span className={`connection ${status}`}>{statusText}</span>
           {error && <p className="error">{error}</p>}
         </section>
@@ -631,8 +664,16 @@ export default function App() {
     );
   }
 
+  const immersiveRace = game!.phase === "RACING" && use3DRaceTable;
+  const feedLines = (game!.raceLog.length
+    ? game!.raceLog.slice().reverse().map((event) => eventText(event, game!.players, game!.raceLog)).filter(Boolean)
+    : feed).slice(0, 300);
+  const feedCount = game!.raceLog.length || feed.length;
+  const liveDecision = controlGame?.pendingDecision && !playbackBusy && !rollAnimation
+    && resolvingDecisionId !== controlGame.pendingDecision.id ? controlGame.pendingDecision : null;
+
   return (
-    <main className={`table ${game?.phase === "CHARACTER_SELECTION" ? "selection-view" : ""} ${game!.phase === "RACING" && use3DRaceTable ? "immersive-race" : ""} ${raceDetailsOpen ? "race-details-open" : ""}`}>
+    <main className={`table ${game?.phase === "CHARACTER_SELECTION" ? "selection-view" : ""} ${immersiveRace ? "immersive-race" : ""} ${raceDetailsOpen ? "race-details-open" : ""} ${immersiveRace && feedOpen ? "feed-sidebar-open" : ""}`}>
       <header className="topbar">
         <div className="wordmark">MAGICAL ATHLETE</div>
         <div className="race-progress">
@@ -640,20 +681,27 @@ export default function App() {
             <span>{index + 1}</span><small>{track}</small>
           </div>)}
         </div>
-        <div className="room-code">{musicToggle}<small>房间</small><strong>{snapshot.roomId}</strong><span className={`status-dot ${status}`} /></div>
+        <div className="room-code">{musicToggle}
+          {immersiveRace && <button className="feed-toggle" aria-expanded={feedOpen} aria-controls="race-feed" onClick={() => setFeedOpen(!feedOpen)}>赛场动态<span className="event-feed-count">{feedCount}</span></button>}
+          <small>房间</small><strong>{snapshot.roomId}</strong><span className={`status-dot ${status}`} /></div>
       </header>
 
       {game!.phase === "LOBBY" && (
         <section className="lobby-stage stage">
           <div className="stage-title"><p className="kicker">2–6 PLAYERS</p><h2>等待选手入场</h2><p>房间号 <strong>{snapshot.roomId}</strong></p></div>
           <div className="lobby-players">
-            {game!.players.map((player, index) => <div className={`seat ${playerColors[index]}`} key={player.id}><span>{index + 1}</span><strong>{player.name}</strong><small>{player.id === playerId ? "你" : player.connected ? "已连接" : "离线"}</small></div>)}
+            {game!.players.map((player, index) => <div className={`seat ${playerColors[index]}`} key={player.id}>
+              <span>{index + 1}</span><strong>{player.name}</strong>
+              <small>{player.id === playerId ? "你" : player.connected ? "已连接" : "离线"}</small>
+              {isHost && player.id !== playerId && <button className="seat-kick" disabled={status !== "connected"} onClick={() => send({ type: "KICK_PLAYER", targetPlayerId: player.id })}>移出房间</button>}
+            </div>)}
             {Array.from({ length: Math.max(0, 4 - game!.players.length) }).map((_, index) => <div className="seat empty" key={index}><span>+</span><strong>空位</strong><small>分享房间号</small></div>)}
           </div>
           {game!.players.length === 3 && <div className="variant-control" role="group" aria-label="三人游戏模式">
             <button className={!game!.doubleRacerVariant ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_VARIANT", doubleRacer: false })}>标准 · 每场 1 名</button>
             <button className={game!.doubleRacerVariant ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_VARIANT", doubleRacer: true })}>双赛车手 · 每场 2 名</button>
           </div>}
+          <button className="command secondary" disabled={status !== "connected"} onClick={exitRoom}>退出房间</button>
           <button className="command primary big" disabled={!canStart} onClick={() => send({ type: "START_GAME" })}>{isHost ? "开始游戏" : "等待房主"}</button>
         </section>
       )}
@@ -736,15 +784,24 @@ export default function App() {
       )}
 
       {moment && <ActionMoment moment={moment} />}
-      {controlGame?.pendingDecision && !playbackBusy && !rollAnimation && resolvingDecisionId !== controlGame.pendingDecision.id && <div className="decision-backdrop">
+      {liveDecision && <div className="decision-backdrop">
         <section className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
-          <header><div><small>{controlGame.pendingDecision.athleteName}</small><h2 id="decision-title">{decisionTitle(controlGame.pendingDecision)}</h2></div><strong>{decisionSeconds}s</strong></header>
-          {controlGame.pendingDecision.rollPreview && <p className="decision-roll">本次掷出 <strong>{controlGame.pendingDecision.rollPreview.value}</strong>{controlGame.pendingDecision.rollPreview.finalValue !== controlGame.pendingDecision.rollPreview.value && <small>最终移动 {controlGame.pendingDecision.rollPreview.finalValue}</small>}</p>}
-          <p>{decisionPrompt(controlGame.pendingDecision)}</p>
-          <div className="decision-options">{controlGame.pendingDecision.options.map((option) => <button className="command secondary" key={option.id}
-            disabled={controlGame.pendingDecision?.playerId !== playerId || status !== "connected"}
-            onClick={() => resolveDecision(controlGame.pendingDecision!.id, option.id)}>{decisionOptionLabel(option.label)}{option.description && <small className="decision-option-detail">{option.description}</small>}</button>)}</div>
-          {controlGame.pendingDecision.playerId !== playerId && <small>等待 {controlGame.players.find((player) => player.id === controlGame.pendingDecision?.playerId)?.name} 选择</small>}
+          <header><div><small>{liveDecision.athleteName}</small><h2 id="decision-title">{decisionTitle(liveDecision)}</h2></div><strong>{decisionSeconds}s</strong></header>
+          {liveDecision.rollPreview && <p className="decision-roll">本次掷出 <strong>{liveDecision.rollPreview.value}</strong>{liveDecision.rollPreview.finalValue !== liveDecision.rollPreview.value && <small>最终移动 {liveDecision.rollPreview.finalValue}</small>}</p>}
+          <p>{decisionPrompt(liveDecision)}</p>
+          <div className="decision-options">{liveDecision.options.map((option) => <button className="command secondary" key={option.id}
+            disabled={liveDecision.playerId !== playerId || status !== "connected"}
+            onClick={() => resolveDecision(liveDecision.id, option.id)}>{decisionOptionLabel(option.label)}{option.description && <small className="decision-option-detail">{option.description}</small>}</button>)}</div>
+          {liveDecision.playerId !== playerId && <small>等待 {controlGame?.players.find((player) => player.id === liveDecision.playerId)?.name} 选择</small>}
+        </section>
+      </div>}
+      {!liveDecision && decisionReplay && <div className="decision-backdrop replay">
+        <section className="decision-dialog" role="status" aria-live="polite">
+          <header><div><small>{decisionReplay.decision.athleteName}</small><h2>{decisionTitle(decisionReplay.decision)}</h2></div><strong className="decision-replay-badge">已选择</strong></header>
+          <p>{decisionPrompt(decisionReplay.decision)}</p>
+          <div className="decision-options">{decisionReplay.decision.options.map((option) => <button className={`command secondary ${option.id === decisionReplay.outcome.optionId ? "decision-chosen" : ""}`} key={option.id} disabled>
+            {decisionOptionLabel(option.label)}{option.description && <small className="decision-option-detail">{option.description}</small>}</button>)}</div>
+          <small className="decision-replay-note">{decisionReplay.playerName}{decisionReplay.outcome.automatic ? " 超时未选，系统自动选择" : " 选择了"}「{decisionReplay.chosenLabel}」</small>
         </section>
       </div>}
 
@@ -757,37 +814,26 @@ export default function App() {
         </section>
       )}
 
-      {game!.phase !== "LOBBY" && <details className={`event-feed ${game!.phase === "RACING" ? "racing" : ""}`} style={use3DRaceTable && feedPosition ? { left: feedPosition.x, top: feedPosition.y, right: "auto" } : undefined} open={!use3DRaceTable || feedOpen} onToggle={(event) => setFeedOpen(event.currentTarget.open)}>
-        <summary onPointerDown={(event) => {
-          if (!use3DRaceTable) return;
-          const box = event.currentTarget.parentElement?.getBoundingClientRect();
-          if (!box) return;
-          event.currentTarget.setPointerCapture(event.pointerId);
-          feedDragRef.current = { offsetX: event.clientX - box.left, offsetY: event.clientY - box.top, moved: false };
-        }} onPointerMove={(event) => {
-          const drag = feedDragRef.current;
-          if (!drag || !use3DRaceTable) return;
-          const box = event.currentTarget.parentElement?.getBoundingClientRect();
-          if (!box) return;
-          if (Math.abs(event.movementX) + Math.abs(event.movementY) > 1) drag.moved = true;
-          const maxX = Math.max(8, window.innerWidth - box.width - 8);
-          const maxY = Math.max(8, window.innerHeight - box.height - 8);
-          setFeedPosition({
-            x: Math.min(maxX, Math.max(8, event.clientX - drag.offsetX)),
-            y: Math.min(maxY, Math.max(8, event.clientY - drag.offsetY)),
-          });
-        }} onPointerUp={(event) => {
-          feedClickSuppressedRef.current = feedDragRef.current?.moved ?? false;
-          feedDragRef.current = null;
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-        }} onClick={(event) => {
-          if (feedClickSuppressedRef.current) {
-            event.preventDefault();
-            feedClickSuppressedRef.current = false;
-          }
-        }}><strong>赛场动态</strong><span className="event-feed-count">{game!.raceLog.length || feed.length}</span></summary>
-        <div className="event-feed-list">{(game!.raceLog.length ? game!.raceLog.slice().reverse().map((event) => eventText(event, game!.players)).filter(Boolean) : feed).slice(0, 12).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</div>
-      </details>}
+      {game!.phase !== "LOBBY" && (immersiveRace
+        ? <aside id="race-feed" className={`race-feed ${feedOpen ? "open" : ""}`} aria-label="赛场动态" aria-hidden={!feedOpen}>
+          <header>
+            <strong>赛场动态</strong><span className="event-feed-count">{feedCount}</span>
+            <button className="race-feed-close" aria-label="关闭赛场动态" onClick={() => setFeedOpen(false)}>×</button>
+          </header>
+          <div className="event-feed-list" aria-live="polite">
+            {feedLines.length
+              ? feedLines.map((line, index) => <span key={`${line}-${index}`}>{line}</span>)
+              : <span className="event-feed-empty">本场还没有记录</span>}
+          </div>
+        </aside>
+        : <details className={`event-feed ${game!.phase === "RACING" ? "racing" : ""}`} open>
+          <summary><strong>赛场动态</strong><span className="event-feed-count">{feedCount}</span></summary>
+          <div className="event-feed-list">
+            {feedLines.length
+              ? feedLines.map((line, index) => <span key={`${line}-${index}`}>{line}</span>)
+              : <span className="event-feed-empty">本场还没有记录</span>}
+          </div>
+        </details>)}
       {error && <div className="toast" role="alert">{error}<button aria-label="关闭" onClick={() => setError("")}>×</button></div>}
     </main>
   );

@@ -11,6 +11,17 @@ class JoinRoomIntent(BaseModel):
     reconnect_token: str | None = Field(default=None, alias="reconnectToken")
 
 
+class LeaveRoomIntent(BaseModel):
+    type: Literal["LEAVE_ROOM"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+
+
+class KickPlayerIntent(BaseModel):
+    type: Literal["KICK_PLAYER"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+    target_player_id: str = Field(alias="targetPlayerId", min_length=1, max_length=64)
+
+
 class StartGameIntent(BaseModel):
     type: Literal["START_GAME"]
     action_id: str = Field(alias="actionId", min_length=1, max_length=64)
@@ -58,6 +69,8 @@ class ResolveDecisionIntent(BaseModel):
 
 ClientIntent = Annotated[
     JoinRoomIntent
+    | LeaveRoomIntent
+    | KickPlayerIntent
     | StartGameIntent
     | SetVariantIntent
     | RollStartIntent
