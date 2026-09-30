@@ -46,8 +46,11 @@ This document locks the rules and product requirements for this implementation o
 
 ## 招募与队伍 / Recruiting Your Team
 
-- 中文：组队阶段采用蛇形选秀，不采用当前“每人随机发 4 张并秘密选 1 张”的演示流程。
-- English: Recruiting uses a snake draft, not the current demo flow of randomly dealing 4 cards and secretly picking 1.
+- 中文：组队阶段默认采用蛇形选秀，不采用当前“每人随机发 4 张并秘密选 1 张”的演示流程。
+- English: Recruiting uses a snake draft by default, not the current demo flow of randomly dealing 4 cards and secretly picking 1.
+
+- 中文：房主可以在开局前把组队阶段改为自动发牌：服务端一次性为每名玩家随机发出与蛇形选秀数量相同的赛车手牌（普通 3-6 人局每人 4 张，2 人与 3 人双赛车手变体每人 8 张），跳过选秀掷骰和 `DRAFTING` 阶段，直接进入第一场的先手掷骰。自动发牌只改变组队方式，秘密选将、比赛流程和计分不变。
+- English: The host may replace recruiting with an automatic deal before the game starts: the server deals each player the same number of racers the snake draft would have given them (4 per player in a standard 3-6 player game, 8 in the 2 player and 3 player double racer variants) and skips both the draft roll-off and the `DRAFTING` phase, going straight to the first race's turn-order roll-off. Auto-dealing only changes how teams are built; secret selection, race flow, and scoring are unchanged.
 
 - 中文：普通 3-6 人规则中，每轮公开玩家人数 2 倍数量的赛车手牌：3 人公开 6 张，4 人公开 8 张，5 人公开 10 张，6 人公开 12 张。
 - English: In the standard 3-6 player rules, each draft row reveals twice as many racer cards as players: 6 for 3 players, 8 for 4, 10 for 5, and 12 for 6.

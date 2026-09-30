@@ -7,7 +7,7 @@ import pytest
 
 from magical_athlete.athletes import ATHLETE_BY_ID
 from magical_athlete.game import GamePhase, GameTransition, MagsimGameEngine, Player
-from magical_athlete.protocol import RollDiceIntent
+from magical_athlete.protocol import RollDiceIntent, SetAutoDealIntent, StartGameIntent
 from magical_athlete.rooms import InMemoryRoomRepository, Room, RoomManager, RoomPlayer
 
 
@@ -268,6 +268,59 @@ async def test_host_can_kick_a_lobby_player() -> None:
     await manager.join(Socket(), JoinRoomIntent(
         type="JOIN_ROOM", roomId=room.id, playerName="Carol"))
     assert len(room.players) == 2
+
+
+@pytest.mark.anyio
+async def test_host_auto_deal_setting_deals_teams_when_the_game_starts() -> None:
+    engine = MagsimGameEngine(random.Random(6))
+    players = (Player("p0", "Alice"), Player("p1", "Bob"))
+    sockets = {player.id: RecordingSocket() for player in players}
+    room = Room(
+        id="TEST",
+        engine=engine,
+        game_state=engine.create_game(players),
+        players={
+            player.id: RoomPlayer(player, "token", socket=sockets[player.id])
+            for player in players
+        },
+    )
+    manager = RoomManager(InMemoryRoomRepository())
+
+    await manager.handle_intent(
+        room, "p0", SetAutoDealIntent(type="SET_AUTO_DEAL", actionId="deal-1", autoDeal=True)
+    )
+    assert room.game_state is not None and room.game_state.auto_deal is True
+    assert sockets["p1"].messages[-1]["events"] == [
+        {"type": "AUTO_DEAL_CHANGED", "autoDeal": True}
+    ]
+
+    await manager.handle_intent(
+        room, "p0", StartGameIntent(type="START_GAME", actionId="start-1")
+    )
+    assert room.game_state is not None
+    assert room.game_state.phase == GamePhase.RACE_ROLL
+    assert all(len(room.game_state.teams[player.id]) == 8 for player in players)
+    assert room.public_state("p0")["game"]["autoDeal"] is True
+
+
+@pytest.mark.anyio
+async def test_only_the_host_can_toggle_auto_deal() -> None:
+    engine = MagsimGameEngine(random.Random(6))
+    players = (Player("p0", "Alice"), Player("p1", "Bob"))
+    socket = RecordingSocket()
+    room = Room(
+        id="TEST",
+        engine=engine,
+        game_state=engine.create_game(players),
+        players={player.id: RoomPlayer(player, "token", socket=socket) for player in players},
+    )
+
+    await RoomManager(InMemoryRoomRepository()).handle_intent(
+        room, "p1", SetAutoDealIntent(type="SET_AUTO_DEAL", actionId="deal-1", autoDeal=True)
+    )
+
+    assert socket.messages[-1]["code"] == "ONLY_HOST_CAN_CONFIGURE"
+    assert room.game_state is not None and room.game_state.auto_deal is False
 
 
 @pytest.mark.anyio

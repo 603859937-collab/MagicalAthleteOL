@@ -90,6 +90,12 @@ describe("race feed sentences", () => {
     expect(line).toBe("香蕉落在绊倒格 → 小红的香蕉：绊倒");
   });
 
+  it("announces an automatic deal with the number of cards", () => {
+    const line = eventText({ type: "TEAM_DEALT", playerId: "p1",
+      athleteIds: ["centaur", "banana", "coach", "hare"] }, players);
+    expect(line).toBe("小明 自动获得 4 名赛车手");
+  });
+
   it("reports which option a player picked, in Chinese", () => {
     const line = eventText({ type: "DECISION_RESOLVED", playerId: "p2", athleteId: "banana",
       athleteName: "香蕉", abilityName: "BananaTrip", optionId: "1", optionLabel: "Banana" }, players);

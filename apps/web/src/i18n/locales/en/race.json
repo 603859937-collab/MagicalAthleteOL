@@ -16,6 +16,7 @@
     "startDiceRolled": "{{who}} rolled {{values}}",
     "rollOffTied": "Highest roll tied, tied players roll again",
     "athleteDrafted": "{{who}} made a draft pick",
+    "teamDealt": "{{who}} was dealt {{cards}} racers automatically",
     "racersLocked": "{{who}} locked their lineup",
     "diceRolled": "{{who}} rolled {{value}}",
     "dieRolled": "{{who}} rolled die {{index}}: {{value}}",

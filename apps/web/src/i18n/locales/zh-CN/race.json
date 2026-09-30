@@ -16,6 +16,7 @@
     "startDiceRolled": "{{who}} 掷出 {{values}}",
     "rollOffTied": "最高点相同，平局玩家重新掷骰",
     "athleteDrafted": "{{who}} 完成一次招募",
+    "teamDealt": "{{who}} 自动获得 {{cards}} 名赛车手",
     "racersLocked": "{{who}} 已锁定阵容",
     "diceRolled": "{{who}} 掷出 {{value}}",
     "dieRolled": "{{who}} 掷出第 {{index}} 颗骰子：{{value}}",

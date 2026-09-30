@@ -109,6 +109,9 @@
     "threePlayerMode": "3-player mode",
     "standard": "Standard · 1 per race",
     "doubleRacer": "Double racer · 2 per race",
+    "dealMode": "Card dealing",
+    "dealManual": "Manual draft · snake order",
+    "dealAuto": "Auto-deal · {{cards}} per player",
     "leave": "Leave room",
     "start": "Start game",
     "waitingHost": "Waiting for the host"

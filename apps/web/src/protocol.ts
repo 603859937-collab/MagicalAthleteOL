@@ -101,6 +101,8 @@ export interface GameState {
   trackName: "Standard" | "WildWilds";
   raceRewards: [number, number];
   doubleRacerVariant: boolean;
+  autoDeal: boolean;
+  cardsPerPlayer: number;
   selectionCount: number;
   draftPool: AthleteCard[];
   draftRound: number;
@@ -151,6 +153,7 @@ export type GameEvent = {
   playerId?: string;
   playerIds?: string[];
   athleteId?: string;
+  athleteIds?: string[];
   values?: number[];
   value?: number;
   baseValue?: number;
@@ -192,6 +195,7 @@ export type ClientIntent =
   | { type: "JOIN_ROOM"; roomId: string; playerName: string; playerId?: string; reconnectToken?: string }
   | { type: "START_GAME"; actionId: string }
   | { type: "SET_VARIANT"; actionId: string; doubleRacer: boolean }
+  | { type: "SET_AUTO_DEAL"; actionId: string; autoDeal: boolean }
   | { type: "ROLL_START"; actionId: string }
   | { type: "DRAFT_ATHLETE"; actionId: string; athleteId: string }
   | { type: "SELECT_RACERS"; actionId: string; athleteIds: string[] }

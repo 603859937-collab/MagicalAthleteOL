@@ -61,3 +61,31 @@ def test_players_start_with_public_roll_off() -> None:
             assert resolved_bob["game"]["activePlayerId"] in {
                 alice_welcome["playerId"], bob_welcome["playerId"]
             }
+
+
+def test_host_can_auto_deal_and_skip_the_snake_draft() -> None:
+    client = TestClient(app)
+    room_id = client.post("/api/rooms").json()["roomId"]
+
+    headers = {"origin": "http://localhost:5173"}
+    with client.websocket_connect("/ws", headers=headers) as alice, client.websocket_connect("/ws", headers=headers) as bob:
+        alice.send_json({"type": "JOIN_ROOM", "roomId": room_id, "playerName": "Alice"})
+        alice.receive_json()
+        bob.send_json({"type": "JOIN_ROOM", "roomId": room_id, "playerName": "Bob"})
+        bob.receive_json()
+        alice.receive_json()
+
+        alice.send_json({"type": "SET_AUTO_DEAL", "actionId": "auto-1", "autoDeal": True})
+        toggled = alice.receive_json()
+        bob.receive_json()
+        assert toggled["game"]["autoDeal"] is True
+        assert toggled["game"]["cardsPerPlayer"] == 8
+
+        alice.send_json({"type": "START_GAME", "actionId": "start-1"})
+        started = alice.receive_json()
+        bob.receive_json()
+        assert started["game"]["phase"] == "RACE_ROLL"
+        assert started["game"]["draftPool"] == []
+        assert [event["type"] for event in started["events"]].count("TEAM_DEALT") == 2
+        assert all(len(player["team"]) == 8 for player in started["game"]["players"])
+        assert len(started["game"]["hand"]) == 8

@@ -109,6 +109,9 @@
     "threePlayerMode": "三人游戏模式",
     "standard": "标准 · 每场 1 名",
     "doubleRacer": "双赛车手 · 每场 2 名",
+    "dealMode": "发牌方式",
+    "dealManual": "手动招募 · 蛇形选秀",
+    "dealAuto": "自动发牌 · 每人 {{cards}} 张",
     "leave": "退出房间",
     "start": "开始游戏",
     "waitingHost": "等待房主"

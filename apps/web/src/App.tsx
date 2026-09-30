@@ -718,6 +718,10 @@ export default function App() {
             <button className={!game!.doubleRacerVariant ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_VARIANT", doubleRacer: false })}>{t("lobby.standard")}</button>
             <button className={game!.doubleRacerVariant ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_VARIANT", doubleRacer: true })}>{t("lobby.doubleRacer")}</button>
           </div>}
+          <div className="variant-control" role="group" aria-label={t("lobby.dealMode")}>
+            <button className={!game!.autoDeal ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_AUTO_DEAL", autoDeal: false })}>{t("lobby.dealManual")}</button>
+            <button className={game!.autoDeal ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_AUTO_DEAL", autoDeal: true })}>{t("lobby.dealAuto", { cards: game!.cardsPerPlayer })}</button>
+          </div>
           <button className="command secondary" disabled={status !== "connected"} onClick={exitRoom}>{t("lobby.leave")}</button>
           <button className="command primary big" disabled={!canStart} onClick={() => send({ type: "START_GAME" })}>{isHost ? t("lobby.start") : t("lobby.waitingHost")}</button>
         </section>
@@ -745,7 +749,7 @@ export default function App() {
               : t("draft.waitingFor", { name: game!.players.find((p) => p.id === game!.activePlayerId)?.name })}</h2></div><p>{t("draft.pool")}</p></div>
           <div className="draft-layout">
             <div className="draft-pool">{game!.draftPool.map((athlete) => <SelectionCard key={athlete.id} athlete={athlete} accent={cardAccents[athlete.id] ?? "#f2bd27"} recruit disabled={game!.activePlayerId !== playerId || status !== "connected"} reason={t("draft.notYet")} onChoose={() => send({ type: "DRAFT_ATHLETE", athleteId: athlete.id })} />)}</div>
-            <aside className="team-board"><h3>{t("draft.team")}</h3>{game!.players.map((player, index) => <div className="team-row" key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><div>{player.team.map((athlete) => <span title={cardName(athlete)} key={athlete.id}>{cardName(athlete).slice(0, 1)}</span>)}</div><small>{player.team.length} / {game!.doubleRacerVariant ? 8 : 4}</small></div>)}</aside>
+            <aside className="team-board"><h3>{t("draft.team")}</h3>{game!.players.map((player, index) => <div className="team-row" key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><div>{player.team.map((athlete) => <span title={cardName(athlete)} key={athlete.id}>{cardName(athlete).slice(0, 1)}</span>)}</div><small>{player.team.length} / {game!.cardsPerPlayer}</small></div>)}</aside>
           </div>
         </section>
       )}

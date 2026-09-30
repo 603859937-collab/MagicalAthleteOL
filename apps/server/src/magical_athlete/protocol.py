@@ -33,6 +33,12 @@ class SetVariantIntent(BaseModel):
     double_racer: bool = Field(alias="doubleRacer")
 
 
+class SetAutoDealIntent(BaseModel):
+    type: Literal["SET_AUTO_DEAL"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+    auto_deal: bool = Field(alias="autoDeal")
+
+
 class RollDiceIntent(BaseModel):
     type: Literal["ROLL_DICE"]
     action_id: str = Field(alias="actionId", min_length=1, max_length=64)
@@ -73,6 +79,7 @@ ClientIntent = Annotated[
     | KickPlayerIntent
     | StartGameIntent
     | SetVariantIntent
+    | SetAutoDealIntent
     | RollStartIntent
     | DraftAthleteIntent
     | SelectRacersIntent

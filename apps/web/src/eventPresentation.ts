@@ -42,6 +42,7 @@ export function eventText(event: GameEvent, players: PlayerState[], events: Game
   if (event.type === "START_DICE_ROLLED") return t("race:event.startDiceRolled", { who, values: event.values?.join(" / ") });
   if (event.type === "ROLL_OFF_TIED") return t("race:event.rollOffTied");
   if (event.type === "ATHLETE_DRAFTED") return t("race:event.athleteDrafted", { who });
+  if (event.type === "TEAM_DEALT") return t("race:event.teamDealt", { who, cards: event.athleteIds?.length ?? 0 });
   if (event.type === "RACERS_LOCKED") return t("race:event.racersLocked", { who });
   if (event.type === "DICE_ROLLED") return t("race:event.diceRolled", { who, value: event.value });
   if (event.type === "DIE_ROLLED") return t("race:event.dieRolled", { who, index: (event.throwIndex ?? 0) + 1, value: event.value });

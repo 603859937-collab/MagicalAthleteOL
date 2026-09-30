@@ -111,6 +111,70 @@ def test_three_player_double_racer_variant_drafts_eight_each() -> None:
     assert engine.public_state(state)["doubleRacerVariant"] is True
 
 
+@pytest.mark.parametrize(
+    ("player_count", "expected_team_size"),
+    ((2, 8), (3, 4), (4, 4), (5, 4), (6, 4)),
+)
+def test_auto_deal_hands_every_player_their_cards_without_drafting(
+    player_count: int, expected_team_size: int
+) -> None:
+    engine = MagsimGameEngine(random.Random(3))
+    players = make_players(player_count)
+    state = engine.set_auto_deal(engine.create_game(players), players[0].id, True).state
+    transition = engine.start(state, players[0].id)
+    state = transition.state
+
+    assert state.phase == GamePhase.RACE_ROLL
+    assert state.draft_pool == () and state.draft_order == () and state.draft_pick_index == 0
+    assert [event["type"] for event in transition.events] == [
+        "TEAM_DEALT",
+    ] * player_count + ["RACE_ROLL_STARTED"]
+
+    dealt = [card.id for player in players for card in state.teams[player.id]]
+    assert len(dealt) == expected_team_size * player_count
+    assert len(set(dealt)) == len(dealt)
+    assert all(len(state.teams[player.id]) == expected_team_size for player in players)
+    assert engine.public_state(state, players[0].id)["autoDeal"] is True
+    assert engine.public_state(state, players[0].id)["cardsPerPlayer"] == expected_team_size
+
+
+def test_auto_deal_reaches_character_selection_after_the_opening_roll() -> None:
+    engine = MagsimGameEngine(random.Random(4))
+    players = make_players(3)
+    state = engine.set_auto_deal(engine.create_game(players), "p0", True).state
+    state = complete_roll_off(engine, engine.start(state, "p0").state)
+
+    assert state.phase == GamePhase.CHARACTER_SELECTION
+    assert state.first_turn_player_id in {player.id for player in players}
+
+
+def test_three_player_double_racer_variant_auto_deals_eight_each() -> None:
+    engine = MagsimGameEngine(random.Random(11))
+    players = make_players(3)
+    state = engine.set_variant(engine.create_game(players), "p0", True).state
+    state = engine.set_auto_deal(state, "p0", True).state
+    state = engine.start(state, "p0").state
+
+    assert state.phase == GamePhase.RACE_ROLL
+    assert all(len(state.teams[player.id]) == 8 for player in players)
+
+
+def test_auto_deal_is_a_host_only_lobby_setting() -> None:
+    engine = MagsimGameEngine(random.Random(1))
+    players = make_players(3)
+
+    with pytest.raises(GameRuleError) as error:
+        engine.set_auto_deal(engine.create_game(players), "p1", True)
+    assert error.value.code == "ONLY_HOST_CAN_CONFIGURE"
+
+    started = engine.start(
+        engine.set_auto_deal(engine.create_game(players), "p0", True).state, "p0"
+    ).state
+    with pytest.raises(GameRuleError) as error:
+        engine.set_auto_deal(started, "p0", False)
+    assert error.value.code == "GAME_ALREADY_STARTED"
+
+
 def test_selection_is_secret_and_requires_two_unique_racers_for_two_players() -> None:
     engine = MagsimGameEngine(random.Random(7))
     players = make_players(2)
