@@ -6,7 +6,7 @@ import { decisionTitle, decisionPrompt, decisionOptionLabel } from "./decisionPr
 import { ActionMoment } from "./components/ActionMoment";
 import { actionMoment, isRedundantAbilityEvent, rollOffPresentation, type ActionMoment as Moment } from "./eventPresentation";
 import { RaceTrack } from "./components/RaceTrack";
-import { actionId, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
+import { actionId, clearSession, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
 import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
 import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
 import { canRollRaceDice, raceDiceTurnKey } from "./raceControls";
@@ -71,6 +71,7 @@ function eventText(event: GameEvent, players: PlayerState[]): string {
   if (event.type === "RACER_FINISHED") return `${player?.name ?? "玩家"} 的赛车手第 ${event.finishPosition} 名冲线`;
   if (event.type === "RACE_FINISHED") return `第 ${event.raceNumber} 场比赛结束`;
   if (event.type === "PLAYER_JOINED") return `${player?.name ?? "新玩家"} 加入房间`;
+  if (event.type === "PLAYER_LEFT") return `${event.playerName ?? "玩家"} ${event.reason === "KICKED" ? "被房主移出房间" : "退出房间"}`;
   if (event.type === "PLAYER_DISCONNECTED") return `${player?.name ?? "玩家"} 暂时离线`;
   return "";
 }
@@ -207,6 +208,24 @@ export default function App() {
     }
   }
 
+  function returnToEntry() {
+    client.current.close();
+    setStatus("disconnected");
+    visibleSnapshot.current = null;
+    authoritativeSnapshot.current = null;
+    setViewState({ authoritative: null, display: null, playbackBusy: false });
+    setPlayerId("");
+    setRoomId("");
+    setFeed([]);
+    setError("");
+    window.location.hash = "";
+  }
+
+  function exitRoom() {
+    if (status === "connected") send({ type: "LEAVE_ROOM" });
+    else if (!snapshot) returnToEntry();
+  }
+
   function joinRoom() {
     const normalizedRoomId = roomId.trim().toUpperCase();
     const normalizedName = playerName.trim();
@@ -335,6 +354,16 @@ export default function App() {
   }
 
   function handleMessage(message: ServerMessage) {
+    if (message.type === "KICKED") {
+      clearSession();
+      returnToEntry();
+      setError("你已被房主移出房间");
+      return;
+    }
+    if (message.type === "ROOM_LEFT") {
+      clearSession();
+      return returnToEntry();
+    }
     if (message.type === "ERROR") {
       setResolvingDecisionId(null);
       if (localRollPendingRef.current) {
@@ -622,8 +651,8 @@ export default function App() {
         <section className="join-dock" aria-label="加入游戏">
           <label><span>玩家名称</span><input value={playerName} maxLength={24} onChange={(event) => setPlayerName(event.target.value)} placeholder="你的名字" /></label>
           <label><span>房间号</span><input value={roomId} maxLength={8} onChange={(event) => setRoomId(event.target.value.toUpperCase())} placeholder="ABCD" /></label>
-          <button className="command primary" onClick={joinRoom}>加入房间</button>
-          <button className="command secondary" onClick={createRoom}>创建房间</button>
+          <button className="command primary" onClick={status === "disconnected" ? joinRoom : exitRoom}>{status === "disconnected" ? "加入房间" : "取消加入"}</button>
+          <button className="command secondary" disabled={status !== "disconnected"} onClick={createRoom}>创建房间</button>
           <span className={`connection ${status}`}>{statusText}</span>
           {error && <p className="error">{error}</p>}
         </section>
@@ -647,13 +676,18 @@ export default function App() {
         <section className="lobby-stage stage">
           <div className="stage-title"><p className="kicker">2–6 PLAYERS</p><h2>等待选手入场</h2><p>房间号 <strong>{snapshot.roomId}</strong></p></div>
           <div className="lobby-players">
-            {game!.players.map((player, index) => <div className={`seat ${playerColors[index]}`} key={player.id}><span>{index + 1}</span><strong>{player.name}</strong><small>{player.id === playerId ? "你" : player.connected ? "已连接" : "离线"}</small></div>)}
+            {game!.players.map((player, index) => <div className={`seat ${playerColors[index]}`} key={player.id}>
+              <span>{index + 1}</span><strong>{player.name}</strong>
+              <small>{player.id === playerId ? "你" : player.connected ? "已连接" : "离线"}</small>
+              {isHost && player.id !== playerId && <button className="seat-kick" disabled={status !== "connected"} onClick={() => send({ type: "KICK_PLAYER", targetPlayerId: player.id })}>移出房间</button>}
+            </div>)}
             {Array.from({ length: Math.max(0, 4 - game!.players.length) }).map((_, index) => <div className="seat empty" key={index}><span>+</span><strong>空位</strong><small>分享房间号</small></div>)}
           </div>
           {game!.players.length === 3 && <div className="variant-control" role="group" aria-label="三人游戏模式">
             <button className={!game!.doubleRacerVariant ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_VARIANT", doubleRacer: false })}>标准 · 每场 1 名</button>
             <button className={game!.doubleRacerVariant ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_VARIANT", doubleRacer: true })}>双赛车手 · 每场 2 名</button>
           </div>}
+          <button className="command secondary" disabled={status !== "connected"} onClick={exitRoom}>退出房间</button>
           <button className="command primary big" disabled={!canStart} onClick={() => send({ type: "START_GAME" })}>{isHost ? "开始游戏" : "等待房主"}</button>
         </section>
       )}

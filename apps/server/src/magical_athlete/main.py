@@ -66,6 +66,8 @@ async def room_socket(websocket: WebSocket) -> None:
                 )
                 continue
             await rooms.handle_intent(room, player_id, intent)
+            if player_id not in room.players:
+                break
     except ValidationError:
         await websocket.send_json(
             ErrorMessage(code="INVALID_MESSAGE", message="消息格式无效").model_dump(by_alias=True)

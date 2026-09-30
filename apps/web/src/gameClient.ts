@@ -25,6 +25,10 @@ export function saveSession(session: SessionIdentity): void {
   localStorage.setItem(storageKey, JSON.stringify(session));
 }
 
+export function clearSession(): void {
+  localStorage.removeItem(storageKey);
+}
+
 export function roomFromPath(): string {
   const match = window.location.hash.match(/^#\/room\/([A-Za-z]{4,8})\/?$/);
   return match?.[1]?.toUpperCase() ?? "";
@@ -50,15 +54,20 @@ export class GameClient {
   ): void {
     this.close();
     onStatus("connecting");
-    this.socket = new WebSocket(websocketUrl(intent.roomId));
-    this.socket.addEventListener("open", () => {
+    const socket = new WebSocket(websocketUrl(intent.roomId));
+    this.socket = socket;
+    socket.addEventListener("open", () => {
+      if (this.socket !== socket) return;
       onStatus("connected");
       this.send(intent);
     });
-    this.socket.addEventListener("message", (event) => {
+    socket.addEventListener("message", (event) => {
+      if (this.socket !== socket) return;
       onMessage(JSON.parse(event.data) as ServerMessage);
     });
-    this.socket.addEventListener("close", () => onStatus("disconnected"));
+    socket.addEventListener("close", () => {
+      if (this.socket === socket) onStatus("disconnected");
+    });
   }
 
   send(intent: ClientIntent): void {
@@ -69,7 +78,8 @@ export class GameClient {
   }
 
   close(): void {
-    this.socket?.close();
+    const socket = this.socket;
     this.socket = null;
+    socket?.close();
   }
 }
