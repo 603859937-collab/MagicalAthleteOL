@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlayerState, RoomSnapshot } from "./protocol";
-import { actionMoment, rollOffPresentation } from "./eventPresentation";
+import { actionMoment, eventText, rollOffPresentation } from "./eventPresentation";
 
 const players = [
   { id: "p1", name: "小明", rollValues: [6, 2], activeRacers: [{ id: "centaur", nameZh: "半人马" }], team: [] },
@@ -82,4 +82,30 @@ it("shows who the suckerfish actually followed, rather than pointing at itself",
   expect(moment.target.owner).toBe("小红");
   expect(moment.cause).toContain("半人马从同格离开");
   expect(moment.effect).toBe("前进 4 格");
+});
+
+describe("race feed sentences", () => {
+  it("names the athlete that landed on a trip tile", () => {
+    const line = eventText({ type: "RACER_TRIPPED", playerId: "p2", athleteId: "banana", source: "TripTile" }, players);
+    expect(line).toBe("香蕉落在绊倒格 → 小红的香蕉：绊倒");
+  });
+
+  it("reports which option a player picked, in Chinese", () => {
+    const line = eventText({ type: "DECISION_RESOLVED", playerId: "p2", athleteId: "banana",
+      athleteName: "香蕉", abilityName: "BananaTrip", optionId: "1", optionLabel: "Banana" }, players);
+    expect(line).toBe("小红 的「滑倒吧」选择：香蕉");
+  });
+
+  it("reports an automatic choice when the timer runs out", () => {
+    const line = eventText({ type: "DECISION_TIMED_OUT", playerId: "p1", abilityName: "DuelistDuel" }, players);
+    expect(line).toBe("小明 超时未选，「决斗」由系统自动决定");
+  });
+
+  it("announces pending choices and recovery from a trip", () => {
+    expect(eventText({ type: "DECISION_REQUIRED", playerId: "p1", athleteId: "centaur",
+      athleteName: "半人马", abilityName: "FlipFlopSwap" }, players))
+      .toBe("小明 的半人马使用「人字互换」，等待选择");
+    expect(eventText({ type: "TRIP_RECOVERED", playerId: "p1", athleteId: "centaur" }, players))
+      .toBe("小明 的半人马从绊倒中恢复，跳过本次移动");
+  });
 });

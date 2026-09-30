@@ -85,6 +85,11 @@ export function decisionTitle(decision: PendingDecision): string {
   return abilityNames[decision.abilityName] ?? `${decision.athleteName}的技能`;
 }
 
+export function abilityTitle(abilityName?: string): string {
+  if (!abilityName) return "技能";
+  return abilityNames[abilityName] ?? abilityName;
+}
+
 export function decisionOptionLabel(label: string): string {
   return racerNames[label] ?? label;
 }

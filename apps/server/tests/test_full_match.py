@@ -31,6 +31,8 @@ def test_two_players_complete_four_races(monkeypatch):
             completed_races = set()
             actions = Counter()
             choices = Counter()
+            trip_sources = Counter()
+            decision_log = Counter()
             for step in range(1500):
                 phase = game["phase"]
                 actor = host
@@ -80,10 +82,18 @@ def test_two_players_complete_four_races(monkeypatch):
                 assert [(p["id"], p["score"], p["activeRacers"]) for p in updates[0]["game"]["players"]] == [(p["id"], p["score"], p["activeRacers"]) for p in updates[1]["game"]["players"]]
                 game = updates[0]["game"]
                 events.update(e["type"] for e in updates[0]["events"])
+                for logged in game["raceLog"]:
+                    if logged["type"] == "RACER_TRIPPED":
+                        trip_sources[logged.get("source")] += 1
+                    if logged["type"] == "DECISION_RESOLVED":
+                        decision_log[logged.get("optionLabel") or "-"] += 1
             assert game["phase"] == "FINISHED", (game["phase"], actions, choices, game["pendingDecision"])
             assert completed_races == {1, 2, 3, 4}
             assert game["winnerIds"]
             assert all(len(p["usedAthleteIds"]) == 8 for p in game["players"])
             assert events["ABILITY_TRIGGERED"] > 0
             assert actions["RESOLVE_DECISION"] > 0
-            print({"actions": dict(actions), "races": sorted(completed_races), "scores": [(p["name"], p["score"]) for p in game["players"]], "skills": events["ABILITY_TRIGGERED"]})
+            # Board tiles trip racers too, and every skill choice has to stay readable.
+            assert trip_sources["TripTile"] > 0, trip_sources
+            assert "-" not in decision_log, decision_log
+            print({"actions": dict(actions), "races": sorted(completed_races), "trips": dict(trip_sources), "choices": dict(decision_log), "scores": [(p["name"], p["score"]) for p in game["players"]], "skills": events["ABILITY_TRIGGERED"]})

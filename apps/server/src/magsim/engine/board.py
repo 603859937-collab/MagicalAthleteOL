@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, override
 
 from magsim.core.mixins import ApproachHookMixin, LandingHookMixin
 from magsim.core.modifiers import SpaceModifier
-from magsim.engine.movement import push_move
+from magsim.engine.movement import push_move, push_trip
 
 if TYPE_CHECKING:
     from magsim.core.events import GameEvent, Phase
@@ -213,8 +213,16 @@ class TripTile(SpaceModifier, LandingHookMixin):
         racer = engine.get_racer(racer_idx)
         if racer.tripped:
             return
-        racer.tripped = True
-        engine.log_info(f"{self.name}: {racer.repr} is now tripped.")
+        # Queue the trip like every other landing effect so the engine can announce it.
+        engine.log_info(f"{self.name}: Queuing trip for {racer.repr}")
+        push_trip(
+            engine,
+            phase,
+            tripped_racer_idx=racer_idx,
+            source=self.name,
+            responsible_racer_idx=None,
+            emit_ability_triggered="never",
+        )
 
 
 @dataclass

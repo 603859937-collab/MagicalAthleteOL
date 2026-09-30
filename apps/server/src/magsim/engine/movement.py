@@ -494,19 +494,20 @@ def handle_trip_cmd(engine: GameEngine, evt: TripCmdEvent):
     if evt.emit_ability_triggered != "never":
         engine.push_event(AbilityTriggeredEvent.from_event(evt))
 
-    # Use dispatch_immediate pattern for PostTripEvent too
-    if evt.responsible_racer_idx is not None:
-        post_trip_event = PostTripEvent(
-            responsible_racer_idx=evt.responsible_racer_idx,
-            source=evt.source,
-            target_racer_idx=evt.target_racer_idx,
-            phase=evt.phase,
-        )
-        if engine.on_event_processed:
-            engine.on_event_processed(engine, post_trip_event)
+    # Use dispatch_immediate pattern for PostTripEvent too. Board features such as
+    # TripTile trip a racer without a responsible racer, so this must not be gated
+    # on the source racer: the event also drives the presentation layer.
+    post_trip_event = PostTripEvent(
+        responsible_racer_idx=evt.responsible_racer_idx,
+        source=evt.source,
+        target_racer_idx=evt.target_racer_idx,
+        phase=evt.phase,
+    )
+    if engine.on_event_processed:
+        engine.on_event_processed(engine, post_trip_event)
 
-        # Publish to subscribers if needed (currently Trip doesn't have listeners, but consistent)
-        engine.publish_to_subscribers(post_trip_event)
+    # Publish to subscribers if needed (currently Trip doesn't have listeners, but consistent)
+    engine.publish_to_subscribers(post_trip_event)
 
 
 ####

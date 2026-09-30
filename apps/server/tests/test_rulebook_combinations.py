@@ -2,9 +2,17 @@
 import pytest
 
 from magsim.ai.baseline_agent import BaselineAgent
-from magsim.core.events import MoveCmdEvent, Phase, PostMoveEvent, WarpCmdEvent
+from magsim.core.events import (
+    MoveCmdEvent,
+    Phase,
+    PostMoveEvent,
+    PostTripEvent,
+    TripCmdEvent,
+    WarpCmdEvent,
+)
+from magsim.engine.board import BOARD_DEFINITIONS
 from magsim.engine.game_engine import TurnProgress
-from magsim.engine.movement import handle_move_cmd, handle_warp_cmd
+from magsim.engine.movement import handle_move_cmd, handle_trip_cmd, handle_warp_cmd
 from magsim.engine.scenario import GameScenario, RacerConfig
 
 
@@ -96,3 +104,25 @@ def test_zero_move_does_not_retrigger_a_pair():
     ], seed=0)
     move(scenario, 1, 0)
     assert not reactions(scenario, 'RomanticMove')
+
+
+def test_trip_tile_announces_the_trip_it_queues():
+    scenario = GameScenario([
+        RacerConfig(0, 'Coach'),
+        RacerConfig(1, 'Legs', start_pos=20),
+    ], board=BOARD_DEFINITIONS["WildWilds"](), seed=0)
+    move(scenario, 0, 5)
+    queued = [
+        item.event
+        for item in scenario.engine.state.queue
+        if isinstance(item.event, TripCmdEvent)
+    ]
+    assert len(queued) == 1
+    assert (queued[0].source, queued[0].responsible_racer_idx) == ('TripTile', None)
+
+    recorded = []
+    scenario.engine.on_event_processed = lambda _, event: recorded.append(event)
+    handle_trip_cmd(scenario.engine, queued[0])
+
+    assert scenario.get_racer(0).tripped
+    assert [type(event).__name__ for event in recorded] == [PostTripEvent.__name__]

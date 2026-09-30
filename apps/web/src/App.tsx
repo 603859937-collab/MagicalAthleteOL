@@ -4,7 +4,7 @@ import { AthleteRules } from "./components/AthleteRules";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { decisionTitle, decisionPrompt, decisionOptionLabel } from "./decisionPresentation";
 import { ActionMoment } from "./components/ActionMoment";
-import { actionMoment, isRedundantAbilityEvent, rollOffPresentation, type ActionMoment as Moment } from "./eventPresentation";
+import { actionMoment, eventText, isRedundantAbilityEvent, rollOffPresentation, type ActionMoment as Moment } from "./eventPresentation";
 import { RaceTrack } from "./components/RaceTrack";
 import { actionId, clearSession, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
 import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
@@ -49,32 +49,6 @@ const cardAccents: Record<string, string> = {
   rocket_scientist: "#d965ab", scoocher: "#d965ab", sisyphus: "#e8e4dc", skipper: "#b88ac8",
   stickler: "#68aeda", suckerfish: "#68aeda", third_wheel: "#319a55", twin: "#68aeda",
 };
-
-function eventText(event: GameEvent, players: PlayerState[]): string {
-  const player = players.find((item) => item.id === event.playerId);
-  if (event.type === "START_DICE_ROLLED") return `${player?.name ?? "玩家"} 掷出 ${event.values?.join(" / ")}`;
-  if (event.type === "ROLL_OFF_TIED") return "最高点相同，平局玩家重新掷骰";
-  if (event.type === "ATHLETE_DRAFTED") return `${player?.name ?? "玩家"} 完成一次招募`;
-  if (event.type === "RACERS_LOCKED") return `${player?.name ?? "玩家"} 已锁定阵容`;
-  if (event.type === "DICE_ROLLED") return `${player?.name ?? "玩家"} 掷出 ${event.value}`;
-  if (event.type === "DIE_ROLLED") return `${player?.name ?? "玩家"} 掷出第 ${(event.throwIndex ?? 0) + 1} 颗骰子：${event.value}`;
-  if (event.type === "ABILITY_DICE_ROLLED") return `${player?.name ?? "玩家"} 在决斗中掷出 ${event.value}`;
-  if (event.type === "ABILITY_ROLL_RESOLVED") {
-    const winner = players.find((item) => item.id === event.winnerPlayerId);
-    return `${winner?.name ?? "玩家"} 赢得决斗`;
-  }
-  const moment = actionMoment(event, players);
-  if (moment) return `${moment.cause} → ${moment.target.owner}的${moment.target.name}：${moment.effect}`;
-  if (event.type === "ROLL_OFF_WON") return `${player?.name ?? "玩家"} 获得先手`;
-  if (event.type === "DECISION_RESOLVED") return `${player?.name ?? "玩家"} 完成技能选择`;
-  if (event.type === "DECISION_TIMED_OUT") return `${player?.name ?? "玩家"} 超时，已自动选择`;
-  if (event.type === "RACER_FINISHED") return `${player?.name ?? "玩家"} 的赛车手第 ${event.finishPosition} 名冲线`;
-  if (event.type === "RACE_FINISHED") return `第 ${event.raceNumber} 场比赛结束`;
-  if (event.type === "PLAYER_JOINED") return `${player?.name ?? "新玩家"} 加入房间`;
-  if (event.type === "PLAYER_LEFT") return `${event.playerName ?? "玩家"} ${event.reason === "KICKED" ? "被房主移出房间" : "退出房间"}`;
-  if (event.type === "PLAYER_DISCONNECTED") return `${player?.name ?? "玩家"} 暂时离线`;
-  return "";
-}
 
 function RacerCard({ athlete, selected, disabled, used, compact, status, onClick }: {
   athlete: AthleteCard; selected?: boolean; disabled?: boolean; used?: boolean; compact?: boolean;
@@ -125,7 +99,6 @@ export default function App() {
   const [cameraFocus, setCameraFocus] = useState<{ athleteId: string; playerId?: string; close: boolean } | null>(null);
   const [raceDetailsOpen, setRaceDetailsOpen] = useState(false);
   const [feedOpen, setFeedOpen] = useState(false);
-  const [feedPosition, setFeedPosition] = useState<{ x: number; y: number } | null>(null);
   const [moment, setMoment] = useState<Moment | null>(null);
   const [rollOffResult, setRollOffResult] = useState<{ outcome: string; winnerId?: string } | null>(null);
   const [decisionSeconds, setDecisionSeconds] = useState(0);
@@ -143,8 +116,6 @@ export default function App() {
   const activePlayback = useRef<RacePlayback | null>(null);
   const eventPlaybackActive = useRef(false);
   const finishingRollKey = useRef<string | null>(null);
-  const feedDragRef = useRef<{ offsetX: number; offsetY: number; moved: boolean } | null>(null);
-  const feedClickSuppressedRef = useRef(false);
   const revealTimer = useRef<number | null>(null);
   const playbackId = useRef(0);
 
@@ -397,8 +368,8 @@ export default function App() {
       return;
     }
     if (message.type === "STATE_UPDATED") {
-      const lines = message.events.map((event) => eventText(event, message.game.players)).filter(Boolean);
-      setFeed((current) => [...lines, ...current].slice(0, 10));
+      const lines = message.events.map((event) => eventText(event, message.game.players, message.events)).filter(Boolean);
+      setFeed((current) => [...lines, ...current].slice(0, 300));
       const nextShownRolls = new Set(shownRolls.current);
       let diceValues = collectUnseenRollValues(message, nextShownRolls);
       if (diceValues.length === 0 && localRollPendingRef.current) {
@@ -660,8 +631,14 @@ export default function App() {
     );
   }
 
+  const immersiveRace = game!.phase === "RACING" && use3DRaceTable;
+  const feedLines = (game!.raceLog.length
+    ? game!.raceLog.slice().reverse().map((event) => eventText(event, game!.players, game!.raceLog)).filter(Boolean)
+    : feed).slice(0, 300);
+  const feedCount = game!.raceLog.length || feed.length;
+
   return (
-    <main className={`table ${game?.phase === "CHARACTER_SELECTION" ? "selection-view" : ""} ${game!.phase === "RACING" && use3DRaceTable ? "immersive-race" : ""} ${raceDetailsOpen ? "race-details-open" : ""}`}>
+    <main className={`table ${game?.phase === "CHARACTER_SELECTION" ? "selection-view" : ""} ${immersiveRace ? "immersive-race" : ""} ${raceDetailsOpen ? "race-details-open" : ""} ${immersiveRace && feedOpen ? "feed-sidebar-open" : ""}`}>
       <header className="topbar">
         <div className="wordmark">MAGICAL ATHLETE</div>
         <div className="race-progress">
@@ -669,7 +646,9 @@ export default function App() {
             <span>{index + 1}</span><small>{track}</small>
           </div>)}
         </div>
-        <div className="room-code">{musicToggle}<small>房间</small><strong>{snapshot.roomId}</strong><span className={`status-dot ${status}`} /></div>
+        <div className="room-code">{musicToggle}
+          {immersiveRace && <button className="feed-toggle" aria-expanded={feedOpen} aria-controls="race-feed" onClick={() => setFeedOpen(!feedOpen)}>赛场动态<span className="event-feed-count">{feedCount}</span></button>}
+          <small>房间</small><strong>{snapshot.roomId}</strong><span className={`status-dot ${status}`} /></div>
       </header>
 
       {game!.phase === "LOBBY" && (
@@ -791,37 +770,26 @@ export default function App() {
         </section>
       )}
 
-      {game!.phase !== "LOBBY" && <details className={`event-feed ${game!.phase === "RACING" ? "racing" : ""}`} style={use3DRaceTable && feedPosition ? { left: feedPosition.x, top: feedPosition.y, right: "auto" } : undefined} open={!use3DRaceTable || feedOpen} onToggle={(event) => setFeedOpen(event.currentTarget.open)}>
-        <summary onPointerDown={(event) => {
-          if (!use3DRaceTable) return;
-          const box = event.currentTarget.parentElement?.getBoundingClientRect();
-          if (!box) return;
-          event.currentTarget.setPointerCapture(event.pointerId);
-          feedDragRef.current = { offsetX: event.clientX - box.left, offsetY: event.clientY - box.top, moved: false };
-        }} onPointerMove={(event) => {
-          const drag = feedDragRef.current;
-          if (!drag || !use3DRaceTable) return;
-          const box = event.currentTarget.parentElement?.getBoundingClientRect();
-          if (!box) return;
-          if (Math.abs(event.movementX) + Math.abs(event.movementY) > 1) drag.moved = true;
-          const maxX = Math.max(8, window.innerWidth - box.width - 8);
-          const maxY = Math.max(8, window.innerHeight - box.height - 8);
-          setFeedPosition({
-            x: Math.min(maxX, Math.max(8, event.clientX - drag.offsetX)),
-            y: Math.min(maxY, Math.max(8, event.clientY - drag.offsetY)),
-          });
-        }} onPointerUp={(event) => {
-          feedClickSuppressedRef.current = feedDragRef.current?.moved ?? false;
-          feedDragRef.current = null;
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-        }} onClick={(event) => {
-          if (feedClickSuppressedRef.current) {
-            event.preventDefault();
-            feedClickSuppressedRef.current = false;
-          }
-        }}><strong>赛场动态</strong><span className="event-feed-count">{game!.raceLog.length || feed.length}</span></summary>
-        <div className="event-feed-list">{(game!.raceLog.length ? game!.raceLog.slice().reverse().map((event) => eventText(event, game!.players)).filter(Boolean) : feed).slice(0, 12).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</div>
-      </details>}
+      {game!.phase !== "LOBBY" && (immersiveRace
+        ? <aside id="race-feed" className={`race-feed ${feedOpen ? "open" : ""}`} aria-label="赛场动态" aria-hidden={!feedOpen}>
+          <header>
+            <strong>赛场动态</strong><span className="event-feed-count">{feedCount}</span>
+            <button className="race-feed-close" aria-label="关闭赛场动态" onClick={() => setFeedOpen(false)}>×</button>
+          </header>
+          <div className="event-feed-list" aria-live="polite">
+            {feedLines.length
+              ? feedLines.map((line, index) => <span key={`${line}-${index}`}>{line}</span>)
+              : <span className="event-feed-empty">本场还没有记录</span>}
+          </div>
+        </aside>
+        : <details className={`event-feed ${game!.phase === "RACING" ? "racing" : ""}`} open>
+          <summary><strong>赛场动态</strong><span className="event-feed-count">{feedCount}</span></summary>
+          <div className="event-feed-list">
+            {feedLines.length
+              ? feedLines.map((line, index) => <span key={`${line}-${index}`}>{line}</span>)
+              : <span className="event-feed-empty">本场还没有记录</span>}
+          </div>
+        </details>)}
       {error && <div className="toast" role="alert">{error}<button aria-label="关闭" onClick={() => setError("")}>×</button></div>}
     </main>
   );

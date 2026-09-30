@@ -428,12 +428,23 @@ class MagsimGameEngine:
             raise GameRuleError(code, "选择已失效或候选项无效") from error
 
         resolved = state.pending_decision
+        option_label = next(
+            (
+                option.get("label")
+                for option in resolved.get("options", ())
+                if str(option.get("id")) == str(option_id)
+            ),
+            None,
+        )
         events: list[dict[str, Any]] = [{
             "type": "DECISION_TIMED_OUT" if timed_out else "DECISION_RESOLVED",
             "decisionId": decision_id,
             "playerId": resolved["playerId"],
+            "athleteId": resolved.get("athleteId"),
+            "athleteName": resolved.get("athleteName"),
             "abilityName": resolved["abilityName"],
             "optionId": option_id,
+            "optionLabel": option_label,
             "automatic": timed_out,
         }]
         if not engine._setup_complete:
@@ -532,8 +543,10 @@ class MagsimGameEngine:
             if event.get("type") in {
                 "DICE_ROLLED", "DIE_ROLLED", "ABILITY_DICE_ROLLED",
                 "ABILITY_ROLL_RESOLVED", "RACER_MOVED", "RACER_WARPED", "RACERS_SWAPPED",
-                "RACER_TRIPPED", "RACER_FINISHED", "ABILITY_TRIGGERED",
+                "RACER_TRIPPED", "TRIP_RECOVERED", "RACER_FINISHED", "RACER_ELIMINATED",
+                "ABILITY_TRIGGERED",
                 "DECISION_REQUIRED", "DECISION_RESOLVED", "DECISION_TIMED_OUT",
+                "RACE_FINISHED",
             }:
                 log.append({"sequence": len(log) + 1, **event})
         return GameTransition(replace(state, race_log=tuple(log)), tuple(events))

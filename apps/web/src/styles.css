@@ -176,7 +176,8 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .event-feed-count { min-width: 20px; padding: 2px 5px; border: 2px solid #151515; background: #f2bd27; font-size: .65rem; font-weight: 900; text-align: center; }
 .event-feed-list { display: grid; max-height: 118px; margin-top: 8px; overflow-y: auto; }
 .event-feed strong { font-size: .72rem; text-transform: uppercase; }
-.event-feed span { overflow: hidden; color: #716b62; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.event-feed span { color: #716b62; font-size: .72rem; line-height: 1.5; overflow-wrap: anywhere; }
+.event-feed-empty { color: #8a8479; font-style: italic; }
 .toast { position: fixed; z-index: 20; left: 50%; bottom: 24px; display: flex; max-width: calc(100% - 32px); padding: 12px 14px; gap: 16px; align-items: center; color: white; border: 3px solid #151515; border-radius: 4px; background: #c92e20; box-shadow: 5px 5px 0 #151515; font-weight: 800; transform: translateX(-50%); }
 .toast button { width: 30px; height: 30px; color: white; border: 2px solid white; border-radius: 50%; background: transparent; font-size: 1.2rem; }
 .ability-banner { position: fixed; z-index: 18; top: 92px; left: 50%; width: min(680px, calc(100% - 32px)); padding: 13px 20px; color: white; border: 4px solid #151515; border-radius: 4px; background: #287fc2; box-shadow: 5px 5px 0 #151515; font-weight: 900; text-align: center; transform: translateX(-50%); animation: banner-in .18s ease-out; }
@@ -248,9 +249,6 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .race-details-toggle { position: absolute; z-index: 5; left: 20px; bottom: max(96px, calc(env(safe-area-inset-bottom) + 72px)); background: #242427e8; }
 .immersive-race .race-roster { display: none; position: absolute; z-index: 4; left: 16px; right: 16px; bottom: 152px; max-height: min(56dvh, 480px); overflow: auto; margin: 0; padding: 16px; border: 1px solid #fff8; border-radius: 14px; background: #f4efe4f5; box-shadow: 0 12px 40px #0004; }
 .immersive-race.race-details-open .race-roster { display: block; }
-.immersive-race .event-feed.racing { position: absolute; z-index: 4; top: max(80px, calc(env(safe-area-inset-top) + 68px)); right: 24px; bottom: auto; left: auto; width: min(300px, 28vw); max-height: 150px; margin: 0; border: 1px solid #ffffff70; border-radius: 10px; background: #fffdf1e8; box-shadow: 0 6px 20px #0002; }
-.immersive-race .event-feed.racing:not([open]) { width: auto; }
-.immersive-race .event-feed.racing .event-feed-list { max-height: 98px; }
 .immersive-race .ability-banner { top: 220px; width: max-content; max-width: calc(100% - 32px); border-width: 2px; border-radius: 10px; }
 .immersive-race .decision-backdrop { align-items: end; background: #15151520; }
 .immersive-race .decision-dialog { max-height: 65dvh; overflow-y: auto; }
@@ -261,10 +259,29 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
   .immersive-race .topbar { left: 10px; right: 10px; }
   .immersive-race .race-heading { left: 16px; right: 16px; }
   .immersive-race .race-console { top: 145px; left: 16px; right: 16px; }
-  .immersive-race .event-feed.racing { display: none; }
   .immersive-race .ability-banner { top: 210px; font-size: .85rem; }
   .immersive-race .reward { font-size: .8rem; }
 }
+
+/* 赛场动态 docks to the right edge and pushes the race table into a split view. */
+.immersive-race { --feed-w: min(380px, 88vw); --feed-shift: 0px; }
+@media (orientation: landscape) { .immersive-race { --feed-w: clamp(240px, 30vw, 420px); } }
+.immersive-race.feed-sidebar-open { --feed-shift: var(--feed-w); }
+@media (orientation: portrait) { .immersive-race.feed-sidebar-open { --feed-shift: 0px; } }
+.immersive-race .race-stage { right: var(--feed-shift); width: auto; transition: right .2s ease; }
+.immersive-race .topbar { right: calc(16px + var(--feed-shift)); transition: right .2s ease; }
+.immersive-race.feed-sidebar-open .action-moment { left: calc(50% - var(--feed-shift) / 2); }
+.feed-toggle { display: flex; min-height: 34px; padding: 4px 10px; gap: 6px; align-items: center; color: #fff; border: 1px solid #ffffff40; border-radius: 8px; background: #3a3a3f; font-size: .72rem; font-weight: 800; }
+.feed-toggle[aria-expanded="true"] { color: #151515; background: #f2bd27; }
+.race-feed { position: absolute; z-index: 6; top: 0; right: 0; bottom: 0; display: flex; flex-direction: column; width: var(--feed-w); max-width: 100%; border-left: 1px solid #15151533; background: #fffdf1f7; transform: translateX(100%); visibility: hidden; transition: transform .2s ease, visibility .2s; }
+.race-feed.open { transform: none; visibility: visible; }
+.race-feed header { display: flex; padding: 14px; gap: 8px; align-items: center; border-bottom: 3px solid #151515; background: #f2bd27; }
+.race-feed header strong { font-size: .78rem; text-transform: uppercase; }
+.race-feed-close { display: grid; width: 30px; height: 30px; margin-left: auto; place-items: center; border: 2px solid #151515; border-radius: 50%; background: #fffdf1; font-size: 1rem; line-height: 1; }
+.race-feed .event-feed-list { flex: 1; max-height: none; margin: 0; padding: 12px 14px calc(20px + env(safe-area-inset-bottom)); gap: 10px; align-content: start; overflow-y: auto; }
+.race-feed .event-feed-list > span { padding-bottom: 8px; border-bottom: 1px dashed #1515151f; color: #2b2a27; font-size: .78rem; }
+.race-feed .event-feed-list > span:last-child { padding-bottom: 0; border-bottom: 0; }
+.race-feed .event-feed-list .event-feed-empty { color: #8a8479; }
 
 .rolloff-rule { margin: 0; color: #625b50; text-align: center; font-size: .85rem; }
 .podium-celebration { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }

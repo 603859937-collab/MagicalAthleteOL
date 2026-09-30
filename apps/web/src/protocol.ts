@@ -173,6 +173,8 @@ export type GameEvent = {
   triggerAthleteId?: string;
   triggerAthleteName?: string;
   abilityName?: string;
+  athleteName?: string;
+  optionLabel?: string;
   movementDistance?: number;
   decisionId?: string;
   optionId?: string;
