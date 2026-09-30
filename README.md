@@ -45,7 +45,7 @@ Magical Athlete Online 是 [CMYK 同名桌游](https://www.cmyk.games/products/m
 ### 沉浸式比赛棋盘
 
 <p align="center">
-  <img src="docs/assets/board.jpg" alt="Wild Wilds 3D 比赛棋盘预览" width="100%">
+  <img src="docs/assets/en-board.png" alt="Wild Wilds 3D 比赛棋盘预览" width="100%">
 </p>
 
 <p align="center"><sub>Wild Wilds 本地棋盘预览：印刷棋盘美术、角色棋子与物理骰子在同一个 3D 场景中渲染。</sub></p>
@@ -53,7 +53,7 @@ Magical Athlete Online 是 [CMYK 同名桌游](https://www.cmyk.games/products/m
 ### 跟随镜头与角色特写
 
 <p align="center">
-  <img src="docs/assets/board-focus.jpg" alt="Wild Wilds 棋盘预览中的技能特写与同格角色棋子" width="100%">
+  <img src="docs/assets/en-board-focus.png" alt="Wild Wilds 棋盘预览中的技能特写与同格角色棋子" width="100%">
 </p>
 
 <p align="center"><sub>本地预览中的技能特写。正式比赛会按事件切换焦点，展示移动、技能与冲线过程；右下角可切换跟随或全局镜头。</sub></p>
