@@ -42,6 +42,7 @@ jobs:
         working-directory: apps/web
         env:
           VITE_API_ORIGIN: ${{ vars.CLOUDFLARE_API_ORIGIN }}
+          VITE_BASE_PATH: /MagicalAthleteOL/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
