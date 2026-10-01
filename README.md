@@ -3,7 +3,7 @@
 <h3 align="center">The magical, chaotic track meet — playable in any browser</h3>
 
 <p align="center">
-  <a href="https://xeonliu.github.io/MagicalAthleteOL/"><b>Play online</b></a> |
+  <a href="https://magical-athlete.pages.dev/"><b>Play online</b></a> |
   <a href="docs/rules.md"><b>Rules</b></a> |
   <a href="docs/protocol.md"><b>Protocol</b></a> |
   <a href="#architecture"><b>Architecture</b></a> |
@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://xeonliu.github.io/MagicalAthleteOL/">
+  <a href="https://magical-athlete.pages.dev/">
     <img src="docs/assets/en-home.png" alt="Magical Athlete Online entry screen" width="100%">
   </a>
 </p>
@@ -80,7 +80,7 @@ Dice rolls, movement, athlete abilities, scoring, and phase progression all run 
 
 ### Play with friends
 
-1. Open [Play online](https://xeonliu.github.io/MagicalAthleteOL/), enter a player name, and create a room.
+1. Open [Play online](https://magical-athlete.pages.dev/), enter a player name, and create a room.
 2. Send the room code to your friends and wait for 2–6 players; the host starts the game. Missing a player? The host can add bots from the lobby and they will play every roll and skill choice automatically.
 3. Roll two dice to decide the draft order, then build your team from the public pool in snake order. If the host enables "Auto-deal" before the game starts, the draft is skipped and everyone gets 4 random cards (8 in the double-racer variant).
 4. Each race, secretly pick your racers and lock the lineup, then roll to decide who goes first.

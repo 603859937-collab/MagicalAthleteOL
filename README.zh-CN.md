@@ -3,7 +3,7 @@
 <h3 align="center">把充满魔力的胡闹运动会，带到每个人的浏览器里</h3>
 
 <p align="center">
-  <a href="https://xeonliu.github.io/MagicalAthleteOL/"><b>在线游玩</b></a> |
+  <a href="https://magical-athlete.pages.dev/"><b>在线游玩</b></a> |
   <a href="docs/rules.md"><b>玩法规则</b></a> |
   <a href="docs/protocol.md"><b>通信协议</b></a> |
   <a href="#架构"><b>项目架构</b></a> |
@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://xeonliu.github.io/MagicalAthleteOL/">
+  <a href="https://magical-athlete.pages.dev/">
     <img src="docs/assets/zh-home.png" alt="Magical Athlete Online 游戏入口" width="100%">
   </a>
 </p>
@@ -80,7 +80,7 @@ Magical Athlete Online 是 [CMYK 同名桌游](https://www.cmyk.games/products/m
 
 ### 和朋友开一局
 
-1. 打开[在线游玩](https://xeonliu.github.io/MagicalAthleteOL/)，填写玩家名称并创建房间。
+1. 打开[在线游玩](https://magical-athlete.pages.dev/)，填写玩家名称并创建房间。
 2. 把房间号发给朋友，等待 2–6 名玩家加入后，由房主开始游戏；人数不够时，房主可在等待房间加入机器人，它们会自动完成所有掷骰与技能选择。
 3. 掷两颗骰子决定招募顺序，再按蛇形顺序从公开角色池组建队伍；房主在开局前开启「自动发牌」则可以跳过招募，每人随机获得 4 张牌（双赛车手变体为 8 张）。
 4. 每场秘密选择参赛角色并锁定阵容，然后掷骰决定先手。
