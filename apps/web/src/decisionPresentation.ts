@@ -16,8 +16,19 @@ export function decisionTitle(decision: PendingDecision, t: TFunction = i18n.t):
 
 export type DecisionOutcome = { optionId: string | null; automatic: boolean; playerId: string };
 
-// Every client keeps showing the closed dialog once its choice lands, so the table
-// can see which button the deciding player picked.
+export type DecisionDialogState = { decision: PendingDecision; outcome: DecisionOutcome | null };
+
+// Only update an already visible choice. The submitting player has closed it.
+export function resolvedDecisionDialog(
+  current: DecisionDialogState | null,
+  events: GameEvent[],
+  viewerId: string,
+): DecisionDialogState | null {
+  if (!current || current.decision.playerId === viewerId) return null;
+  const outcome = decisionResolution(current.decision, events);
+  return outcome ? { decision: current.decision, outcome } : null;
+}
+
 export function decisionResolution(
   decision: PendingDecision | null | undefined,
   events: GameEvent[],

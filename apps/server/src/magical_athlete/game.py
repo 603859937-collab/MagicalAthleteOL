@@ -918,6 +918,11 @@ class MagsimGameEngine:
             "players": players,
             "hand": [card.public_data() for card in state.teams.get(viewer_id or "", ())],
             "activePlayerId": state.active_player_id,
+            "activeAthleteId": (
+                state.racer_athlete_by_index[state.magsim_engine.state.current_racer_idx].id
+                if state.phase == GamePhase.RACING and state.magsim_engine is not None
+                else None
+            ),
             "winnerId": winner_ids[0] if len(winner_ids) == 1 else None,
             "winnerIds": winner_ids,
             "raceNumber": state.race_number + 1,

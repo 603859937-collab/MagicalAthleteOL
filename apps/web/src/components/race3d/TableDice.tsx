@@ -10,7 +10,7 @@ import { actionId } from "../../gameClient";
 import { playDiceImpactSound } from "../../gameAudio";
 
 export type DiceThrowState = "preparing" | "ready" | "dragging" | "rolling" | "settling" | "settled";
-export type DiceLauncher = () => boolean;
+export type DiceLauncher = (throwId: string) => boolean;
 
 export interface TableDiceProps {
   turnKey?: string;
@@ -166,20 +166,13 @@ export function TableDice(props: TableDiceProps) {
     if (value !== undefined) reset(value);
   }, [props.resetKey, reset]);
   useEffect(() => {
-    props.registerLauncher(launchFromKey);
+    props.registerLauncher((throwId) => {
+      if (!launchFromKey()) return false;
+      launchedRollKey.current = `start-${throwId}`;
+      return true;
+    });
     return () => props.registerLauncher(null);
   }, [launchFromKey, props.registerLauncher]);
-  useEffect(() => {
-    if (!props.autoThrow || launchedRollKey.current === props.rollKey) return;
-    const frame = window.requestAnimationFrame(() => {
-      if (launchFromKey()) launchedRollKey.current = props.rollKey;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [launchFromKey, props.autoThrow, props.rollKey]);
-  useEffect(() => {
-    if (props.targetValue === null || launchedRollKey.current === props.rollKey) return;
-    if (launchFromKey()) launchedRollKey.current = props.rollKey;
-  }, [launchFromKey, props.rollKey, props.targetValue]);
 
   useEffect(() => {
     if (!props.enabled && state.current === "dragging") reset(lifecycle.current.restingValue, true);
@@ -187,13 +180,14 @@ export function TableDice(props: TableDiceProps) {
 
   useEffect(() => {
     if (!props.turnKey || props.turnKey === preparedTurn.current) return;
+    if (launchedRollKey.current === props.rollKey && props.targetValue !== null) return;
     preparedTurn.current = props.turnKey;
     preparation.current.elapsed = 0;
     preparation.current.stable = 0;
     preparation.current.progress = 0;
     preparation.current.captured = false;
     setState("preparing");
-  }, [props.turnKey, setState]);
+  }, [props.turnKey, props.rollKey, props.targetValue, setState]);
 
   useFrame(({ camera }, delta) => {
     const rigidBody = body.current;
@@ -226,6 +220,15 @@ export function TableDice(props: TableDiceProps) {
     rigidBody.setTranslation(new Vector3().lerpVectors(prep.from, prep.to, eased), true);
     if (prep.progress === 1) setState("ready");
   }, -1);
+
+  useFrame(() => {
+    // Remote throws must wait for both the camera and the die's hand placement.
+    // Retry every frame so an early result cannot launch midway through preparation.
+    if ((!props.autoThrow && props.targetValue === null) || launchedRollKey.current === props.rollKey) return;
+    if (state.current !== "ready" && state.current !== "settled") return;
+    if (props.turnKey && preparedTurn.current !== props.turnKey) return;
+    if (launchFromKey()) launchedRollKey.current = props.rollKey;
+  });
 
   useBeforePhysicsStep(() => {
     fallingSpeed.current = body.current?.linvel().y ?? 0;
