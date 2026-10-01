@@ -181,7 +181,9 @@
     "waitingFor": "等待 {{name}} 选择",
     "replayBadge": "已选择",
     "replayTimeout": "{{name}} 超时未选，系统自动选择「{{label}}」",
-    "replayChosen": "{{name}} 选择了「{{label}}」"
+    "replayChosen": "{{name}} 选择了「{{label}}」",
+    "autoChoosing": "自动选择中",
+    "replayManaged": "{{name}} 自动选择了「{{label}}」"
   },
   "results": {
     "finalKicker": "FINAL SCORE",

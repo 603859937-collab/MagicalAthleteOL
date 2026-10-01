@@ -241,7 +241,57 @@ it('does not offer managed play to spectators and keeps cancel available during 
   state.players[0].autoPlay = true;
   await join(state);
   expect(view.root.findByProps({className: 'auto-play-toggle'}).props.disabled).toBe(false);
-  expect(dialogs()[0].findAllByType('button').every(button => button.props.disabled)).toBe(true);
+  expect(dialogs()[0].findByProps({className: 'decision-options'}).findAllByType('button').every(button => button.props.disabled)).toBe(true);
+  expect(dialogs()[0].findByProps({className: 'command secondary decision-cancel-auto'}).props.disabled).toBe(false);
+});
+
+it.each([
+  {abilityName: "GeniusPrediction", choiceType: "DIE" as const, options: [1, 2, 3, 4, 5, 6].map(value => ({id: String(value - 1), label: String(value)}))},
+  {abilityName: "LongLegs", choiceType: "BOOLEAN" as const, options: [{id: "0", label: "skip"}, {id: "1", label: "use"}]},
+  {abilityName: "EggCopy", choiceType: "RACER" as const, options: [{id: "0", label: "Coach", athlete: {id: "coach", name: "Coach"}}, {id: "1", label: "Genius", athlete: {id: "genius", name: "Genius"}}]},
+  {abilityName: "FlipFlopSwap", choiceType: "RACER" as const, options: [{id: "0", label: "Coach"}, {id: "skip", label: "skip"}]},
+])("shows candidates, highlights the managed $abilityName result, then moves", async example => {
+  const choice: PendingDecision = {...decision, ...example, id: "managed-choice", playerId: "human"};
+  const managed = game({pendingDecision: choice, resolutionStatus: "WAITING_FOR_DECISION"});
+  managed.players[0].autoPlay = true;
+  await join(managed);
+  const candidates = () => dialogs()[0].findByProps({className: "decision-options"}).findAllByType("button");
+  expect(candidates()).toHaveLength(example.options.length);
+  expect(candidates().every(button => button.props.disabled)).toBe(true);
+  expect(dialogs()[0].findAllByType("strong").some(node => node.children.includes("自动选择中"))).toBe(true);
+  const next = game();
+  next.players[0].autoPlay = true;
+  next.players[0].activeRacers[0].position = 5;
+  await receive({type: "STATE_UPDATED", roomId: "TEST", revision: 2, game: next, rollResults: [], events: [
+    {type: "DECISION_RESOLVED", decisionId: choice.id, playerId: "human", optionId: example.options[1].id, bot: true},
+    {type: "RACER_MOVED", playerId: "human", athleteId: "banana", from: 0, to: 5},
+  ]});
+  await advance(649);
+  expect(candidates().every(button => !button.props.className.includes("decision-chosen"))).toBe(true);
+  await advance(1);
+  expect(candidates()[1].props.className).toContain("decision-chosen");
+  expect(dialogs()[0].findAllByType("small").some(node => node.children.join("").includes("自动选择了"))).toBe(true);
+  expect(scene().players[0].activeRacers[0].position).toBe(0);
+  await advance(1200);
+  expect(dialogs()).toHaveLength(0);
+  await advance(5000);
+  expect(scene().players[0].activeRacers[0].position).toBe(5);
+  expect(connection.send).not.toHaveBeenCalledWith(expect.objectContaining({type: "RESOLVE_DECISION"}));
+});
+
+it("can cancel managed play directly from the skill dialog and restore its manual choices", async () => {
+  const choice: PendingDecision = {...decision, id: "managed-genius", playerId: "human", abilityName: "GeniusPrediction"};
+  const managed = game({pendingDecision: choice, resolutionStatus: "WAITING_FOR_DECISION"});
+  managed.players[0].autoPlay = true;
+  await join(managed);
+  await act(async () => dialogs()[0].findByProps({className: "command secondary decision-cancel-auto"}).props.onClick());
+  expect(connection.send).toHaveBeenLastCalledWith(expect.objectContaining({type: "SET_AUTO_PLAY", enabled: false}));
+  const manual = structuredClone(managed);
+  manual.players[0].autoPlay = false;
+  await receive({type: "STATE_UPDATED", roomId: "TEST", revision: 2, game: manual, rollResults: [],
+    events: [{type: "AUTO_PLAY_CHANGED", playerId: "human"}]});
+  expect(dialogs()[0].findByProps({className: "decision-options"}).findAllByType("button").every(button => !button.props.disabled)).toBe(true);
+  expect(dialogs()[0].findAllByProps({className: "command secondary decision-cancel-auto"})).toHaveLength(0);
 });
 
 it("shows copy candidate skills and the Twin's copied skill during the race", async () => {
