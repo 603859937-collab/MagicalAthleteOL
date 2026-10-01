@@ -1,4 +1,5 @@
 let context: AudioContext | null = null;
+let sfxOutput: GainNode | null = null;
 
 export function getGameAudioContext() {
   if (typeof window === "undefined") return null;
@@ -6,6 +7,15 @@ export function getGameAudioContext() {
   try { context ??= new AudioContext(); } catch { return null; }
   if (context.state === "suspended") void context.resume().catch(() => {});
   return context;
+}
+
+function getSfxOutput(audio: AudioContext) {
+  if (!sfxOutput) {
+    sfxOutput = audio.createGain();
+    sfxOutput.gain.value = 0.9;
+    sfxOutput.connect(audio.destination);
+  }
+  return sfxOutput;
 }
 
 function tone(frequency: number, duration: number, start = 0, type: OscillatorType = "sine", volume = 0.045) {
@@ -19,34 +29,34 @@ function tone(frequency: number, duration: number, start = 0, type: OscillatorTy
   gain.gain.setValueAtTime(0.0001, now);
   gain.gain.exponentialRampToValueAtTime(volume, now + 0.012);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-  oscillator.connect(gain).connect(audio.destination);
+  oscillator.connect(gain).connect(getSfxOutput(audio));
   oscillator.start(now);
   oscillator.stop(now + duration + 0.02);
 }
 
 export function playDiceImpactSound() {
-  tone(170, 0.065, 0, "triangle", 0.016);
+  tone(170, 0.065, 0, "triangle", 0.035);
 }
 
 export function playCharacterScoreSound() {
-  tone(440, 0.12, 0, "triangle", 0.035);
-  tone(554, 0.14, 0.09, "triangle", 0.04);
-  tone(659, 0.2, 0.19, "triangle", 0.045);
+  tone(440, 0.12, 0, "triangle", 0.06);
+  tone(554, 0.14, 0.09, "triangle", 0.07);
+  tone(659, 0.2, 0.19, "triangle", 0.075);
 }
 
 export function playMoveSound() {
-  tone(260, 0.06, 0, "triangle", 0.018);
-  tone(330, 0.08, 0.06, "triangle", 0.022);
+  tone(260, 0.06, 0, "triangle", 0.045);
+  tone(330, 0.08, 0.06, "triangle", 0.055);
 }
 
 export function playPodiumSound(place: 1 | 2) {
   if (place === 1) {
-    tone(523, 0.18, 0, "sine", 0.045);
-    tone(659, 0.18, 0.13, "sine", 0.05);
-    tone(784, 0.42, 0.26, "sine", 0.06);
+    tone(523, 0.18, 0, "sine", 0.055);
+    tone(659, 0.18, 0.13, "sine", 0.06);
+    tone(784, 0.42, 0.26, "sine", 0.07);
   } else {
-    tone(392, 0.16, 0, "sine", 0.04);
-    tone(494, 0.28, 0.12, "sine", 0.045);
+    tone(392, 0.16, 0, "sine", 0.05);
+    tone(494, 0.28, 0.12, "sine", 0.06);
   }
 }
 
@@ -63,9 +73,9 @@ export function playFireworkSound(place: 1 | 2) {
     whistle.frequency.setValueAtTime(450, start);
     whistle.frequency.exponentialRampToValueAtTime(1500, start + .38);
     envelope.gain.setValueAtTime(.0001, start);
-    envelope.gain.exponentialRampToValueAtTime(.018, start + .12);
+    envelope.gain.exponentialRampToValueAtTime(.012, start + .12);
     envelope.gain.exponentialRampToValueAtTime(.0001, start + .4);
-    whistle.connect(envelope).connect(audio.destination);
+    whistle.connect(envelope).connect(getSfxOutput(audio));
     whistle.start(start); whistle.stop(start + .41);
     const buffer = audio.createBuffer(1, Math.ceil(audio.sampleRate * .8), audio.sampleRate);
     const data = buffer.getChannelData(0);
@@ -77,8 +87,8 @@ export function playFireworkSound(place: 1 | 2) {
     filter.frequency.setValueAtTime(2200, start + .4);
     filter.frequency.exponentialRampToValueAtTime(350, start + 1.1);
     const gain = audio.createGain();
-    gain.gain.value = .11;
-    noise.connect(filter).connect(gain).connect(audio.destination);
+    gain.gain.value = .055;
+    noise.connect(filter).connect(gain).connect(getSfxOutput(audio));
     noise.start(start + .4);
   }
 }

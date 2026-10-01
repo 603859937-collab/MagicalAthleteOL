@@ -93,7 +93,7 @@ export class BackgroundMusic {
       source.loop = true;
       source.connect(gain).connect(this.audio.destination);
       gain.gain.setValueAtTime(0, this.audio.currentTime);
-      gain.gain.linearRampToValueAtTime(.22, this.audio.currentTime + 1.2);
+      gain.gain.linearRampToValueAtTime(.03, this.audio.currentTime + 1.2);
       source.start();
       this.source = source; this.gain = gain;
     } catch { /* Audio can be unavailable or blocked; retry on the next gesture. */ }
