@@ -40,6 +40,7 @@ ROLL_ANIMATION_LEAD_SECONDS = 0.35
 # Bots pause briefly before acting so their moves read as deliberate on every client.
 BOT_ACTION_DELAY_SECONDS = 1.1
 ACTION_TIME_LIMIT_SECONDS = 60
+SPECTATOR_LIMIT = 20
 
 
 class RoomError(Exception):
@@ -69,6 +70,7 @@ class Room:
     id: str
     engine: GameEngine
     players: dict[str, RoomPlayer] = field(default_factory=dict)
+    spectators: dict[str, RoomPlayer] = field(default_factory=dict)
     game_state: GameState | None = None
     revision: int = 0
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -78,6 +80,9 @@ class Room:
     roll_deadline: datetime | None = None
     bot_task: asyncio.Task[None] | None = None
     bot_deadline: datetime | None = None
+
+    def member(self, member_id: str) -> RoomPlayer | None:
+        return self.players.get(member_id) or self.spectators.get(member_id)
 
     def public_state(self, viewer_id: str | None = None) -> dict[str, Any]:
         if self.game_state is None:
@@ -99,7 +104,10 @@ class Room:
             player["connected"] = connected.get(player["id"], False)
             member = self.players.get(player["id"])
             player["isBot"] = member.is_bot if member is not None else False
-        return {"roomId": self.id, "revision": self.revision, "game": game}
+        return {"roomId": self.id, "revision": self.revision, "game": game,
+                "viewerRole": "spectator" if viewer_id in self.spectators else "player",
+                "spectators": [{"id": member.player.id, "name": member.player.name, "connected": member.connected}
+                               for member in self.spectators.values()]}
 
 
 class InMemoryRoomRepository:
@@ -141,8 +149,9 @@ class RoomManager:
             raise RoomError("ROOM_NOT_FOUND", "房间不存在")
 
         async with room.lock:
+            members = room.spectators if intent.role == "spectator" else room.players
             if intent.player_id:
-                member = room.players.get(intent.player_id)
+                member = members.get(intent.player_id)
                 if member is None or not secrets.compare_digest(
                     member.reconnect_token, intent.reconnect_token or ""
                 ):
@@ -153,20 +162,23 @@ class RoomManager:
                 member.socket = websocket
                 player_id = member.player.id
             else:
-                if room.game_state and room.game_state.phase != "LOBBY":
+                if intent.role == "player" and room.game_state and room.game_state.phase != "LOBBY":
                     raise RoomError("GAME_ALREADY_STARTED", "比赛已开始，不能加入新玩家")
-                if len(room.players) >= 6:
+                if intent.role == "player" and len(room.players) >= 6:
                     raise RoomError("ROOM_FULL", "房间已满")
+                if intent.role == "spectator" and len(room.spectators) >= SPECTATOR_LIMIT:
+                    raise RoomError("SPECTATORS_FULL", "旁观席已满")
                 player_id = uuid4().hex
                 member = RoomPlayer(
                     player=Player(id=player_id, name=intent.player_name.strip()),
                     reconnect_token=secrets.token_urlsafe(24),
                     socket=websocket,
                 )
-                room.players[player_id] = member
-                room.game_state = room.engine.create_game(
-                    tuple(item.player for item in room.players.values())
-                )
+                members[player_id] = member
+                if intent.role == "player":
+                    room.game_state = room.engine.create_game(
+                        tuple(item.player for item in room.players.values())
+                    )
                 room.revision += 1
 
             await websocket.send_json(
@@ -181,7 +193,7 @@ class RoomManager:
                 room,
                 {
                     "type": "STATE_UPDATED",
-                    "events": [{"type": "PLAYER_JOINED", "playerId": player_id}],
+                    "events": [{"type": "SPECTATOR_JOINED" if intent.role == "spectator" else "PLAYER_JOINED", "playerId": player_id}],
                     "rollResults": [],
                 },
                 exclude=websocket,
@@ -207,8 +219,18 @@ class RoomManager:
         | AdvanceRaceIntent,
     ) -> None:
         async with room.lock:
-            member = room.players.get(player_id)
+            member = room.member(player_id)
             if member is None:
+                return
+            if player_id in room.spectators:
+                if isinstance(intent, LeaveRoomIntent):
+                    room.spectators.pop(player_id)
+                    room.revision += 1
+                    await member.socket.send_json({"type": "ROOM_LEFT"})
+                    await self._broadcast_locked(room, {"type": "STATE_UPDATED", "events": [{"type": "SPECTATOR_LEFT", "playerId": player_id}], "rollResults": []})
+                    await member.socket.close()
+                else:
+                    await member.socket.send_json(ErrorMessage(code="SPECTATOR_READ_ONLY", message="旁观者不能进行游戏操作", actionId=intent.action_id).model_dump(by_alias=True))
                 return
             if isinstance(intent, LeaveRoomIntent):
                 if not self._lobby_open(room):
@@ -737,7 +759,7 @@ class RoomManager:
 
     async def disconnect(self, room: Room, player_id: str, websocket: RoomSocket) -> None:
         async with room.lock:
-            member = room.players.get(player_id)
+            member = room.member(player_id)
             if member is None or member.socket is not websocket:
                 return
             member.connected = False
@@ -747,7 +769,7 @@ class RoomManager:
                 room,
                 {
                     "type": "STATE_UPDATED",
-                    "events": [{"type": "PLAYER_DISCONNECTED", "playerId": player_id}],
+                    "events": [{"type": "SPECTATOR_DISCONNECTED" if player_id in room.spectators else "PLAYER_DISCONNECTED", "playerId": player_id}],
                     "rollResults": [],
                 },
             )
@@ -759,7 +781,7 @@ class RoomManager:
         exclude: RoomSocket | None = None,
     ) -> None:
         failed: list[RoomPlayer] = []
-        for recipient_id, member in room.players.items():
+        for recipient_id, member in (room.players | room.spectators).items():
             if not member.connected or member.socket is None or member.socket is exclude:
                 continue
             try:

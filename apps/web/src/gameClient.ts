@@ -7,27 +7,28 @@ export interface SessionIdentity {
   playerId: string;
   reconnectToken: string;
   playerName: string;
+  role?: "player" | "spectator";
 }
 
 const storageKey = "magical-athlete-session";
 
-export function loadSession(roomId: string): SessionIdentity | null {
-  const value = localStorage.getItem(storageKey);
+export function loadSession(roomId: string, role: "player" | "spectator" = "player"): SessionIdentity | null {
+  const value = localStorage.getItem(role === "spectator" ? `${storageKey}-spectator` : storageKey);
   if (!value) return null;
   try {
     const session = JSON.parse(value) as SessionIdentity;
-    return session.roomId === roomId ? session : null;
+    return session.roomId === roomId && (session.role ?? "player") === role ? session : null;
   } catch {
     return null;
   }
 }
 
 export function saveSession(session: SessionIdentity): void {
-  localStorage.setItem(storageKey, JSON.stringify(session));
+  localStorage.setItem(session.role === "spectator" ? `${storageKey}-spectator` : storageKey, JSON.stringify(session));
 }
 
-export function clearSession(): void {
-  localStorage.removeItem(storageKey);
+export function clearSession(role: "player" | "spectator" = "player"): void {
+  localStorage.removeItem(role === "spectator" ? `${storageKey}-spectator` : storageKey);
 }
 
 export function roomFromPath(): string {

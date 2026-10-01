@@ -1,6 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { actionId } from "./gameClient";
 
+it('keeps player and spectator reconnect identities separate', async () => {
+  const data = new Map<string, string>();
+  vi.stubGlobal('localStorage', {getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value), removeItem: (key: string) => data.delete(key)});
+  try {
+    const {saveSession, loadSession, clearSession} = await import('./gameClient');
+    saveSession({roomId: 'TEST', playerId: 'player', playerName: 'A', reconnectToken: 'player-token'});
+    saveSession({roomId: 'TEST', playerId: 'watcher', playerName: 'A', reconnectToken: 'watcher-token', role: 'spectator'});
+    expect(loadSession('TEST')?.playerId).toBe('player');
+    expect(loadSession('TEST', 'spectator')?.playerId).toBe('watcher');
+    expect(loadSession('OTHER', 'spectator')).toBeNull();
+    clearSession('spectator');
+    expect(loadSession('TEST', 'spectator')).toBeNull();
+    expect(loadSession('TEST')?.playerId).toBe('player');
+  } finally { vi.unstubAllGlobals(); }
+});
+
 it("generates unique UUIDs on HTTP without crypto.randomUUID", () => {
   vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
   try {
