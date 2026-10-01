@@ -48,6 +48,7 @@ export function actionId(): string {
 
 export class GameClient {
   private socket: WebSocket | null = null;
+  private joinTimeout: ReturnType<typeof setTimeout> | null = null;
 
   connect(
     intent: Extract<ClientIntent, { type: "JOIN_ROOM" }>,
@@ -56,19 +57,47 @@ export class GameClient {
   ): void {
     this.close();
     onStatus("connecting");
-    const socket = new WebSocket(websocketUrl(intent.roomId));
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(websocketUrl(intent.roomId));
+    } catch {
+      onStatus("disconnected");
+      onMessage({ type: "ERROR", code: "CONNECTION_FAILED", message: i18n.t("errors.network") });
+      return;
+    }
     this.socket = socket;
+    let welcomed = false;
+    const fail = (code: "CONNECTION_FAILED" | "CONNECTION_TIMEOUT") => {
+      if (this.socket !== socket) return;
+      this.close();
+      onStatus("disconnected");
+      onMessage({ type: "ERROR", code, message: i18n.t(code === "CONNECTION_TIMEOUT" ? "errors.connectionTimeout" : "errors.network") });
+    };
+    // A successful transport handshake still needs the room's WELCOME reply.
+    this.joinTimeout = setTimeout(() => fail("CONNECTION_TIMEOUT"), 15000);
     socket.addEventListener("open", () => {
       if (this.socket !== socket) return;
-      onStatus("connected");
       this.send(intent);
     });
     socket.addEventListener("message", (event) => {
       if (this.socket !== socket) return;
-      onMessage(JSON.parse(event.data) as ServerMessage);
+      const message = JSON.parse(event.data) as ServerMessage;
+      if (message.type === "WELCOME") {
+        welcomed = true;
+        this.clearJoinTimeout();
+        onStatus("connected");
+      } else if (!welcomed && message.type === "ERROR") {
+        this.close();
+        onStatus("disconnected");
+      }
+      onMessage(message);
     });
+    socket.addEventListener("error", () => fail("CONNECTION_FAILED"));
     socket.addEventListener("close", () => {
-      if (this.socket === socket) onStatus("disconnected");
+      if (this.socket !== socket) return;
+      if (!welcomed) return fail("CONNECTION_FAILED");
+      this.close();
+      onStatus("disconnected");
     });
   }
 
@@ -80,8 +109,14 @@ export class GameClient {
   }
 
   close(): void {
+    this.clearJoinTimeout();
     const socket = this.socket;
     this.socket = null;
     socket?.close();
+  }
+
+  private clearJoinTimeout(): void {
+    if (this.joinTimeout !== null) clearTimeout(this.joinTimeout);
+    this.joinTimeout = null;
   }
 }

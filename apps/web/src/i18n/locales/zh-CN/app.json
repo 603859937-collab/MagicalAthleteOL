@@ -33,6 +33,7 @@
   "errors": {
     "createRoom": "创建房间失败",
     "network": "无法连接服务器，请稍后重试",
+    "connectionTimeout": "加入房间超时，请检查网络后重试",
     "missingFields": "请输入房间号和玩家名称",
     "kicked": "你已被房主移出房间",
     "send": "发送行动失败",
