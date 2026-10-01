@@ -84,7 +84,7 @@ LOBBY
 
 `RACER_MOVED.movementKind` 区分 `FORWARD`、`BACKWARD` 和 `PUSH`；`RACER_WARPED.movementKind` 可为 `WARP`、`SWAP` 或 `PUSH`。这些字段描述规则动作的种类，客户端物理碰撞不能据此反向修改游戏状态。`TRIP_RECOVERED` 表示该赛车手跳过本次主要移动并恢复正常状态，因此同一回合不会伴随 `DICE_ROLLED`。`RACER_TRIPPED` 既可能来自角色能力，也可能来自棋盘上的绊倒格，后者的 `source` 为 `TripTile` 且没有 `sourcePlayerId`。
 
-`DECISION_REQUIRED` 携带待选内容，`DECISION_RESOLVED` / `DECISION_TIMED_OUT` 额外给出 `athleteId`、`athleteName` 与 `optionLabel`（玩家实际看到的选项文字，超时自动选择时为空）。`raceLog` 按出现顺序记录上述比赛事件，并包含 `DECISION_REQUIRED`、`TRIP_RECOVERED`、`RACER_ELIMINATED` 与 `RACE_FINISHED`，客户端可直接把 `raceLog` 当作本场比赛的完整播报。
+`DECISION_REQUIRED` 携带待选内容；`abilityName` 和选项 `label` 都是稳定的协议标识，由客户端翻译成当前语言（例如布尔选项使用 `skip` / `use`）。`DECISION_RESOLVED` / `DECISION_TIMED_OUT` 额外给出 `athleteId`、`athleteName` 与 `optionLabel`，超时自动选择时为空。`raceLog` 按出现顺序记录上述比赛事件，并包含 `DECISION_REQUIRED`、`TRIP_RECOVERED`、`RACER_ELIMINATED` 与 `RACE_FINISHED`，客户端可直接把 `raceLog` 当作本场比赛的完整播报。
 
 全 3D 表现所需的事件归一化、同时事件分组和当前赛车手契约记录在 `docs/3d-race-plan.md`。这些目标字段完成服务端实现和测试前，不视为当前协议已经提供。
 

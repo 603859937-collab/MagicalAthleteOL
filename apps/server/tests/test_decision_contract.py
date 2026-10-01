@@ -255,7 +255,7 @@ def test_third_wheel_picks_one_of_multiple_pairs(option, destination):
         ['ThirdWheel', 'Coach', 'Blimp', 'Legs', 'Inchworm'], [0, 4, 4, 8, 8])
     assert broker.pending.ability_name == 'ThirdWheelJoin'
     assert broker.pending.public_options() == [
-        {'id': '0', 'label': '4'}, {'id': '1', 'label': '8'}, {'id': 'skip', 'label': '不使用'}]
+        {'id': '0', 'label': '4'}, {'id': '1', 'label': '8'}, {'id': 'skip', 'label': 'skip'}]
     broker.choose(broker.pending.id, option)
     engine.continue_turn()
     assert engine.get_racer(0).position == destination
