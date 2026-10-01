@@ -13,7 +13,13 @@
   .immersive-race.feed-sidebar-open { --feed-shift: 0px; }
   .immersive-race .topbar { position: relative; inset: auto; margin: 8px; }
   .immersive-race .spectator-bar { position: relative; inset: auto; margin: 8px; }
-  .immersive-race .race-stage { position: relative; inset: auto; display: flex; flex-direction: column; gap: 12px; }
+  .immersive-race .race-stage { position: relative; inset: auto; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "heading" "board" "standings" "scores" "details" "racers"; gap: 12px; }
+  .immersive-race .race-heading { grid-area: heading; }
+  .immersive-race .race-table-3d, .immersive-race .race-table-loading, .immersive-race .track-wrap { grid-area: board; }
+  .immersive-race .race-leaderboard { grid-area: standings; }
+  .immersive-race .race-console { grid-area: scores; }
+  .immersive-race .race-details-toggle { grid-area: details; justify-self: start; }
+  .immersive-race .race-roster { grid-area: racers; }
   .immersive-race .race-heading, .immersive-race:has(.spectator-bar) .race-heading { position: relative; inset: auto; order: 0; margin: 0 12px; }
   .immersive-race .race-table-3d, .immersive-race .race-table-loading { position: relative; inset: auto; order: 2; width: 100%; height: clamp(360px, 65dvh, 560px); min-height: 0; }
   .immersive-race .race-table-viewport { height: 100%; }
@@ -37,10 +43,9 @@
   .decision-options button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
   .ability-banner { top: 12px; }
 
-  /* Reserve a row above the board: announcements scroll with the page and
-     never float over standings or controls. Keep the idle and active sizes
-     consistent so routine action playback does not move the board around. */
-  .immersive-race .race-moment-slot { display: grid; order: 1; margin: 0 12px; min-height: 164px; }
+  /* Share the board's grid cell, using its existing upper blank area rather
+     than inserting a new row. The whole cell scrolls with the page. */
+  .immersive-race .race-moment-slot { display: grid; grid-area: board; align-self: start; z-index: 4; margin: 12px; min-height: 164px; pointer-events: none; }
   .immersive-race .race-moment-slot .action-moment {
     position: relative; inset: auto; transform: none; z-index: auto;
     width: 100%; min-height: 164px; max-height: none; overflow: visible;
