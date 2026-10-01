@@ -57,6 +57,8 @@ LOBBY
 
 ## 状态广播
 
+复制角色的候选选项包含可选的 `athlete: {id, name}`，客户端按 `id` 展示技能说明。双胞胎完成复制后，其 `activeRacers` 条目包含 `copiedAthlete: {id, name}`；角色自身的 `id` 仍为 `twin`，复制对象的技能文字由客户端本地化。
+
 有效行动产生 `STATE_UPDATED`。`events` 用于移动动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。骰子结果通过 `rollResults` 明确广播给房间内所有客户端，每个结果带全局一致的 `id`，客户端必须以此字段中的 `values` 为权威点数。长腿的慢跑跳过掷骰，对应事件与结果会带 `noDice: true` 且 `values` 为空，客户端不应播放骰子动画。分步投骰的每颗骰子拥有独立结果 ID，并以 `rollSessionId` 分组；`kind` 区分 `MAIN_ROLL`、`ABILITY_ROLL` 和 `ROLL_OFF`，`participants` 标识该颗骰子的玩家及赛车手。`rollSerial` 在单场比赛内单调递增；一次待决策预览及其最终事件引用同一个结果 ID。
 
 比赛掷骰被服务端确认后，会先广播不改变 revision 的 `ROLL_STARTED`，供所有客户端同步启动投掷动画；实际点数仍只在随后的 `STATE_UPDATED.events` 中公布。

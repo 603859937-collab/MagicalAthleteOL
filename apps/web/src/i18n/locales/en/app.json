@@ -73,6 +73,7 @@
     "switchTo": "Switch to {{language}}"
   },
   "racer": {
+    "copiedFrom": "Copied: {{name}}",
     "retired": "Out of play",
     "eliminated": "Eliminated",
     "finished": "Finished",
@@ -149,6 +150,8 @@
     "ready": "{{ready}} / {{total}} players ready"
   },
   "race": {
+    "standingsTitle": "Live race standings",
+    "standingSpace": "Space {{position}}",
     "loading": "Loading the 3D race table",
     "otherPlayers": "Other players",
     "roll": "Roll",

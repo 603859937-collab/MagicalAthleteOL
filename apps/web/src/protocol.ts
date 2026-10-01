@@ -11,6 +11,7 @@ export type GamePhase =
 export interface AthleteCard {
   id: string;
   name: string;
+  copiedAthlete?: { id: string; name: string } | null;
 }
 
 export interface ActiveRacer extends AthleteCard {
@@ -46,7 +47,7 @@ export interface RaceResult {
   eliminated: boolean;
 }
 
-export interface DecisionOption { id: string; label: string; ownerName?: string; position?: number }
+export interface DecisionOption { id: string; label: string; ownerName?: string; position?: number; athlete?: AthleteCard }
 export interface RollPreview {
   rollSerial: number;
   value: number;

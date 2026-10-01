@@ -87,10 +87,15 @@ def test_each_setup_candidate_copies_the_displayed_racer(athlete, option):
     engine, state = selection_game(athlete)
     choice = state.pending_decision
     expected = choice['options'][option]['label']
+    expected_card = choice['options'][option]['athlete']
     state = engine.resolve_decision(state, 'a', choice['id'], str(option)).state
     ability = next(a for a in state.magsim_engine.get_racer(0).active_abilities
                    if a.name == ('EggCopy' if athlete == 'egg' else 'TwinCopy'))
     assert ability.copied_racer == expected
+    if athlete == 'twin':
+        public = engine.public_state(state, 'a')['players'][0]['activeRacers'][0]
+        assert public['id'] == 'twin'
+        assert public['copiedAthlete'] == expected_card
 
 
 @pytest.mark.parametrize('option', ['0', '1', '2', 'skip'])

@@ -73,6 +73,7 @@
     "switchTo": "切换到{{language}}"
   },
   "racer": {
+    "copiedFrom": "已复制：{{name}}",
     "retired": "已退场",
     "eliminated": "已淘汰",
     "finished": "已完赛",
@@ -149,6 +150,8 @@
     "ready": "{{ready}} / {{total}} 位玩家已准备"
   },
   "race": {
+    "standingsTitle": "实时位置排名",
+    "standingSpace": "第 {{position}} 格",
     "loading": "正在加载 3D 比赛桌",
     "otherPlayers": "其他玩家",
     "roll": "掷骰",

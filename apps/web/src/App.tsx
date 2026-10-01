@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { SelectionCard } from "./components/SelectionCard";
+import { AthleteSkill } from "./components/AthleteSkill";
+import { RaceLeaderboard } from "./components/RaceLeaderboard";
 import { athleteText } from "./i18n/athletes";
 import { useBackgroundMusic } from "./useBackgroundMusic";
 import { AthleteRules } from "./components/AthleteRules";
@@ -62,6 +64,7 @@ function RacerCard({ athlete, selected, disabled, used, compact, status, onClick
 }) {
   const { t } = useTranslation();
   const card = athleteText(t, athlete);
+  const copiedCard = athlete.copiedAthlete ? athleteText(t, athlete.copiedAthlete) : null;
   const className = `racer-card ${selected ? "selected" : ""} ${used ? "used" : ""} ${compact ? "compact" : ""}`;
   const style = { "--card-accent": cardAccents[athlete.id] ?? "#f2bd27" } as CSSProperties;
   const face = <>
@@ -69,8 +72,8 @@ function RacerCard({ athlete, selected, disabled, used, compact, status, onClick
       <img src={assetUrl(`assets/racers/${athlete.id}.webp`)} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />
       <strong className="racer-name">{card.name}</strong>
     </span>
-    <span className="ability-panel">{card.summary}</span>
-    <strong className="ability-title">{card.abilityTitle}</strong>
+    <span className="ability-panel">{copiedCard ? <><strong className="copied-from">{t("racer.copiedFrom", { name: copiedCard.name })}</strong><span>{copiedCard.summary}</span></> : card.summary}</span>
+    <strong className="ability-title">{copiedCard?.abilityTitle ?? card.abilityTitle}</strong>
     {used && <span className="used-stamp">{t("racer.retired")}</span>}
     {status && <span className="racer-status">{status}</span>}
   </>;
@@ -803,6 +806,7 @@ export default function App() {
             )} onClick={() => throwRaceDice(actionId())}>{t("race.roll")}</button>}
           </div>
           {use3DRaceTable && <button className="race-details-toggle" aria-expanded={raceDetailsOpen} aria-controls="race-roster" onClick={() => setRaceDetailsOpen(!raceDetailsOpen)}>{raceDetailsOpen ? t("race.hideCards") : t("race.showCards")}</button>}
+          <RaceLeaderboard players={game!.players} viewerId={playerId} activePlayerId={game!.activePlayerId} activeAthleteId={game!.activeAthleteId} />
           <section id="race-roster" className="race-roster" aria-label={t("race.cardsTitle")}>
             <div className="race-roster-heading"><p className="kicker">RACERS IN PLAY</p><h3>{t("race.cardsHeading")}</h3></div>
             <div className="race-roster-scroll">
@@ -823,7 +827,9 @@ export default function App() {
           <p>{decisionPrompt(liveDecision, t)}</p>
           <div className="decision-options">{liveDecision.options.map((option) => <button className={`command secondary ${option.id === decisionOutcome?.optionId ? "decision-chosen" : ""}`} key={option.id}
             disabled={!!decisionOutcome || liveDecision.playerId !== playerId || status !== "connected" || playbackBusy || resolvingDecisionId === liveDecision.id || controlGame?.pendingDecision?.id !== liveDecision.id}
-            onClick={() => resolveDecision(liveDecision.id, option.id)}>{decisionOptionLabel(option.label, t)}{option.ownerName != null && <small className="decision-option-detail">{t("race:decision.optionDetail", { owner: option.ownerName, position: option.position })}</small>}</button>)}</div>
+            onClick={() => resolveDecision(liveDecision.id, option.id)}>{decisionOptionLabel(option.label, t)}
+            {option.athlete && <AthleteSkill athlete={option.athlete} />}
+            {option.ownerName != null && <small className="decision-option-detail">{t("race:decision.optionDetail", { owner: option.ownerName, position: option.position })}</small>}</button>)}</div>
           {decisionOutcome ? <small aria-live="polite">{t(decisionOutcome.automatic ? "decision.replayTimeout" : "decision.replayChosen", { name: decisionPlayerName, label: chosenLabel })}</small>
             : liveDecision.playerId !== playerId && <small>{t("decision.waitingFor", { name: decisionPlayerName })}</small>}
         </section>

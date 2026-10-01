@@ -584,6 +584,10 @@ class MagsimGameEngine:
             "options": pending.public_options(),
         }
         for option, value in zip(public["options"], pending.options):
+            candidate_name = getattr(value, "racer_name", None)
+            candidate = next((card for card in ATHLETE_CATALOG if card.engine_name == candidate_name), None)
+            if candidate is not None:
+                option["athlete"] = candidate.public_data()
             target_idx = getattr(value, "idx", None)
             if target_idx in athlete_map:
                 target_owner = owner_map[target_idx]
@@ -884,8 +888,14 @@ class MagsimGameEngine:
             for racer in state.magsim_engine.state.racers:
                 owner = state.racer_owner_by_index[racer.idx]
                 athlete = state.racer_athlete_by_index[racer.idx]
+                copied_name = next((
+                    ability.copied_racer for ability in racer.active_abilities
+                    if ability.name == "TwinCopy" and getattr(ability, "copied_racer", None) is not None
+                ), None)
+                copied_athlete = next((card for card in ATHLETE_CATALOG if card.engine_name == copied_name), None)
                 active_racers_by_owner[owner].append({
                     **athlete.public_data(),
+                    **({"copiedAthlete": copied_athlete.public_data()} if copied_athlete is not None else {}),
                     "position": racer.position or 0,
                     "points": racer.victory_points,
                     "finished": racer.finished,

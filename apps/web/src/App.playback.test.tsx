@@ -2,6 +2,8 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import type { GameState, PendingDecision, ServerMessage } from "./protocol";
 import type { RaceTableSceneProps } from "./components/race3d/RaceTableScene";
+import { AthleteSkill } from "./components/AthleteSkill";
+import { RaceLeaderboard } from "./components/RaceLeaderboard";
 
 const connection = vi.hoisted(() => ({ receive: (_message: ServerMessage) => {}, send: vi.fn() }));
 vi.mock("./gameClient", () => ({
@@ -70,6 +72,33 @@ beforeAll(async () => {
 });
 beforeEach(() => { vi.useFakeTimers(); connection.send.mockClear(); });
 afterEach(() => { act(() => view?.unmount()); vi.useRealTimers(); });
+
+it("shows copy candidate skills and the Twin's copied skill during the race", async () => {
+  const twinDecision = { ...decision, athleteId: "twin", athleteName: "Twin", abilityName: "TwinCopy", choiceType: "RACER" as const,
+    options: [{ id: "0", label: "Legs", athlete: { id: "legs", name: "Legs" } }] };
+  await join(game({ pendingDecision: twinDecision, resolutionStatus: "WAITING_FOR_DECISION" }));
+  expect(dialogs()[0].findByType(AthleteSkill).props.athlete.id).toBe("legs");
+  expect(dialogs()[0].findAllByType("strong").some((node) => node.children.includes("慢跑"))).toBe(true);
+  const racing = game();
+  racing.players[0].activeRacers[0] = { ...racing.players[0].activeRacers[0], id: "twin", name: "Twin", copiedAthlete: { id: "legs", name: "Legs" } };
+  await receive({ type: "STATE_UPDATED", roomId: "TEST", revision: 2, game: racing, rollResults: [], events: [] });
+  await advance(5000);
+  expect(view.root.findByProps({ className: "copied-from" }).children.join("")).toContain("已复制：长腿");
+});
+
+it("updates standings alongside movement playback", async () => {
+  await join(game());
+  const moved = game();
+  moved.players[1].activeRacers[0].position = 5;
+  await receive({ type: "STATE_UPDATED", roomId: "TEST", revision: 2, game: moved, rollResults: [], events: [
+    { type: "RACER_MOVED", playerId: "bot", athleteId: "legs", from: 0, to: 5 },
+  ] });
+  await advance(300);
+  const leaderboard = view.root.findByType(RaceLeaderboard);
+  expect(leaderboard.props.players).toEqual(scene().players);
+  await advance(5000);
+  expect(view.root.findByType(RaceLeaderboard).props.players[1].activeRacers[0].position).toBe(5);
+});
 
 it("highlights the same waiting dialog before movement, then closes it", async () => {
   await join(game({ pendingDecision: decision, resolutionStatus: "WAITING_FOR_DECISION" }));
