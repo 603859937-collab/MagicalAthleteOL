@@ -1,0 +1,36 @@
+/* On small screens the board and controls take their own rows. Scrolling
+   exposes every card and action instead of clipping a fixed desktop overlay. */
+@media (max-width: 700px), (max-height: 500px) and (max-width: 980px) {
+  .topbar, .immersive-race .topbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; }
+  .wordmark { font-size: .8rem; }
+  .room-code { flex-wrap: wrap; justify-content: flex-start; gap: 6px; min-width: 0; max-width: 100%; }
+  .room-code strong { font-size: .9rem; }
+  .race-progress { display: none; }
+  .immersive-race { position: relative; inset: auto; height: auto; min-height: 100dvh; overflow: visible; padding-bottom: max(16px, env(safe-area-inset-bottom)); --feed-shift: 0px; }
+  .immersive-race.feed-sidebar-open { --feed-shift: 0px; }
+  .immersive-race .topbar { position: relative; inset: auto; margin: 8px; }
+  .immersive-race .spectator-bar { position: relative; inset: auto; margin: 8px; }
+  .immersive-race .race-stage { position: relative; inset: auto; display: flex; flex-direction: column; gap: 12px; }
+  .immersive-race .race-heading, .immersive-race:has(.spectator-bar) .race-heading { position: relative; inset: auto; order: 0; margin: 0 12px; }
+  .immersive-race .race-table-3d, .immersive-race .race-table-loading { position: relative; inset: auto; order: 1; width: 100%; height: clamp(360px, 65dvh, 560px); min-height: 0; }
+  .immersive-race .race-table-viewport { height: 100%; }
+  .immersive-race .race-console, .immersive-race:has(.spectator-bar) .race-console { position: relative; inset: auto; order: 3; margin: 0 12px; }
+  .immersive-race .score-strip { flex-wrap: wrap; }
+  .immersive-race .race-leaderboard, .immersive-race:has(.spectator-bar) .race-leaderboard { position: relative; inset: auto; order: 2; width: auto; margin: 0 12px; max-height: none; }
+  .immersive-race .race-leaderboard ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: none; overflow: visible; }
+  .immersive-race .race-leaderboard li { min-width: 0; }
+  .standing-player > strong { white-space: normal; overflow-wrap: anywhere; }
+  .immersive-race .race-details-toggle { position: relative; inset: auto; order: 4; margin: 0 12px; align-self: start; }
+  .immersive-race .race-roster { position: relative; inset: auto; order: 5; margin: 0 12px; max-height: 60dvh; }
+  .immersive-race .camera-controls { right: 12px; bottom: 80px; }
+  .immersive-race .table-dice-hud { bottom: 12px; width: calc(100% - 24px); max-width: none; padding: 8px; flex-wrap: wrap; }
+  .immersive-race .race-feed { position: fixed; z-index: 25; height: 100dvh; transform: none; opacity: 0; pointer-events: none; transition: opacity .2s ease, visibility .2s; }
+  .immersive-race .race-feed.open { opacity: 1; pointer-events: auto; }
+  .decision-backdrop { padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom)); }
+  .decision-dialog, .immersive-race .decision-dialog { max-height: calc(100dvh - 24px); padding: 14px; gap: 12px; border-width: 3px; overscroll-behavior: contain; }
+  .decision-dialog header { gap: 8px; }
+  .decision-dialog h2 { font-size: 1.35rem; overflow-wrap: anywhere; }
+  .decision-options { grid-template-columns: minmax(0, 1fr); }
+  .decision-options button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+  .ability-banner { top: 12px; }
+}
