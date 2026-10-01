@@ -45,24 +45,25 @@
 
   /* Share the board's grid cell, using its existing upper blank area rather
      than inserting a new row. The whole cell scrolls with the page. */
-  .immersive-race .race-moment-slot { display: grid; grid-area: board; align-self: start; justify-self: center; z-index: 4; width: min(320px, calc(100% - 40px)); margin: 12px 0; min-height: 164px; pointer-events: none; }
+  .immersive-race .race-moment-slot { display: grid; grid-area: board; align-self: start; justify-self: center; z-index: 4; width: min(320px, calc(100% - 40px)); margin: 12px 0; min-height: 112px; pointer-events: none; }
   .immersive-race .race-moment-slot .action-moment {
     position: relative; inset: auto; transform: none; z-index: auto;
-    width: 100%; min-height: 164px; max-height: none; overflow: visible;
-    display: grid; align-content: center; padding: 12px;
+    width: 100%; min-height: 112px; max-height: none; overflow: visible;
+    display: grid; align-content: center; padding: 8px 10px;
     border: 1px solid #e5dac0; border-left: 4px solid #e5b52d; border-radius: 16px;
     background: #fffdf7; box-shadow: 0 4px 14px #47371b0c; pointer-events: none;
   }
-  .immersive-race .action-moment p { margin-bottom: 10px; font-size: .8rem; line-height: 1.4; }
+  .immersive-race .action-moment p { margin-bottom: 5px; font-size: .8rem; line-height: 1.25; }
   .immersive-race .moment-flow { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; }
-  .immersive-race .moment-actor { gap: 3px; }
-  .immersive-race .moment-actor img, .immersive-race .moment-symbol { width: 36px; height: 36px; }
-  .immersive-race .moment-actor strong { font-size: .75rem; line-height: 1.35; }
-  .immersive-race .moment-actor small { font-size: .65rem; line-height: 1.3; }
+  .immersive-race .moment-actor { gap: 1px; }
+  .immersive-race .moment-actor img, .immersive-race .moment-symbol { width: 28px; height: 28px; }
+  .immersive-race .moment-symbol { font-size: 24px; line-height: 25px; }
+  .immersive-race .moment-actor strong { font-size: .75rem; line-height: 1.2; }
+  .immersive-race .moment-actor small { font-size: .65rem; line-height: 1.2; }
   .immersive-race .moment-effect { font-size: .85rem; line-height: 1.4; }
   .immersive-race .moment-positions { flex-wrap: wrap; }
-  .race-moment-idle { display: grid; place-content: center; justify-items: center; gap: 6px; min-height: 164px; padding: 16px; border: 1px dashed #d9cdb5; border-radius: 16px; color: #625c50; background: #fffdf780; text-align: center; }
-  .race-moment-idle > span { font-size: 1.8rem; color: #b3923e; }
+  .race-moment-idle { display: grid; place-content: center; justify-items: center; gap: 4px; min-height: 112px; padding: 10px; border: 1px dashed #d9cdb5; border-radius: 16px; color: #625c50; background: #fffdf780; text-align: center; }
+  .race-moment-idle > span { font-size: 1.2rem; color: #b3923e; }
   .race-moment-idle > strong { font-size: .85rem; }
   .race-moment-idle > small { font-size: .7rem; }
 
