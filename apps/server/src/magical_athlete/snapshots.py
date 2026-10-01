@@ -45,6 +45,12 @@ def decode_snapshot(data: bytes) -> RoomSnapshot:
     snapshot = payload.get("snapshot")
     if not isinstance(snapshot, RoomSnapshot):
         raise IncompatibleSnapshotError("invalid room snapshot payload")
+    if snapshot.game_state is not None and not hasattr(snapshot.game_state, "race_winner_ids"):
+        # Older rooms retain at most the latest race's results; preserve every
+        # real winner still available instead of inventing previous champions.
+        winners = tuple(result["athlete"]["id"] for result in snapshot.game_state.race_results
+                        if result["finishPosition"] == 1)
+        object.__setattr__(snapshot.game_state, "race_winner_ids", winners)
     # Pickle preserves instance triggers and subscriber tables from the old
     # deployment. Upgrade Genius without discarding an ongoing room.
     engine = snapshot.game_state.magsim_engine if snapshot.game_state is not None else None
