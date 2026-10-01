@@ -779,6 +779,9 @@ export default function App() {
       {game!.phase === "RACING" && (
         <section className="race-stage stage">
           <div className="race-heading"><div><p className="kicker">RACE {game!.raceNumber} / 4</p><h2>{tracks[game!.raceNumber - 1]}</h2></div><div className="reward"><span>🏆 {game!.raceRewards[0]}</span><span>◉ {game!.raceRewards[1]}</span></div></div>
+          <div className="race-moment-slot">
+            {moment ? <ActionMoment moment={moment} /> : <div className="race-moment-idle"><span aria-hidden="true">⚄</span><strong>{t("momentFlow.idle")}</strong><small>{t("momentFlow.hint")}</small></div>}
+          </div>
           {use3DRaceTable ? <Suspense fallback={<div className="race-table-loading" aria-label={t("race.loading")} />}>
             <RaceTableScene turnKey={rollAnimation?.autoThrow ? `playback-${rollAnimation.revision}-${rollAnimation.index}` : raceDiceTurnKey(game!, playbackBusy)} moment={moment} focus={cameraFocus ?? (game!.pendingDecision ? { athleteId: game!.pendingDecision.athleteId, playerId: game!.pendingDecision.playerId, close: true } : raceRollFocus(game!))} activePlayerId={game!.activePlayerId} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
               playbackBusy,
@@ -819,7 +822,7 @@ export default function App() {
         </section>
       )}
 
-      {moment && <ActionMoment moment={moment} />}
+      {moment && game!.phase !== "RACING" && <ActionMoment moment={moment} />}
       {liveDecision && <div className={`decision-backdrop ${decisionOutcome ? "resolved" : ""}`}>
         <section className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
           <header><div><small>{athleteName(liveDecision.athleteId, liveDecision.athleteName)}</small><h2 id="decision-title">{decisionTitle(liveDecision, t)}</h2></div><strong className={decisionOutcome ? "decision-result-badge" : undefined}>{decisionOutcome ? t("decision.replayBadge") : `${decisionSeconds}s`}</strong></header>
