@@ -11,7 +11,20 @@
   .race-progress { display: none; }
   .immersive-race { position: relative; inset: auto; height: auto; min-height: 100dvh; overflow: visible; padding-bottom: max(16px, env(safe-area-inset-bottom)); --feed-shift: 0px; }
   .immersive-race.feed-sidebar-open { --feed-shift: 0px; }
-  .immersive-race .topbar { position: relative; inset: auto; margin: 8px; }
+  .immersive-race .topbar { position: relative; inset: auto; margin: 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) 8px; gap: 6px; padding: 8px; align-items: center; }
+  .immersive-race .topbar .wordmark { grid-column: 1 / span 2; grid-row: 1; font-size: .7rem; min-width: 0; }
+  .immersive-race .topbar .room-code { display: contents; }
+  .immersive-race .topbar .language-switcher { grid-column: 3; grid-row: 1; justify-self: end; gap: 3px; }
+  .immersive-race .topbar .language-switcher button { min-height: 30px; padding: 3px 5px; font-size: .65rem; }
+  .immersive-race .topbar .room-code > small { display: none; }
+  .immersive-race .topbar .room-code > strong { grid-column: 4; grid-row: 1; justify-self: end; font-size: .85rem; }
+  .immersive-race .topbar .status-dot { grid-column: 5; grid-row: 1; width: 8px; height: 8px; }
+  .immersive-race .topbar .room-code > button { grid-row: 2; min-width: 0; min-height: 44px; padding: 5px 6px; font-size: .7rem; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 4px; }
+  .immersive-race .topbar .music-toggle { grid-column: 1; }
+  .immersive-race .topbar .taunt-toggle { grid-column: 2; }
+  .immersive-race .topbar .auto-play-toggle { grid-column: 3; }
+  .immersive-race .topbar .feed-toggle { grid-column: 4 / span 2; font-size: .65rem; }
+  .immersive-race .topbar .event-feed-count { min-width: 0; padding: 2px 4px; font-size: .65rem; }
   .immersive-race .spectator-bar { position: relative; inset: auto; margin: 8px; }
   .immersive-race .race-stage { position: relative; inset: auto; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "heading" "board" "standings" "scores" "details" "racers"; gap: 12px; }
   .immersive-race .race-heading { grid-area: heading; }
@@ -87,4 +100,11 @@
   .immersive-race .race-details-toggle { padding: 10px 16px; border: 1px solid #d9d0bd; border-radius: 12px; color: #343128; background: #fffdf8; box-shadow: 0 3px 10px #47371b0c; }
   .decision-dialog, .immersive-race .decision-dialog { border: 1px solid #d9d0bd; border-radius: 18px; box-shadow: 0 12px 40px #0003; }
   .decision-options button { min-height: 48px; padding: 12px; border-width: 1px; border-radius: 12px; box-shadow: 0 2px 0 #d2ba68; }
+}
+
+@media (max-height: 500px) and (min-width: 701px) and (max-width: 980px) {
+  .immersive-race .topbar { display: flex; flex-wrap: nowrap; gap: 6px; padding: 6px 8px; }
+  .immersive-race .topbar .wordmark { flex: 1; }
+  .immersive-race .topbar .room-code > button { flex: 0 0 auto; padding: 5px 8px; }
+  .immersive-race .topbar .language-switcher { margin-left: 2px; }
 }
