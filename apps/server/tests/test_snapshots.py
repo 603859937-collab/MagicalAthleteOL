@@ -77,3 +77,34 @@ def test_existing_room_upgrades_genius_prediction_subscriptions() -> None:
     assert roll['value'] == 5 and roll['finalValue'] == 6
     assert transition.state.active_player_id == 'p0'
     assert transition.state.pending_decision['abilityName'] == 'GeniusPrediction'
+
+
+def test_champion_history_survives_saved_room_restore():
+    from dataclasses import replace
+    engine = MagsimGameEngine()
+    state = replace(engine.create_game((Player('a', 'A'),)), race_winner_ids=('legs', 'genius'))
+    snapshot = RoomSnapshot('TEST', {}, state, 4, None, None, datetime.now(UTC))
+    restored = decode_snapshot(encode_snapshot(snapshot))
+    assert restored.game_state.race_winner_ids == ('legs', 'genius')
+    assert [card['id'] for card in engine.public_state(restored.game_state)['previousWinners']] == ['legs', 'genius']
+
+
+def test_old_room_recovers_its_latest_recorded_champion(monkeypatch):
+    from dataclasses import fields, replace
+    from magical_athlete.game import GameState
+    state = replace(MagsimGameEngine().create_game(()),
+                    race_results=({'athlete': {'id': 'legs'}, 'finishPosition': 1},),
+                    pending_roll={'nextPlayerId': 'a'})
+    snapshot = RoomSnapshot('TEST', {}, state, 4, None, None, datetime.now(UTC))
+    # Frozen slotted dataclasses serialize field values in order. Emulate the
+    # previous deployment's field list before loading it with the new class.
+    with monkeypatch.context() as patch:
+        patch.setattr(GameState, '__getstate__', lambda value: [
+            getattr(value, field.name) for field in fields(GameState)
+            if field.name != 'race_winner_ids'
+        ])
+        saved = encode_snapshot(snapshot)
+    restored = decode_snapshot(saved)
+    assert restored.game_state.race_winner_ids == ('legs',)
+    assert restored.game_state.pending_roll == {'nextPlayerId': 'a'}
+    assert restored.game_state.magsim_engine is None

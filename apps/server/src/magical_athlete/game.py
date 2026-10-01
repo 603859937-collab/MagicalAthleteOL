@@ -65,6 +65,8 @@ class GameState:
     pending_roll: dict[str, Any] | None = None
     race_log: tuple[dict[str, Any], ...] = ()
     resolution_status: str = "IDLE"
+    # Append fields to preserve the positional state used by frozen dataclass pickles.
+    race_winner_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -366,6 +368,8 @@ class MagsimGameEngine:
             defer_setup=True,
         )
         scenario.engine.verbose = False
+        scenario.state.previous_winners = tuple(ATHLETE_BY_ID[athlete_id].engine_name
+                                               for athlete_id in state.race_winner_ids)
         scenario.engine.continue_setup()
         pending = self._pending_decision(state, scenario.engine, owners, athletes)
         return replace(
@@ -680,7 +684,8 @@ class MagsimGameEngine:
         scores = {player.id: state.scores[player.id] + race_points[player.id] for player in state.players}
         used = state.used_athlete_ids.union(athlete.id for selected in state.selections.values() for athlete in selected)
         events.append({"type": "RACE_FINISHED", "raceNumber": state.race_number + 1})
-        next_state = replace(state, phase=GamePhase.FINISHED if state.race_number == 3 else GamePhase.RACE_RESULTS, positions=positions, scores=scores, used_athlete_ids=frozenset(used), active_player_id=None, race_results=tuple(results), pending_decision=None, pending_roll=None, resolution_status="IDLE")
+        winners = tuple(result["athlete"]["id"] for result in results if result["finishPosition"] == 1)
+        next_state = replace(state, phase=GamePhase.FINISHED if state.race_number == 3 else GamePhase.RACE_RESULTS, positions=positions, scores=scores, used_athlete_ids=frozenset(used), active_player_id=None, race_results=tuple(results), race_winner_ids=state.race_winner_ids + winners, pending_decision=None, pending_roll=None, resolution_status="IDLE")
         return self._transition_with_log(next_state, events)
 
     def _advance_turn_flow(
@@ -957,6 +962,7 @@ class MagsimGameEngine:
             "draftRoundCount": self._draft_round_count(state),
             "rollCandidateIds": list(state.roll_candidates),
             "raceResults": list(state.race_results),
+            "previousWinners": [ATHLETE_BY_ID[athlete_id].public_data() for athlete_id in state.race_winner_ids],
             "pendingDecision": state.pending_decision,
             "pendingRoll": state.pending_roll,
             "raceLog": list(state.race_log),
