@@ -438,6 +438,27 @@ export default function App() {
         setLocalRollPending(false);
         setDiceResetKey((value) => value + 1);
       }
+      const prediction = message.game.pendingDecision;
+      const viewer = message.game.players.find(player => player.id === viewerId.current);
+      const manualPrediction = prediction?.abilityName === "GeniusPrediction"
+        && prediction.playerId === viewerId.current
+        && prediction.id !== submittedDecisionId.current
+        && !viewer?.autoPlay;
+      const managedPlayCancelled = viewer && !viewer.autoPlay && message.events.some(event =>
+        event.type === "AUTO_PLAY_CHANGED" && event.playerId === viewerId.current);
+      if (manualPrediction || managedPlayCancelled) {
+        // Manual control takes priority over accumulated automatic playback.
+        // Genius also needs its pre-roll choice before the server deadline.
+        const latestDiceValue = latestAuthoritativeDiceValue.current;
+        resetPlayback();
+        shownRolls.current = nextShownRolls;
+        latestAuthoritativeDiceValue.current = latestDiceValue;
+        if (latestDiceValue !== null) setRestingDiceValue(latestDiceValue);
+        publishSnapshot(message);
+        showPendingDecision(message);
+        setError("");
+        return;
+      }
       if (message.events.some((event) => event.type === "START_DICE_ROLLED")) {
         enqueueRacePlayback({ revision: message.revision, values: [], events: message.events,
           finalSnapshot: message, autoThrow: false, throwKey: `rolloff-${message.revision}` });

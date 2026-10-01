@@ -50,8 +50,106 @@ function game(overrides: Partial<GameState> = {}): GameState {
 }
 const scene = () => view.root.findByType(Scene).props as RaceTableSceneProps;
 const dialogs = () => view.root.findAllByProps({ role: "dialog" });
+
+it("opens the next human Genius prediction before queued bot animations consume its deadline", async () => {
+  const prediction: PendingDecision = {
+    id: "predict-first", playerId: "human", athleteId: "genius", athleteName: "Genius",
+    abilityName: "GeniusPrediction", prompt: "", choiceType: "DIE",
+    options: [1, 2, 3, 4, 5, 6].map(value => ({id: String(value - 1), label: String(value)})),
+  };
+  await join(game({activeAthleteId: "genius", pendingDecision: prediction, resolutionStatus: "WAITING_FOR_DECISION"}));
+  await act(async () => dialogs()[0].findAllByType("button")[4].props.onClick());
+  await receive({type: "STATE_UPDATED", roomId: "TEST", revision: 2, game: game(), rollResults: [],
+    events: [{type: "DECISION_RESOLVED", decisionId: prediction.id, playerId: "human", optionId: "4"}]});
+  await advance(1000);
+  const nextPrediction = {...prediction, id: "predict-second", deadlineAt: new Date(Date.now() + 60000).toISOString()};
+  for (let i = 0; i < 5; i++) {
+    const next = game({activePlayerId: i === 4 ? "human" : "bot", activeAthleteId: i === 4 ? "genius" : "legs",
+      pendingDecision: i === 4 ? nextPrediction : null, resolutionStatus: i === 4 ? "WAITING_FOR_DECISION" : "WAITING_FOR_ROLL"});
+    next.players[1].activeRacers[0].position = (i + 1) * 4;
+    next.raceLog = [{type: "DICE_ROLLED", playerId: "bot", value: 4, rollResultId: `bot-die-${i}`}];
+    await receive({type: "STATE_UPDATED", roomId: "TEST", revision: i + 3, game: next,
+      rollResults: [{id: `bot-die-${i}`, values: [4]}], events: [
+        {type: "RACER_MOVED", playerId: "bot", athleteId: "legs", from: i * 4, to: (i + 1) * 4},
+        ...(i === 4 ? [{type: "DECISION_REQUIRED", decisionId: nextPrediction.id, abilityName: "GeniusPrediction"}] : []),
+      ]});
+  }
+  expect(dialogs()).toHaveLength(1);
+  expect(dialogs()[0].findAllByType("button")).toHaveLength(6);
+  expect(dialogs()[0].findAllByType("button").every(button => !button.props.disabled)).toBe(true);
+  expect(scene().players[1].activeRacers[0].position).toBe(20);
+  expect(scene().dice.targetValue).toBeNull();
+  expect(scene().dice.restingValue).toBe(4);
+  await act(async () => dialogs()[0].findAllByType("button")[1].props.onClick());
+  expect(connection.send).toHaveBeenLastCalledWith(expect.objectContaining({type: "RESOLVE_DECISION", decisionId: nextPrediction.id, optionId: "1"}));
+  const ready = game({activeAthleteId: "genius"});
+  ready.players[1].activeRacers[0].position = 20;
+  ready.raceLog = [{type: "DICE_ROLLED", playerId: "bot", value: 4}];
+  await receive({type: "STATE_UPDATED", roomId: "TEST", revision: 8, game: ready, rollResults: [],
+    events: [{type: "DECISION_RESOLVED", decisionId: nextPrediction.id, playerId: "human", optionId: "1"}]});
+  await advance(65000);
+  expect(dialogs()).toHaveLength(0);
+  expect(scene().players[1].activeRacers[0].position).toBe(20);
+  expect(scene().dice.enabled).toBe(true);
+});
 async function receive(message: ServerMessage) { await act(async () => connection.receive(message)); }
+
+it("restores a pending Genius prediction immediately when managed play is cancelled during playback", async () => {
+  const managed = game({activeAthleteId: "genius"});
+  managed.players[0].autoPlay = true;
+  await join(managed);
+  await receive({type: "STATE_UPDATED", roomId: "TEST", revision: 2, game: managed,
+    rollResults: [{id: "queued-bot-die", values: [6]}],
+    events: [{type: "RACER_MOVED", playerId: "bot", athleteId: "legs", from: 0, to: 6}]});
+  const prediction: PendingDecision = {id: "managed-prediction", playerId: "human", athleteId: "genius", athleteName: "Genius",
+    abilityName: "GeniusPrediction", prompt: "", choiceType: "DIE",
+    options: [1, 2, 3, 4, 5, 6].map(value => ({id: String(value - 1), label: String(value)}))};
+  const waiting: GameState = {...managed, pendingDecision: prediction, resolutionStatus: "WAITING_FOR_DECISION"};
+  await receive({type: "STATE_UPDATED", roomId: "TEST", revision: 3, game: waiting, rollResults: [],
+    events: [{type: "DECISION_REQUIRED", decisionId: prediction.id, abilityName: "GeniusPrediction"}]});
+  expect(dialogs()).toHaveLength(0);
+  await act(async () => view.root.findByProps({className: "auto-play-toggle"}).props.onClick());
+  expect(connection.send).toHaveBeenLastCalledWith(expect.objectContaining({type: "SET_AUTO_PLAY", enabled: false}));
+  const manual = structuredClone(waiting);
+  manual.players[0].autoPlay = false;
+  await receive({type: "STATE_UPDATED", roomId: "TEST", revision: 4, game: manual, rollResults: [],
+    events: [{type: "AUTO_PLAY_CHANGED", playerId: "human"}]});
+  expect(dialogs()).toHaveLength(1);
+  expect(dialogs()[0].findAllByType("button").every(button => !button.props.disabled)).toBe(true);
+  await act(async () => dialogs()[0].findAllByType("button")[3].props.onClick());
+  expect(connection.send).toHaveBeenLastCalledWith(expect.objectContaining({type: "RESOLVE_DECISION", decisionId: prediction.id, optionId: "3"}));
+});
 async function advance(ms: number) { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); }
+
+it("stops old automatic dice playback when managed play is cancelled in the second race", async () => {
+  const managed = game({raceNumber: 2, activeAthleteId: "genius"});
+  managed.players[0].autoPlay = true;
+  await join(managed);
+  for (let i = 0; i < 3; i++) {
+    const next = structuredClone(managed);
+    next.players[0].activeRacers[0].position = (i + 1) * 4;
+    next.raceLog = [{type: "DICE_ROLLED", playerId: "human", value: 4}];
+    await receive({type: "STATE_UPDATED", roomId: "TEST", revision: i + 2, game: next,
+      rollResults: [{id: `managed-die-${i}`, values: [4]}],
+      events: [{type: "RACER_MOVED", playerId: "human", athleteId: "banana", from: i * 4, to: (i + 1) * 4}]});
+  }
+  expect(scene().dice.autoThrow).toBe(true);
+  await act(async () => view.root.findByProps({className: "auto-play-toggle"}).props.onClick());
+  const manual = structuredClone(managed);
+  manual.players[0].autoPlay = false;
+  manual.players[0].activeRacers[0].position = 12;
+  manual.raceLog = [{type: "DICE_ROLLED", playerId: "human", value: 4}];
+  await receive({type: "STATE_UPDATED", roomId: "TEST", revision: 5, game: manual, rollResults: [],
+    events: [{type: "AUTO_PLAY_CHANGED", playerId: "human"}]});
+  expect(scene().dice.autoThrow).toBe(false);
+  expect(scene().dice.targetValue).toBeNull();
+  expect(scene().dice.enabled).toBe(true);
+  expect(scene().players[0].activeRacers[0].position).toBe(12);
+  await advance(65000);
+  expect(scene().players[0].activeRacers[0].position).toBe(12);
+  expect(scene().dice.enabled).toBe(true);
+  expect(connection.send).not.toHaveBeenCalledWith(expect.objectContaining({type: "ROLL_DICE"}));
+});
 async function join(state: GameState, spectator = false) {
   await act(async () => { view = create(<App />); });
   await act(async () => view.root.findAllByType("input")[0].props.onChange({ target: { value: "human" } }));
