@@ -446,7 +446,8 @@ export default function App() {
         && !viewer?.autoPlay;
       const managedPlayCancelled = viewer && !viewer.autoPlay && message.events.some(event =>
         event.type === "AUTO_PLAY_CHANGED" && event.playerId === viewerId.current);
-      if (manualPrediction || managedPlayCancelled) {
+      const playbackBacklog = activePlayback.current || eventPlaybackActive.current || playbackQueue.current.length > 0;
+      if ((manualPrediction && playbackBacklog) || managedPlayCancelled) {
         // Manual control takes priority over accumulated automatic playback.
         // Genius also needs its pre-roll choice before the server deadline.
         const latestDiceValue = latestAuthoritativeDiceValue.current;

@@ -94,6 +94,25 @@ it("opens the next human Genius prediction before queued bot animations consume 
 });
 async function receive(message: ServerMessage) { await act(async () => connection.receive(message)); }
 
+it("shows the rolled die and movement before a fresh Genius extra-turn prediction when there is no backlog", async () => {
+  await join(game({activeAthleteId: "genius"}));
+  const prediction: PendingDecision = {id: "extra-turn-prediction", playerId: "human", athleteId: "genius", athleteName: "Genius",
+    abilityName: "GeniusPrediction", prompt: "", choiceType: "DIE",
+    options: [1, 2, 3, 4, 5, 6].map(value => ({id: String(value - 1), label: String(value)}))};
+  const next = game({activeAthleteId: "genius", pendingDecision: prediction, resolutionStatus: "WAITING_FOR_DECISION"});
+  next.players[0].activeRacers[0].position = 6;
+  await receive({type: "STATE_UPDATED", roomId: "TEST", revision: 2, game: next,
+    rollResults: [{id: "correct-genius-die", values: [6]}],
+    events: [{type: "RACER_MOVED", playerId: "human", athleteId: "banana", from: 0, to: 6}]});
+  expect(dialogs()).toHaveLength(0);
+  expect(scene().dice.targetValue).toBe(6);
+  await act(async () => scene().dice.onSettled());
+  await advance(6000);
+  expect(scene().players[0].activeRacers[0].position).toBe(6);
+  expect(dialogs()).toHaveLength(1);
+  expect(dialogs()[0].findAllByType("button").every(button => !button.props.disabled)).toBe(true);
+});
+
 it("restores a pending Genius prediction immediately when managed play is cancelled during playback", async () => {
   const managed = game({activeAthleteId: "genius"});
   managed.players[0].autoPlay = true;
