@@ -4,6 +4,7 @@ import asyncio
 import random
 import secrets
 import string
+import time
 from datetime import UTC, datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -34,6 +35,7 @@ from .protocol import (
     SetAutoPlayIntent,
     SetVariantIntent,
     StartGameIntent,
+    ThrowPropIntent,
 )
 
 
@@ -42,6 +44,7 @@ ROLL_ANIMATION_LEAD_SECONDS = 0.35
 BOT_ACTION_DELAY_SECONDS = 1.1
 ACTION_TIME_LIMIT_SECONDS = 60
 SPECTATOR_LIMIT = 20
+TAUNT_COOLDOWN_SECONDS = 4
 
 
 class RoomError(Exception):
@@ -65,6 +68,7 @@ class RoomPlayer:
     seen_action_ids: set[str] = field(default_factory=set)
     is_bot: bool = False
     auto_play: bool = False
+    taunt_ready_at: float = 0
 
 
 @dataclass(slots=True)
@@ -215,6 +219,7 @@ class RoomManager:
         | SetVariantIntent
         | SetAutoDealIntent
         | SetAutoPlayIntent
+        | ThrowPropIntent
         | RollStartIntent
         | DraftAthleteIntent
         | SelectRacersIntent
@@ -225,6 +230,9 @@ class RoomManager:
         async with room.lock:
             member = room.member(player_id)
             if member is None:
+                return
+            if isinstance(intent, ThrowPropIntent):
+                await self._throw_prop_locked(room, member, intent)
                 return
             if player_id in room.spectators:
                 if isinstance(intent, LeaveRoomIntent):
@@ -280,6 +288,35 @@ class RoomManager:
                 })
                 return
             await self._apply_intent_locked(room, member, intent)
+
+    async def _throw_prop_locked(self, room: Room, member: RoomPlayer, intent: ThrowPropIntent) -> None:
+        if intent.action_id in member.seen_action_ids:
+            await member.socket.send_json({"type": "ACTION_ACK", "actionId": intent.action_id, "revision": room.revision})
+            return
+        target = room.players.get(intent.target_player_id)
+        now = time.monotonic()
+        code = None
+        if room.game_state is None or room.game_state.phase != GamePhase.RACING:
+            code, message = "TAUNT_NOT_RACING", "比赛开始后才能使用互动道具"
+        elif target is None or target.player.id == member.player.id:
+            code, message = "INVALID_TAUNT_TARGET", "请选择房间里的其他玩家"
+        elif now < member.taunt_ready_at:
+            code, message = "TAUNT_COOLDOWN", "道具正在冷却，请稍等片刻"
+        if code:
+            await member.socket.send_json(ErrorMessage(code=code, message=message, actionId=intent.action_id).model_dump(by_alias=True))
+            return
+        member.seen_action_ids.add(intent.action_id)
+        if len(member.seen_action_ids) > 500:
+            member.seen_action_ids = {intent.action_id}
+        member.taunt_ready_at = now + TAUNT_COOLDOWN_SECONDS
+        # Cosmetic room traffic never advances the game revision or touches
+        # pending rolls, decisions, timers, or private snapshots.
+        await self._broadcast_locked(room, {
+            "type": "PROP_THROWN", "id": str(uuid4()), "actionId": intent.action_id,
+            "actorId": member.player.id, "actorName": member.player.name,
+            "targetPlayerId": target.player.id, "targetName": target.player.name,
+            "item": intent.item, "cooldownMs": TAUNT_COOLDOWN_SECONDS * 1000,
+        }, include_state=False)
 
     async def _apply_intent_locked(
         self, room: Room, member: RoomPlayer, intent: Any, *, automated: bool = False
@@ -798,13 +835,14 @@ class RoomManager:
         room: Room,
         envelope: dict[str, Any],
         exclude: RoomSocket | None = None,
+        *, include_state: bool = True,
     ) -> None:
         failed: list[RoomPlayer] = []
         for recipient_id, member in (room.players | room.spectators).items():
             if not member.connected or member.socket is None or member.socket is exclude:
                 continue
             try:
-                message = {**envelope, **room.public_state(recipient_id)}
+                message = {**envelope, **room.public_state(recipient_id)} if include_state else dict(envelope)
                 await member.socket.send_json(message)
             except RuntimeError:
                 failed.append(member)
