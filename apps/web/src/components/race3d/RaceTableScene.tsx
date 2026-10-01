@@ -299,7 +299,7 @@ export function RaceTableScene(props: RaceTableSceneProps) {
       <strong>{status}</strong>
       <button className="dice-throw-button" disabled={!props.dice.enabled || diceState !== "ready"} onClick={() => {
         const throwId = actionId();
-        if (diceLauncher.current?.()) props.dice.onThrow(throwId);
+        if (diceLauncher.current?.(throwId)) props.dice.onThrow(throwId);
       }}>{t("race3d.roll")}</button>
     </div>
   </section>;

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { decisionOptionLabel, decisionPrompt, decisionResolution, decisionTitle } from "./decisionPresentation";
+import { decisionOptionLabel, decisionPrompt, decisionResolution, decisionTitle, resolvedDecisionDialog } from "./decisionPresentation";
 import type { PendingDecision } from "./protocol";
 
 it("localizes copied skill choices without changing numeric choices", () => {
@@ -32,7 +32,7 @@ it("shows who the suckerfish will follow and its destination before movement com
   expect(decisionPrompt(decision)).toBe("是否跟随教练，从第 8 格移动到第 3 格？");
 });
 
-it("reports the picked option so every table can replay the closed dialog", () => {
+it("reports the picked option for the existing waiting dialog", () => {
   const decision = { id: "d1", playerId: "p1", abilityName: "FlipFlopSwap" } as PendingDecision;
   expect(decisionResolution(decision, [
     { type: "DECISION_RESOLVED", decisionId: "d1", playerId: "p2", optionId: "2", automatic: false },
@@ -40,6 +40,18 @@ it("reports the picked option so every table can replay the closed dialog", () =
   expect(decisionResolution(decision, [
     { type: "DECISION_TIMED_OUT", decisionId: "d1", playerId: "p1", optionId: "", automatic: true },
   ])).toEqual({ optionId: null, automatic: true, playerId: "p1" });
+});
+
+it("highlights the waiting dialog only for observers without reopening a closed choice", () => {
+  const decision = { id: "d1", playerId: "p1" } as PendingDecision;
+  const current = { decision, outcome: null };
+  const events = [{ type: "DECISION_RESOLVED", decisionId: "d1", optionId: "2" }];
+  expect(resolvedDecisionDialog(current, events, "p2")).toEqual({
+    decision, outcome: { optionId: "2", playerId: "p1", automatic: false },
+  });
+  expect(resolvedDecisionDialog(current, events, "p1")).toBeNull();
+  expect(resolvedDecisionDialog(null, events, "p2")).toBeNull();
+  expect(resolvedDecisionDialog(current, [{ ...events[0], decisionId: "d2" }], "p2")).toBeNull();
 });
 
 it("ignores resolutions of another decision or an unrelated event", () => {

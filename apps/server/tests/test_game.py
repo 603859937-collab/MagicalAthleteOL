@@ -204,6 +204,13 @@ def test_selection_is_secret_and_requires_two_unique_racers_for_two_players() ->
     assert all(engine.public_state(state, "p1")["players"][index]["activeRacers"] for index in range(2))
     assert state.resolution_status == "WAITING_FOR_ROLL"
     assert state.magsim_engine.state.roll_state.serial_id == 0
+    assert engine.public_state(state)["activeAthleteId"] == "banana"
+
+    next_turn = engine.roll_dice(state, "p0").state
+    public = engine.public_state(next_turn)
+    assert public["activePlayerId"] == "p0"
+    assert public["activeAthleteId"] == "skipper"
+    assert public["players"][0]["activeRacers"][0]["id"] == "banana"
 
 
 def test_roll_serial_increases_across_turns() -> None:

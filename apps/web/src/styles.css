@@ -198,10 +198,10 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .decision-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .decision-options .command { min-width: 0; overflow-wrap: anywhere; }
 .decision-dialog > small { color: #716b62; font-weight: 800; text-align: center; }
-.decision-backdrop.replay { pointer-events: none; }
-.decision-dialog header > strong.decision-replay-badge { color: #151515; background: #f2bd27; font-size: .8rem; }
-.decision-backdrop.replay .command:disabled { opacity: .5; }
-.decision-backdrop.replay .command.decision-chosen { opacity: 1; color: white; border-color: #151515; background: #287fc2; box-shadow: 4px 4px 0 #151515, 0 0 0 4px #287fc244; animation: decision-chosen-pulse 1.2s ease-out 2; }
+.decision-backdrop.resolved { pointer-events: none; }
+.decision-dialog header > strong.decision-result-badge { color: #151515; background: #f2bd27; font-size: .8rem; }
+.decision-backdrop.resolved .command:disabled { opacity: .5; }
+.decision-backdrop.resolved .command.decision-chosen { opacity: 1; color: white; border-color: #151515; background: #287fc2; box-shadow: 4px 4px 0 #151515, 0 0 0 4px #287fc244; animation: decision-chosen-pulse 1.2s ease-out 2; }
 @keyframes decision-chosen-pulse { 0% { box-shadow: 4px 4px 0 #151515, 0 0 0 0 #287fc2cc; } 70% { box-shadow: 4px 4px 0 #151515, 0 0 0 12px #287fc200; } 100% { box-shadow: 4px 4px 0 #151515, 0 0 0 4px #287fc244; } }
 
 @media (max-width: 820px) {
@@ -210,7 +210,7 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fallback-die.landed, .ability-banner, .decision-backdrop.replay .command.decision-chosen { animation: none; }
+  .fallback-die.landed, .ability-banner, .decision-backdrop.resolved .command.decision-chosen { animation: none; }
 }
 
 @media (max-width: 980px) {

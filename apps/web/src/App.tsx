@@ -7,14 +7,14 @@ import { athleteText } from "./i18n/athletes";
 import { useBackgroundMusic } from "./useBackgroundMusic";
 import { AthleteRules } from "./components/AthleteRules";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { decisionResolution, decisionTitle, decisionPrompt, decisionOptionLabel, type DecisionOutcome } from "./decisionPresentation";
+import { decisionResolution, decisionTitle, decisionPrompt, decisionOptionLabel, resolvedDecisionDialog, type DecisionDialogState } from "./decisionPresentation";
 import { ActionMoment } from "./components/ActionMoment";
 import { actionMoment, eventText, isRedundantAbilityEvent, rollOffPresentation, type ActionMoment as Moment } from "./eventPresentation";
 import { RaceTrack } from "./components/RaceTrack";
 import { actionId, clearSession, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
-import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PendingDecision, PlayerState, RoomSnapshot, ServerMessage } from "./protocol";
+import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, RoomSnapshot, ServerMessage } from "./protocol";
 import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
-import { canRollRaceDice, raceDiceTurnKey } from "./raceControls";
+import { canRollRaceDice, raceDiceTurnKey, raceRollFocus } from "./raceControls";
 import { apiUrl, assetUrl } from "./runtimeConfig";
 import { scoreLabel } from "./scorePresentation";
 import { playCharacterScoreSound, playMoveSound, playFireworkSound, unlockGameAudio } from "./gameAudio";
@@ -24,12 +24,6 @@ type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
 type WithoutActionId<T> = T extends { actionId: string } ? Omit<T, "actionId"> : never;
 type GameActionInput = WithoutActionId<GameAction>;
 type RollAnimation = { revision: number; values: number[]; index: number; autoThrow: boolean; throwKey: string };
-type DecisionReplay = {
-  decision: PendingDecision;
-  outcome: DecisionOutcome;
-  playerName: string;
-  chosenLabel: string;
-};
 type RacePlayback = {
   revision: number;
   values: number[];
@@ -37,6 +31,7 @@ type RacePlayback = {
   finalSnapshot: RoomSnapshot;
   autoThrow: boolean;
   throwKey: string;
+  rollFocus?: ReturnType<typeof raceRollFocus>;
 };
 type ViewState = {
   authoritative: RoomSnapshot | null;
@@ -114,8 +109,6 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [rollAnimation, setRollAnimation] = useState<RollAnimation | null>(null);
   const [localRollPending, setLocalRollPending] = useState(false);
-  const [rollingPlayerId, setRollingPlayerId] = useState<string | null>(null);
-  const [rollingActionId, setRollingActionId] = useState<string | null>(null);
   const [diceResetKey, setDiceResetKey] = useState(0);
   const musicToggle = useBackgroundMusic();
   const [restingDiceValue, setRestingDiceValue] = useState(1);
@@ -126,22 +119,23 @@ export default function App() {
   const [rollOffResult, setRollOffResult] = useState<{ outcome: string; winnerId?: string } | null>(null);
   const [decisionSeconds, setDecisionSeconds] = useState(0);
   const [resolvingDecisionId, setResolvingDecisionId] = useState<string | null>(null);
-  const [decisionReplay, setDecisionReplay] = useState<DecisionReplay | null>(null);
+  const [decisionDialog, setDecisionDialog] = useState<DecisionDialogState | null>(null);
+  const decisionDialogRef = useRef<DecisionDialogState | null>(null);
+  const submittedDecisionId = useRef<string | null>(null);
+  const viewerId = useRef("");
   const client = useRef(new GameClient());
   const visibleSnapshot = useRef<RoomSnapshot | null>(null);
   const authoritativeSnapshot = useRef<RoomSnapshot | null>(null);
   const latestAuthoritativeDiceValue = useRef<number | null>(null);
   const localRollPendingRef = useRef(false);
   const rollAnimationRef = useRef<RollAnimation | null>(null);
-  const rollingPlayerRef = useRef<string | null>(null);
-  const rollingActionRef = useRef<string | null>(null);
+  const localRollActionRef = useRef<string | null>(null);
   const shownRolls = useRef(new Set<string>());
   const playbackQueue = useRef<RacePlayback[]>([]);
   const activePlayback = useRef<RacePlayback | null>(null);
   const eventPlaybackActive = useRef(false);
   const finishingRollKey = useRef<string | null>(null);
   const revealTimer = useRef<number | null>(null);
-  const decisionReplayTimer = useRef<number | null>(null);
   const playbackId = useRef(0);
 
   useEffect(() => {
@@ -157,7 +151,6 @@ export default function App() {
     client.current.close();
     playbackId.current += 1;
     if (revealTimer.current !== null) window.clearTimeout(revealTimer.current);
-    if (decisionReplayTimer.current !== null) window.clearTimeout(decisionReplayTimer.current);
   }, []);
 
   const snapshot = viewState.display;
@@ -176,13 +169,13 @@ export default function App() {
   useEffect(() => setSelectedIds([]), [snapshot?.game.raceNumber, snapshot?.game.phase]);
 
   useEffect(() => {
-    const deadline = controlGame?.pendingDecision?.deadlineAt;
+    const deadline = decisionDialog?.outcome ? undefined : decisionDialog?.decision.deadlineAt;
     if (!deadline) return setDecisionSeconds(0);
     const update = () => setDecisionSeconds(Math.max(0, Math.ceil((Date.parse(deadline) - Date.now()) / 1000)));
     update();
     const timer = window.setInterval(update, 250);
     return () => window.clearInterval(timer);
-  }, [controlGame?.pendingDecision?.deadlineAt]);
+  }, [decisionDialog]);
 
   useEffect(() => {
     if (resolvingDecisionId && controlGame?.pendingDecision?.id !== resolvingDecisionId) {
@@ -190,26 +183,17 @@ export default function App() {
     }
   }, [controlGame?.pendingDecision?.id, resolvingDecisionId]);
 
-  // A new choice always replaces the lingering result of the previous one.
-  useEffect(() => {
-    if (controlGame?.pendingDecision) setDecisionReplay(null);
-  }, [controlGame?.pendingDecision?.id]);
+  function showDecision(next: DecisionDialogState | null) {
+    decisionDialogRef.current = next;
+    setDecisionDialog(next);
+  }
 
-  function rememberDecisionResult(decision: PendingDecision | null | undefined, events: GameEvent[], players: PlayerState[]) {
-    const outcome = decisionResolution(decision, events);
-    if (!decision || !outcome) return;
-    const chosen = decision.options.find((option) => option.id === outcome.optionId);
-    setDecisionReplay({
-      decision,
-      outcome,
-      playerName: players.find((player) => player.id === outcome.playerId)?.name ?? t("common.player"),
-      chosenLabel: chosen ? decisionOptionLabel(chosen.label, t) : t("common.automatic"),
-    });
-    if (decisionReplayTimer.current !== null) window.clearTimeout(decisionReplayTimer.current);
-    decisionReplayTimer.current = window.setTimeout(() => {
-      decisionReplayTimer.current = null;
-      setDecisionReplay(null);
-    }, 3600);
+  function showPendingDecision(next: RoomSnapshot) {
+    const decision = next.game.pendingDecision;
+    if (decision && decision.id === submittedDecisionId.current) return;
+    if (decision?.id !== decisionDialogRef.current?.decision.id) {
+      showDecision(decision ? { decision, outcome: null } : null);
+    }
   }
 
   async function createRoom() {
@@ -226,6 +210,7 @@ export default function App() {
   }
 
   function returnToEntry() {
+    resetPlayback();
     client.current.close();
     setStatus("disconnected");
     visibleSnapshot.current = null;
@@ -299,15 +284,28 @@ export default function App() {
       if (latestDiceValue !== null) setRestingDiceValue(latestDiceValue);
       if (latest && (visibleSnapshot.current?.revision ?? -1) < latest.revision) {
         publishSnapshot(latest);
+        showPendingDecision(latest);
       }
       setPlaybackBusyState(false);
       return;
     }
 
     setPlaybackBusyState(true);
+    // Reserve the queue before any wait so incoming Bot updates cannot overtake it.
+    activePlayback.current = item;
+    const runId = playbackId.current;
+    const resolved = resolvedDecisionDialog(decisionDialogRef.current, item.events, viewerId.current);
+    if (resolved) {
+      showDecision(resolved);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 1200));
+      if (runId !== playbackId.current) return;
+      showDecision(null);
+    } else if (decisionResolution(decisionDialogRef.current?.decision, item.events)) {
+      showDecision(null);
+    }
     if (item.values.length > 0) {
       activePlayback.current = item;
-      setRestingDiceValue(item.values[0]);
+      setCameraFocus(item.rollFocus ?? null);
       const animation = {
         revision: item.revision,
         values: item.values,
@@ -320,6 +318,7 @@ export default function App() {
       return;
     }
 
+    activePlayback.current = null;
     eventPlaybackActive.current = true;
     const playbackRunId = ++playbackId.current;
     try {
@@ -331,7 +330,7 @@ export default function App() {
     }
   }
 
-  function resetPlaybackForWelcome(message: Extract<ServerMessage, { type: "WELCOME" }>) {
+  function resetPlayback() {
     if (revealTimer.current !== null) window.clearTimeout(revealTimer.current);
     revealTimer.current = null;
     finishingRollKey.current = null;
@@ -342,11 +341,23 @@ export default function App() {
     activePlayback.current = null;
     eventPlaybackActive.current = false;
     rollAnimationRef.current = null;
-    rollingPlayerRef.current = null;
-    rollingActionRef.current = null;
+    localRollActionRef.current = null;
     localRollPendingRef.current = false;
     latestAuthoritativeDiceValue.current = null;
 
+    setRollAnimation(null);
+    setLocalRollPending(false);
+    setPlaybackBusyState(false);
+    setMoment(null);
+    setRollOffResult(null);
+    setResolvingDecisionId(null);
+    submittedDecisionId.current = null;
+    showDecision(null);
+    setDiceResetKey((value) => value + 1);
+  }
+
+  function resetPlaybackForWelcome(message: Extract<ServerMessage, { type: "WELCOME" }>) {
+    resetPlayback();
     const restoredRolls = new Set<string>();
     const raceKey = message.game.raceNumber - 1;
     for (const event of message.game.raceLog) {
@@ -359,15 +370,8 @@ export default function App() {
     if (preview) restoredRolls.add(`race:${raceKey}:serial:${preview.rollSerial}`);
     shownRolls.current = restoredRolls;
 
-    setRollAnimation(null);
-    setRollingPlayerId(null);
-    setRollingActionId(null);
-    setLocalRollPending(false);
-    setPlaybackBusyState(false);
-    setMoment(null);
-    setRollOffResult(null);
-    setResolvingDecisionId(null);
-    setDiceResetKey((value) => value + 1);
+    viewerId.current = message.playerId;
+    showPendingDecision(message);
   }
 
   function handleMessage(message: ServerMessage) {
@@ -383,8 +387,11 @@ export default function App() {
     }
     if (message.type === "ERROR") {
       setResolvingDecisionId(null);
+      submittedDecisionId.current = null;
+      if (authoritativeSnapshot.current) showPendingDecision(authoritativeSnapshot.current);
       if (localRollPendingRef.current) {
         localRollPendingRef.current = false;
+        localRollActionRef.current = null;
         setLocalRollPending(false);
         setDiceResetKey((value) => value + 1);
       }
@@ -404,32 +411,25 @@ export default function App() {
       setError("");
       return;
     }
-    const previousDecision = authoritativeSnapshot.current?.game.pendingDecision ?? null;
+    const previousSnapshot = authoritativeSnapshot.current;
     rememberAuthoritativeSnapshot(message);
     if (message.type === "ROLL_STARTED") {
-      rollingPlayerRef.current = message.playerId;
-      rollingActionRef.current = message.actionId;
-      setRollingPlayerId(message.playerId);
-      setRollingActionId(message.actionId);
+      // Start signals update authority only; the result joins the presentation queue.
       setError("");
       return;
     }
     if (message.type === "STATE_UPDATED") {
       const lines = message.events.map((event) => eventText(event, message.game.players, message.events, t)).filter(Boolean);
       setFeed((current) => [...lines, ...current].slice(0, 300));
-      rememberDecisionResult(previousDecision, message.events, message.game.players);
       const nextShownRolls = new Set(shownRolls.current);
       let diceValues = collectUnseenRollValues(message, nextShownRolls);
-      if (diceValues.length === 0 && localRollPendingRef.current) {
+      if (diceValues.length === 0 && message.actionId === localRollActionRef.current) {
         diceValues = message.events.flatMap((event) => event.type === "DICE_ROLLED" && !event.noDice && typeof event.value === "number" ? [event.value] : []);
       }
-      if (diceValues.length === 0 && (localRollPendingRef.current || rollingPlayerRef.current !== null)) {
+      if (diceValues.length === 0 && message.actionId === localRollActionRef.current) {
         localRollPendingRef.current = false;
-        rollingPlayerRef.current = null;
-        rollingActionRef.current = null;
+        localRollActionRef.current = null;
         setLocalRollPending(false);
-        setRollingPlayerId(null);
-        setRollingActionId(null);
         setDiceResetKey((value) => value + 1);
       }
       if (message.events.some((event) => event.type === "START_DICE_ROLLED")) {
@@ -437,24 +437,19 @@ export default function App() {
           finalSnapshot: message, autoThrow: false, throwKey: `rolloff-${message.revision}` });
       } else if (isRacePlaybackSnapshot(message) && diceValues.length > 0) {
         shownRolls.current = nextShownRolls;
-        const throwKey = rollingActionRef.current ? `start-${rollingActionRef.current}` : `result-${message.revision}-0`;
+        const throwKey = message.actionId ? `start-${message.actionId}` : `result-${message.revision}-0`;
         const playback = {
           revision: message.revision,
           values: diceValues,
           events: message.events,
           finalSnapshot: message,
-          // A repeated launch with the same key is ignored by the table dice. Keeping this true
-          // gives remote clients a result-time retry if the start signal arrived before
-          // their WebGL scene was ready.
-          autoThrow: !localRollPendingRef.current,
+          rollFocus: previousSnapshot ? raceRollFocus(previousSnapshot.game) : null,
+          autoThrow: message.actionId !== localRollActionRef.current,
           throwKey,
         };
-        rollingPlayerRef.current = null;
-        rollingActionRef.current = null;
-        setRollingPlayerId(null);
-        setRollingActionId(null);
         enqueueRacePlayback(playback);
-      } else if (isRacePlaybackSnapshot(message) && hasRaceAnimationEvents(message.events)) {
+      } else if (isRacePlaybackSnapshot(message) && (hasRaceAnimationEvents(message.events)
+        || message.events.some((event) => ["DECISION_RESOLVED", "DECISION_TIMED_OUT", "DECISION_REQUIRED"].includes(event.type)))) {
         enqueueRacePlayback({
           revision: message.revision,
           values: [],
@@ -463,12 +458,14 @@ export default function App() {
           autoThrow: false,
           throwKey: `events-${message.revision}`,
         });
-      } else if (playbackBusy || activePlayback.current || eventPlaybackActive.current || playbackQueue.current.length > 0) {
-        // Keep display state stable while queued race playback is catching up.
+      } else if (activePlayback.current || eventPlaybackActive.current || playbackQueue.current.length > 0) {
+        enqueueRacePlayback({ revision: message.revision, values: [], events: message.events,
+          finalSnapshot: message, autoThrow: false, throwKey: `state-${message.revision}` });
       } else {
         const latestDiceValue = latestAuthoritativeDiceValue.current;
         if (latestDiceValue !== null) setRestingDiceValue(latestDiceValue);
         publishSnapshot(message);
+        showPendingDecision(message);
       }
     }
     setError("");
@@ -486,8 +483,13 @@ export default function App() {
 
   function resolveDecision(decisionId: string, optionId: string) {
     setResolvingDecisionId(decisionId);
+    submittedDecisionId.current = decisionId;
+    const current = decisionDialogRef.current;
+    showDecision(null);
     if (!send({ type: "RESOLVE_DECISION", decisionId, optionId })) {
       setResolvingDecisionId(null);
+      submittedDecisionId.current = null;
+      showDecision(current);
     }
   }
 
@@ -501,9 +503,11 @@ export default function App() {
   function throwRaceDice(throwId: string) {
     if (localRollPendingRef.current || rollAnimation) return;
     localRollPendingRef.current = true;
+    localRollActionRef.current = throwId;
     setLocalRollPending(true);
     if (!send({ type: "ROLL_DICE" }, throwId)) {
       localRollPendingRef.current = false;
+      localRollActionRef.current = null;
       setLocalRollPending(false);
       setDiceResetKey((value) => value + 1);
     }
@@ -515,7 +519,6 @@ export default function App() {
     if (current.index + 1 < current.values.length) {
       const nextIndex = current.index + 1;
       const next = { ...current, index: nextIndex, autoThrow: true, throwKey: `result-${current.revision}-${nextIndex}` };
-      setRestingDiceValue(next.values[nextIndex]);
       rollAnimationRef.current = next;
       setRollAnimation(next);
       return;
@@ -530,16 +533,15 @@ export default function App() {
 
   function completeDiceAnimation() {
     const playback = activePlayback.current;
+    const settled = rollAnimationRef.current;
+    if (settled) setRestingDiceValue(settled.values[settled.index]);
     revealTimer.current = null;
     finishingRollKey.current = null;
     activePlayback.current = null;
     rollAnimationRef.current = null;
-    rollingPlayerRef.current = null;
-    rollingActionRef.current = null;
+    localRollActionRef.current = null;
     localRollPendingRef.current = false;
     setRollAnimation(null);
-    setRollingPlayerId(null);
-    setRollingActionId(null);
     setLocalRollPending(false);
     setDiceResetKey((value) => value + 1);
     if (!playback) {
@@ -583,6 +585,7 @@ export default function App() {
       if (cancelled()) return;
       setRollOffResult(null);
       publishSnapshot(finalSnapshot);
+      showPendingDecision(finalSnapshot);
       return;
     }
     for (const event of events) {
@@ -652,12 +655,13 @@ export default function App() {
     setCameraFocus(null);
     setMoment(null);
     publishSnapshot(finalSnapshot);
+    showPendingDecision(finalSnapshot);
   }
 
   useEffect(() => {
     if (!rollAnimation) return;
     const key = `${rollAnimation.revision}-${rollAnimation.index}`;
-    const timer = window.setTimeout(() => finishDiceAnimation(key), 1800);
+    const timer = window.setTimeout(() => finishDiceAnimation(key), use3DRaceTable ? 7000 : 1800);
     return () => window.clearTimeout(timer);
   }, [rollAnimation]);
 
@@ -685,8 +689,11 @@ export default function App() {
     ? game!.raceLog.slice().reverse().map((event) => eventText(event, game!.players, game!.raceLog, t)).filter(Boolean)
     : feed).slice(0, 300);
   const feedCount = game!.raceLog.length || feed.length;
-  const liveDecision = controlGame?.pendingDecision && !playbackBusy && !rollAnimation
-    && resolvingDecisionId !== controlGame.pendingDecision.id ? controlGame.pendingDecision : null;
+  const liveDecision = decisionDialog?.decision;
+  const decisionOutcome = decisionDialog?.outcome;
+  const decisionPlayerName = game?.players.find((player) => player.id === liveDecision?.playerId)?.name;
+  const chosenOption = liveDecision?.options.find((option) => option.id === decisionOutcome?.optionId);
+  const chosenLabel = chosenOption ? decisionOptionLabel(chosenOption.label, t) : t("common.automatic");
 
   return (
     <main className={`table ${game?.phase === "CHARACTER_SELECTION" ? "selection-view" : ""} ${immersiveRace ? "immersive-race" : ""} ${raceDetailsOpen ? "race-details-open" : ""} ${immersiveRace && feedOpen ? "feed-sidebar-open" : ""}`}>
@@ -770,7 +777,7 @@ export default function App() {
         <section className="race-stage stage">
           <div className="race-heading"><div><p className="kicker">RACE {game!.raceNumber} / 4</p><h2>{tracks[game!.raceNumber - 1]}</h2></div><div className="reward"><span>🏆 {game!.raceRewards[0]}</span><span>◉ {game!.raceRewards[1]}</span></div></div>
           {use3DRaceTable ? <Suspense fallback={<div className="race-table-loading" aria-label={t("race.loading")} />}>
-            <RaceTableScene turnKey={raceDiceTurnKey(game!, playbackBusy)} moment={moment} focus={cameraFocus ?? (game!.pendingDecision ? { athleteId: game!.pendingDecision.athleteId, playerId: game!.pendingDecision.playerId, close: true } : game!.pendingRoll ? { athleteId: game!.pendingRoll.nextAthleteId, playerId: game!.pendingRoll.nextPlayerId, close: true } : null)} activePlayerId={game!.activePlayerId} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
+            <RaceTableScene turnKey={rollAnimation?.autoThrow ? `playback-${rollAnimation.revision}-${rollAnimation.index}` : raceDiceTurnKey(game!, playbackBusy)} moment={moment} focus={cameraFocus ?? (game!.pendingDecision ? { athleteId: game!.pendingDecision.athleteId, playerId: game!.pendingDecision.playerId, close: true } : raceRollFocus(game!))} activePlayerId={game!.activePlayerId} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
               playbackBusy,
               enabled: canRollRaceDice(
                 controlGame,
@@ -779,8 +786,8 @@ export default function App() {
               ),
               targetValue: rollAnimation?.values[rollAnimation.index] ?? null,
               restingValue: restingDiceValue,
-              rollKey: rollAnimation?.throwKey ?? (rollingActionId ? `start-${rollingActionId}` : `idle-${game!.raceNumber}`),
-              autoThrow: rollAnimation?.autoThrow ?? (rollingPlayerId !== null && !localRollPending),
+              rollKey: rollAnimation?.throwKey ?? `idle-${game!.raceNumber}`,
+              autoThrow: rollAnimation?.autoThrow ?? false,
               resetKey: diceResetKey,
               activePlayerName: game!.players.find((player) => player.id === (game!.pendingRoll?.nextPlayerId ?? game!.activePlayerId))?.name ?? t("race.otherPlayers"),
               onThrow: throwRaceDice,
@@ -809,26 +816,16 @@ export default function App() {
       )}
 
       {moment && <ActionMoment moment={moment} />}
-      {liveDecision && <div className="decision-backdrop">
+      {liveDecision && <div className={`decision-backdrop ${decisionOutcome ? "resolved" : ""}`}>
         <section className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
-          <header><div><small>{athleteName(liveDecision.athleteId, liveDecision.athleteName)}</small><h2 id="decision-title">{decisionTitle(liveDecision, t)}</h2></div><strong>{decisionSeconds}s</strong></header>
+          <header><div><small>{athleteName(liveDecision.athleteId, liveDecision.athleteName)}</small><h2 id="decision-title">{decisionTitle(liveDecision, t)}</h2></div><strong className={decisionOutcome ? "decision-result-badge" : undefined}>{decisionOutcome ? t("decision.replayBadge") : `${decisionSeconds}s`}</strong></header>
           {liveDecision.rollPreview && <p className="decision-roll">{t("decision.rollPreview")} <strong>{liveDecision.rollPreview.value}</strong>{liveDecision.rollPreview.finalValue !== liveDecision.rollPreview.value && <small>{t("decision.finalMove", { value: liveDecision.rollPreview.finalValue })}</small>}</p>}
           <p>{decisionPrompt(liveDecision, t)}</p>
-          <div className="decision-options">{liveDecision.options.map((option) => <button className="command secondary" key={option.id}
-            disabled={liveDecision.playerId !== playerId || status !== "connected"}
+          <div className="decision-options">{liveDecision.options.map((option) => <button className={`command secondary ${option.id === decisionOutcome?.optionId ? "decision-chosen" : ""}`} key={option.id}
+            disabled={!!decisionOutcome || liveDecision.playerId !== playerId || status !== "connected" || playbackBusy || resolvingDecisionId === liveDecision.id || controlGame?.pendingDecision?.id !== liveDecision.id}
             onClick={() => resolveDecision(liveDecision.id, option.id)}>{decisionOptionLabel(option.label, t)}{option.ownerName != null && <small className="decision-option-detail">{t("race:decision.optionDetail", { owner: option.ownerName, position: option.position })}</small>}</button>)}</div>
-          {liveDecision.playerId !== playerId && <small>{t("decision.waitingFor", { name: controlGame?.players.find((player) => player.id === liveDecision.playerId)?.name })}</small>}
-        </section>
-      </div>}
-      {!liveDecision && decisionReplay && <div className="decision-backdrop replay">
-        <section className="decision-dialog" role="status" aria-live="polite">
-          <header><div><small>{athleteName(decisionReplay.decision.athleteId, decisionReplay.decision.athleteName)}</small><h2>{decisionTitle(decisionReplay.decision, t)}</h2></div><strong className="decision-replay-badge">{t("decision.replayBadge")}</strong></header>
-          <p>{decisionPrompt(decisionReplay.decision, t)}</p>
-          <div className="decision-options">{decisionReplay.decision.options.map((option) => <button className={`command secondary ${option.id === decisionReplay.outcome.optionId ? "decision-chosen" : ""}`} key={option.id} disabled>
-            {decisionOptionLabel(option.label, t)}{option.ownerName != null && <small className="decision-option-detail">{t("race:decision.optionDetail", { owner: option.ownerName, position: option.position })}</small>}</button>)}</div>
-          <small className="decision-replay-note">{decisionReplay.outcome.automatic
-            ? t("decision.replayTimeout", { name: decisionReplay.playerName, label: decisionReplay.chosenLabel })
-            : t("decision.replayChosen", { name: decisionReplay.playerName, label: decisionReplay.chosenLabel })}</small>
+          {decisionOutcome ? <small aria-live="polite">{t(decisionOutcome.automatic ? "decision.replayTimeout" : "decision.replayChosen", { name: decisionPlayerName, label: chosenLabel })}</small>
+            : liveDecision.playerId !== playerId && <small>{t("decision.waitingFor", { name: decisionPlayerName })}</small>}
         </section>
       </div>}
 

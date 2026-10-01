@@ -96,6 +96,7 @@ export interface GameState {
   players: PlayerState[];
   hand: AthleteCard[];
   activePlayerId: string | null;
+  activeAthleteId?: string | null;
   winnerId: string | null;
   winnerIds: string[];
   raceNumber: number;
