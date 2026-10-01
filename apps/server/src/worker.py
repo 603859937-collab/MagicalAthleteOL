@@ -29,7 +29,7 @@ from magical_athlete.snapshots import (
 
 ALLOWED_ORIGINS = {
     "https://xeonliu.github.io",
-    "https://magical-athlete.pages.dev"
+    "https://magical-athlete.pages.dev",
     "http://localhost:5173",
     "http://localhost:8080",
 }
