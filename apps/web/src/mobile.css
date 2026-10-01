@@ -45,7 +45,7 @@
 
   /* Share the board's grid cell, using its existing upper blank area rather
      than inserting a new row. The whole cell scrolls with the page. */
-  .immersive-race .race-moment-slot { display: grid; grid-area: board; align-self: start; z-index: 4; margin: 12px; min-height: 164px; pointer-events: none; }
+  .immersive-race .race-moment-slot { display: grid; grid-area: board; align-self: start; justify-self: center; z-index: 4; width: min(320px, calc(100% - 40px)); margin: 12px 0; min-height: 164px; pointer-events: none; }
   .immersive-race .race-moment-slot .action-moment {
     position: relative; inset: auto; transform: none; z-index: auto;
     width: 100%; min-height: 164px; max-height: none; overflow: visible;
