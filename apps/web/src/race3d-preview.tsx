@@ -7,6 +7,10 @@ import { RaceTrack } from "./components/RaceTrack";
 import type { PlayerState } from "./protocol";
 import "./i18n";
 import "./styles.css";
+import "./art-pack.css";
+import { applyArtPack } from "./artPack";
+
+applyArtPack();
 
 const athlete = (id: string, position: number, state: Partial<{ tripped: boolean; finished: boolean; finishPosition: number; eliminated: boolean }> = {}) => ({
   id, name: id, position, points: 0,
