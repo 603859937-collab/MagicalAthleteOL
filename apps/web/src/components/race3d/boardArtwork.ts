@@ -1,4 +1,5 @@
 import i18n from "../../i18n";
+import { festivalArtEnabled } from "../../artPack";
 import { assetUrl } from "../../runtimeConfig";
 import atlas from "./boardAtlas.json";
 import { FINISH_BADGE_RECT, REFERENCE_BOARD, referenceRectForStep } from "./trackLayout";
@@ -13,6 +14,31 @@ const WILD_LABEL_KEYS: Record<number, string | null> = {
 const WILD_SYMBOLS: Record<number, string> = {
   1: "★ 1", 7: "+3", 11: "+1", 13: "★ 1", 16: "−4", 23: "+2", 24: "−2",
 };
+const MOVE_AMOUNTS: Record<number, number> = { 7: 3, 11: 1, 16: -4, 23: 2, 24: -2 };
+const ARROW_COLORS: Record<number, string> = { 7: "#559944", 11: "#4d86c7", 16: "#428748", 23: "#5d93cc", 24: "#e64b35" };
+const DIGIT_COLORS: Record<number, string> = { 7: "#f6d546", 11: "#c983bc", 16: "#d7a5ce", 23: "#62a15a", 24: "#80a5d8" };
+
+function drawMoveArrow(context: CanvasRenderingContext2D, step: number, x: number, y: number, w: number, h: number) {
+  const amount = MOVE_AMOUNTS[step];
+  // Forward runs right on the top row and left on the bottom row.
+  const direction = Math.sign(amount) * (step < 15 ? 1 : -1);
+  const point = (px: number, py: number) => [x + (direction > 0 ? px : 1 - px) * w, y + py * h] as const;
+  const outline = [[.06,.12],[.57,.12],[.57,.03],[.96,.5],[.57,.97],[.57,.88],[.06,.88]];
+  context.save();
+  context.beginPath();
+  outline.forEach(([px, py], i) => { const p = point(px,py); if (i) context.lineTo(...p); else context.moveTo(...p); });
+  context.closePath(); context.fillStyle = ARROW_COLORS[step]; context.strokeStyle = INK; context.lineWidth = 2.5; context.lineJoin = "round"; context.fill(); context.stroke();
+  context.strokeStyle = "#fff5b550"; context.lineWidth = 1;
+  for (const row of [.2, .24, .76, .8]) {
+    context.beginPath(); context.moveTo(...point(.1,row)); context.lineTo(...point(.3,row)); context.stroke();
+  }
+  const center = point(.43,.53);
+  context.textAlign = "center"; context.textBaseline = "middle";
+  context.font = `900 ${Math.min(w * .5, h * .55)}px "Arial Black", sans-serif`;
+  context.fillStyle = DIGIT_COLORS[step]; context.strokeStyle = INK; context.lineWidth = 2.5;
+  context.strokeText(String(Math.abs(amount)), ...center); context.fillText(String(Math.abs(amount)), ...center);
+  context.restore();
+}
 
 /** Canvas-filled labels follow the UI language, so the fallback board stays readable. */
 function wildLabel(step: number): string {
@@ -64,32 +90,42 @@ export function drawBoardArtwork(context: CanvasRenderingContext2D, track: Track
     context.strokeStyle = INK;
     context.lineWidth = 3;
     context.strokeRect(x, y, w, h);
-    if (wild && `tile-${step}` in atlas) {
-      if (image) {
-        stamp(`tile-${step}` as keyof typeof atlas, x + 3, y + 3, w - 6, h - 6);
-      } else {
-        context.font = "900 23px sans-serif";
-        context.textAlign = "center";
-        context.fillStyle = PAPER;
-        context.strokeStyle = INK;
-        context.lineWidth = 3;
-        context.strokeText(wildLabel(step), x + w / 2, y + h / 2 + 8);
-        context.fillText(wildLabel(step), x + w / 2, y + h / 2 + 8);
-      }
+    if (wild && image && `tile-${step}` in atlas && (!festivalArtEnabled || !MOVE_AMOUNTS[step])) {
+      // Retain the original illustrated scoring stars and trip spaces.
+      stamp(`tile-${step}` as keyof typeof atlas, x + 3, y + 3, w - 6, h - 6);
+    } else if (wild && festivalArtEnabled && MOVE_AMOUNTS[step]) {
+      drawMoveArrow(context, step, x + 4, y + 4, w - 8, h - 8);
+    } else if (wild && wildLabel(step)) {
+      // These marks were tiny crops from a perspective photo. Render the
+      // same rule labels at native texture resolution, including localization.
+      context.font = "900 23px sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillStyle = PAPER;
+      context.strokeStyle = INK;
+      context.lineWidth = 3;
+      context.lineJoin = "round";
+      context.strokeText(wildLabel(step), x + w / 2, y + h / 2, w - 10);
+      context.fillText(wildLabel(step), x + w / 2, y + h / 2, w - 10);
     } else if (!wild && step > 0 && step % 5 === 0) {
-      if (image) {
+      if (image && !festivalArtEnabled) {
         const name = `number-${step}` as keyof typeof atlas;
         const [, , sw, sh] = atlas[name];
         stamp(name, x + (w - sw * .46) / 2, y + (h - sh * .46) / 2, sw * .46, sh * .46);
-      } else {
-        context.font = "900 32px sans-serif";
-        context.fillStyle = PAPER;
-        context.textAlign = "center";
-        context.fillText(String(step), x + w / 2, y + h / 2 + 10);
+        continue;
       }
+      context.font = "900 32px sans-serif";
+      context.fillStyle = festivalArtEnabled ? ["#81a8df", "#cf93c6", "#f7d746", "#67a15b", "#81a8df"][step / 5 - 1] : PAPER;
+      context.strokeStyle = INK;
+      context.lineWidth = 2;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.strokeText(String(step), x + w / 2, y + h / 2);
+      context.fillText(String(step), x + w / 2, y + h / 2);
     }
   }
   context.restore();
+  context.textBaseline = "alphabetic";
 
   // White printed keylines, with black gutters just like the physical board.
   context.strokeStyle = PAPER;
@@ -127,13 +163,13 @@ export function drawBoardArtwork(context: CanvasRenderingContext2D, track: Track
   context.fillRect(600.5, 2, .65, 356);
 }
 
-export function createBoardCanvas(track: TrackName): HTMLCanvasElement {
+export function createBoardCanvas(track: TrackName, scale = festivalArtEnabled ? 3 : 2): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
-  canvas.width = REFERENCE_BOARD.width * 2;
-  canvas.height = REFERENCE_BOARD.height * 2;
+  canvas.width = Math.floor(REFERENCE_BOARD.width * scale);
+  canvas.height = Math.floor(REFERENCE_BOARD.height * scale);
   const context = canvas.getContext("2d");
   if (context) {
-    context.scale(2, 2);
+    context.scale(scale, scale);
     drawBoardArtwork(context, track);
   }
   return canvas;

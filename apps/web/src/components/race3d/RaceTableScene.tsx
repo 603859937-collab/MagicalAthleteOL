@@ -18,6 +18,8 @@ import {
 } from "./trackLayout";
 import { createBoardCanvas, drawBoardArtwork, loadBoardAtlas } from "./boardArtwork";
 import { TableDice, type DiceLauncher, type DiceThrowState } from "./TableDice";
+import { boardTextureScale, racePixelRatio } from "./renderQuality";
+import { festivalArtEnabled } from "../../artPack";
 
 export interface RaceTableSceneProps {
   turnKey?: string;
@@ -80,9 +82,9 @@ function FollowCameraRig({ players, finishLine, focus, activePlayerId, overview,
 function BoardArtwork({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
   const { gl } = useThree();
   const texture = useMemo(() => {
-    const next = new CanvasTexture(createBoardCanvas(trackName));
+    const next = new CanvasTexture(createBoardCanvas(trackName, festivalArtEnabled ? boardTextureScale(gl.capabilities.maxTextureSize) : 2));
     next.colorSpace = SRGBColorSpace;
-    next.anisotropy = Math.min(8, gl.capabilities.getMaxAnisotropy());
+    next.anisotropy = Math.min(festivalArtEnabled ? 16 : 8, gl.capabilities.getMaxAnisotropy());
     return next;
   }, [gl, trackName]);
   useEffect(() => {
@@ -141,11 +143,13 @@ function RacerPiece({ athleteId, name, color, world, slotCount, tripped, finishe
   athleteId: string; name: string; color: string; world: { x: number; z: number };
   reducedMotion: boolean; slotCount: number; tripped: boolean; finished: boolean; finishPosition?: number | null; eliminated: boolean;
 }) {
+  const { gl } = useThree();
   const texture = useMemo(() => {
     const next = new TextureLoader().load(assetUrl(`assets/racer-tokens/${athleteId}.webp`));
     next.colorSpace = SRGBColorSpace;
+    if (festivalArtEnabled) next.anisotropy = Math.min(16, gl.capabilities.getMaxAnisotropy());
     return next;
-  }, [athleteId]);
+  }, [athleteId, gl]);
   useEffect(() => () => texture.dispose(), [texture]);
   const body = useRef<RapierRigidBody>(null);
   const initialPosition = useRef<[number, number, number]>([world.x, .285, world.z]);
@@ -211,10 +215,19 @@ function RacerFleet({ players, finishLine, reducedMotion, moment, focus }: Pick<
 }
 
 function TableAndBounds() {
+  const { gl } = useThree();
+  const texture = useMemo(() => {
+    if (!festivalArtEnabled) return undefined;
+    const next = new TextureLoader().load(assetUrl("assets/art-pack/festival-background.webp"));
+    next.colorSpace = SRGBColorSpace;
+    next.anisotropy = Math.min(16, gl.capabilities.getMaxAnisotropy());
+    return next;
+  }, [gl]);
+  useEffect(() => () => texture?.dispose(), [texture]);
   return <RigidBody type="fixed" colliders={false}>
     <mesh receiveShadow position={[0, -0.12, 0]}>
       <boxGeometry args={[25.2, 0.2, 8.1]} />
-      <meshStandardMaterial color="#b5ac99" roughness={1} />
+      <meshStandardMaterial map={texture} color={festivalArtEnabled ? "#f1ead7" : "#b5ac99"} roughness={1} />
     </mesh>
     <CuboidCollider args={[12.6, 0.1, 4.05]} position={[0, -0.12, 0]} />
     <CuboidCollider args={[12.6, 0.8, 0.1]} position={[0, 0.4, -4.05]} />
@@ -231,7 +244,7 @@ function Scene({ turnKey, moment, players, finishLine, trackName, dice, focus, a
 }) {
   return <>
     <FollowCameraRig players={players} finishLine={finishLine} focus={focus} activePlayerId={activePlayerId} overview={overview} reducedMotion={reducedMotion} />
-    <color attach="background" args={["#b5ac99"]} />
+    {!festivalArtEnabled && <color attach="background" args={["#b5ac99"]} />}
     <hemisphereLight intensity={1.25} color="#fff9e9" groundColor="#4b4945" />
     <directionalLight castShadow position={[-7, 14, 8]} intensity={1.75} shadow-mapSize={[2048, 2048]}
       shadow-bias={-0.00015} shadow-normalBias={0.025} shadow-radius={4}
@@ -285,8 +298,8 @@ export function RaceTableScene(props: RaceTableSceneProps) {
           : props.dice.enabled ? t("race3d.dragToThrow") : t("race3d.waitingFor", { name: props.dice.activePlayerName });
   return <section className={`race-table-3d ${props.dice.enabled ? "dice-enabled" : ""}`} aria-label={t("race3d.table")}>
     <div className="race-table-viewport">
-    <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0, 19, 9], fov: 30, near: 0.1, far: 300 }}
-      gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
+    <Canvas shadows dpr={festivalArtEnabled ? racePixelRatio(window.devicePixelRatio || 1) : [1, 1.75]} camera={{ position: [0, 19, 9], fov: 30, near: 0.1, far: 300 }}
+      gl={{ antialias: true, alpha: festivalArtEnabled, powerPreference: "high-performance" }}
       onCreated={({ gl }) => { gl.shadowMap.type = PCFSoftShadowMap; }}>
       <Scene {...props} overview={overview} reducedMotion={reducedMotion} onDiceStateChange={setDiceState} registerDiceLauncher={registerDiceLauncher} />
     </Canvas>
