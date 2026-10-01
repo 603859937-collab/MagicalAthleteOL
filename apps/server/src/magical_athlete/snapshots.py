@@ -19,6 +19,7 @@ class SnapshotPlayer:
     reconnect_token: str
     seen_action_ids: set[str]
     is_bot: bool = False
+    auto_play: bool = False
 
 
 @dataclass(slots=True)
@@ -48,6 +49,9 @@ def decode_snapshot(data: bytes) -> RoomSnapshot:
         raise IncompatibleSnapshotError("invalid room snapshot payload")
     if not hasattr(snapshot, "spectators"):
         snapshot.spectators = {}
+    for member in snapshot.players.values():
+        if not hasattr(member, "auto_play"):
+            member.auto_play = False
     # Pickle preserves instance triggers and subscriber tables from the old
     # deployment. Upgrade Genius without discarding an ongoing room.
     engine = snapshot.game_state.magsim_engine if snapshot.game_state is not None else None

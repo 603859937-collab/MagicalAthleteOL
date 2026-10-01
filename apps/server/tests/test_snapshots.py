@@ -92,3 +92,14 @@ def test_old_room_snapshot_starts_with_empty_spectator_seats():
     del snapshot.spectators
     restored = decode_snapshot(encode_snapshot(snapshot))
     assert restored.spectators == {}
+
+
+def test_saved_room_preserves_managed_play_and_old_players_default_to_manual():
+    member = SnapshotPlayer(Player('a', 'Alice'), 'token', set(), auto_play=True)
+    snapshot = RoomSnapshot('TEST', {'a': member}, MagsimGameEngine().create_game((member.player,)), 4,
+                            None, None, datetime.now(UTC))
+    restored = decode_snapshot(encode_snapshot(snapshot))
+    assert restored.players['a'].auto_play is True
+    del member.auto_play
+    legacy = decode_snapshot(encode_snapshot(snapshot))
+    assert legacy.players['a'].auto_play is False

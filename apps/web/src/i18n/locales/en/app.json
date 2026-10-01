@@ -1,4 +1,9 @@
 {
+  "autoPlay": {
+    "enable": "Auto-play",
+    "disable": "Take control",
+    "hint": "Let a bot roll, draft, choose racers and use skills. Take control again at any time."
+  },
   "entry": {
     "kicker": "THE MAGICAL RACE IS ON",
     "joinLabel": "Join game",

@@ -31,6 +31,7 @@ from .protocol import (
     ResolveDecisionIntent,
     SelectRacersIntent,
     SetAutoDealIntent,
+    SetAutoPlayIntent,
     SetVariantIntent,
     StartGameIntent,
 )
@@ -63,6 +64,7 @@ class RoomPlayer:
     socket: RoomSocket | None = None
     seen_action_ids: set[str] = field(default_factory=set)
     is_bot: bool = False
+    auto_play: bool = False
 
 
 @dataclass(slots=True)
@@ -104,6 +106,7 @@ class Room:
             player["connected"] = connected.get(player["id"], False)
             member = self.players.get(player["id"])
             player["isBot"] = member.is_bot if member is not None else False
+            player["autoPlay"] = member.auto_play if member is not None else False
         return {"roomId": self.id, "revision": self.revision, "game": game,
                 "viewerRole": "spectator" if viewer_id in self.spectators else "player",
                 "spectators": [{"id": member.player.id, "name": member.player.name, "connected": member.connected}
@@ -211,6 +214,7 @@ class RoomManager:
         | AddBotIntent
         | SetVariantIntent
         | SetAutoDealIntent
+        | SetAutoPlayIntent
         | RollStartIntent
         | DraftAthleteIntent
         | SelectRacersIntent
@@ -260,14 +264,29 @@ class RoomManager:
             member.seen_action_ids.add(intent.action_id)
             if len(member.seen_action_ids) > 500:
                 member.seen_action_ids = {intent.action_id}
+            if isinstance(intent, SetAutoPlayIntent):
+                member.auto_play = intent.enabled
+                room.revision += 1
+                state = room.game_state
+                if state and state.pending_decision and state.pending_decision.get("playerId") == player_id:
+                    self._sync_decision_timer_locked(room)
+                if state and state.pending_roll and state.pending_roll.get("nextPlayerId") == player_id:
+                    self._sync_roll_timer_locked(room)
+                self._sync_bot_timer_locked(room)
+                await self._broadcast_locked(room, {
+                    "type": "STATE_UPDATED", "actionId": intent.action_id,
+                    "events": [{"type": "AUTO_PLAY_CHANGED", "playerId": player_id, "enabled": intent.enabled}],
+                    "rollResults": [],
+                })
+                return
             await self._apply_intent_locked(room, member, intent)
 
     async def _apply_intent_locked(
-        self, room: Room, member: RoomPlayer, intent: Any
+        self, room: Room, member: RoomPlayer, intent: Any, *, automated: bool = False
     ) -> bool:
         try:
             transition = await self._execute_intent_locked(
-                room, member.player.id, intent, bot=member.is_bot
+                room, member.player.id, intent, bot=member.is_bot or automated
             )
         except GameRuleError as error:
             if member.socket is not None:
@@ -463,7 +482,7 @@ class RoomManager:
         room.decision_deadline = None
         if pending is None:
             return
-        if not self._is_bot(room, pending.get("playerId")):
+        if not self._is_automated(room, pending.get("playerId")):
             room.decision_deadline = datetime.now(UTC) + timedelta(seconds=ACTION_TIME_LIMIT_SECONDS)
         if not self.local_timers:
             return
@@ -480,7 +499,7 @@ class RoomManager:
         room.roll_deadline = None
         if pending is None:
             return
-        if not self._is_bot(room, pending.get("nextPlayerId")):
+        if not self._is_automated(room, pending.get("nextPlayerId")):
             room.roll_deadline = datetime.now(UTC) + timedelta(seconds=ACTION_TIME_LIMIT_SECONDS)
         if not self.local_timers:
             return
@@ -489,14 +508,14 @@ class RoomManager:
             name=f"roll-timeout-{room.id}",
         )
 
-    def _is_bot(self, room: Room, player_id: str | None) -> bool:
+    def _is_automated(self, room: Room, player_id: str | None) -> bool:
         member = room.players.get(player_id) if player_id else None
-        return member is not None and member.is_bot
+        return member is not None and (member.is_bot or member.auto_play)
 
     def _bot_pending_action(self, room: Room) -> tuple[str, str] | None:
         """Return (action kind, actor player id) for the next bot obligation, if any."""
         state = room.game_state
-        bots = {player_id for player_id, member in room.players.items() if member.is_bot}
+        bots = {player_id for player_id, member in room.players.items() if member.is_bot or member.auto_play}
         if state is None or not bots:
             return None
         if state.phase in (GamePhase.DRAFT_ROLL, GamePhase.RACE_ROLL):
@@ -618,14 +637,14 @@ class RoomManager:
     async def _take_bot_action_locked(self, room: Room, action: tuple[str, str]) -> None:
         kind, player_id = action
         member = room.players.get(player_id)
-        if member is None or not member.is_bot:
+        if member is None or not (member.is_bot or member.auto_play):
             room.bot_deadline = None
             return
         intent = self._build_bot_intent(room, kind, player_id)
         if intent is None:
             room.bot_deadline = None
             return
-        if not await self._apply_intent_locked(room, member, intent):
+        if not await self._apply_intent_locked(room, member, intent, automated=True):
             room.bot_deadline = None
 
     async def _roll_timeout(

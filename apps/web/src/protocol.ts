@@ -29,6 +29,7 @@ export interface PlayerState {
   position: number;
   connected: boolean;
   isBot: boolean;
+  autoPlay?: boolean;
   score: number;
   selectionLocked: boolean;
   selectedAthlete: ActiveRacer | null;
@@ -205,6 +206,7 @@ export type ClientIntent =
   | { type: "START_GAME"; actionId: string }
   | { type: "SET_VARIANT"; actionId: string; doubleRacer: boolean }
   | { type: "SET_AUTO_DEAL"; actionId: string; autoDeal: boolean }
+  | { type: "SET_AUTO_PLAY"; actionId: string; enabled: boolean }
   | { type: "ROLL_START"; actionId: string }
   | { type: "DRAFT_ATHLETE"; actionId: string; athleteId: string }
   | { type: "SELECT_RACERS"; actionId: string; athleteIds: string[] }

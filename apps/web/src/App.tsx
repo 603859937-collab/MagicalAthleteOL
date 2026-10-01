@@ -164,11 +164,12 @@ export default function App() {
   const controlGame = controlSnapshot?.game ?? game;
   const me = game?.players.find((player) => player.id === playerId);
   const controlMe = controlGame?.players.find((player) => player.id === playerId);
+  const autoPlay = !!controlMe?.autoPlay;
   const isHost = controlGame?.players[0]?.id === playerId;
   const canStart = controlGame?.phase === "LOBBY" && isHost && controlGame.players.length >= 2;
   const canRollOff = !!controlGame && ["DRAFT_ROLL", "RACE_ROLL"].includes(controlGame.phase)
     && game?.phase === controlGame.phase && !playbackBusy && !rollOffResult
-    && status === "connected" && controlGame.rollCandidateIds.includes(playerId) && !controlMe?.rollValues;
+    && status === "connected" && !autoPlay && controlGame.rollCandidateIds.includes(playerId) && !controlMe?.rollValues;
   const statusText = useMemo(() => t(`status.${status}`), [t, status]);
   useEffect(() => setSelectedIds([]), [snapshot?.game.raceNumber, snapshot?.game.phase]);
 
@@ -712,6 +713,7 @@ export default function App() {
           </div>)}
         </div>
         <div className="room-code">{musicToggle}
+          {!isSpectator && controlMe && <button className="auto-play-toggle" aria-pressed={autoPlay} disabled={status !== "connected"} title={t("autoPlay.hint")} onClick={() => send({ type: "SET_AUTO_PLAY", enabled: !autoPlay })}>{t(autoPlay ? "autoPlay.disable" : "autoPlay.enable")}</button>}
           {immersiveRace && <button className="feed-toggle" aria-expanded={feedOpen} aria-controls="race-feed" onClick={() => setFeedOpen(!feedOpen)}>{t("topbar.feed")}<span className="event-feed-count">{feedCount}</span></button>}
           <LanguageSwitcher compact />
           <small>{t("topbar.room")}</small><strong>{snapshot.roomId}</strong><span className={`status-dot ${status}`} /></div>
@@ -772,7 +774,7 @@ export default function App() {
           <div className="stage-title row"><div><p className="kicker">DRAFT {game!.draftRound} / {game!.draftRoundCount}</p><h2>{game!.activePlayerId === playerId ? t("draft.yourTurn")
               : t("draft.waitingFor", { name: game!.players.find((p) => p.id === game!.activePlayerId)?.name })}</h2></div><p>{t("draft.pool")}</p></div>
           <div className="draft-layout">
-            <div className="draft-pool">{game!.draftPool.map((athlete) => <SelectionCard key={athlete.id} athlete={athlete} accent={cardAccents[athlete.id] ?? "#f2bd27"} recruit disabled={game!.activePlayerId !== playerId || status !== "connected"} reason={t("draft.notYet")} onChoose={() => send({ type: "DRAFT_ATHLETE", athleteId: athlete.id })} />)}</div>
+            <div className="draft-pool">{game!.draftPool.map((athlete) => <SelectionCard key={athlete.id} athlete={athlete} accent={cardAccents[athlete.id] ?? "#f2bd27"} recruit disabled={autoPlay || game!.activePlayerId !== playerId || status !== "connected"} reason={t("draft.notYet")} onChoose={() => send({ type: "DRAFT_ATHLETE", athleteId: athlete.id })} />)}</div>
             <aside className="team-board"><h3>{t("draft.team")}</h3>{game!.players.map((player, index) => <div className="team-row" key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><div>{player.team.map((athlete) => <span title={cardName(athlete)} key={athlete.id}>{cardName(athlete).slice(0, 1)}</span>)}</div><small>{player.team.length} / {game!.cardsPerPlayer}</small></div>)}</aside>
           </div>
         </section>
@@ -782,8 +784,8 @@ export default function App() {
         <section className="selection-stage stage">
           <div className="selection-heading"><p className="kicker">RACE {game!.raceNumber} · {tracks[game!.raceNumber - 1]}</p><h2>{t(isSpectator ? "spectator.selection" : "selection.title")}</h2><p>{t(isSpectator ? "spectator.selectionHint" : game!.selectionCount === 1 ? "selection.hintOne" : "selection.hintMany", { count: game!.selectionCount })}</p></div>
           <div className="selection-meta"><strong>{t("selection.yourTeam", { count: me?.team.length ?? 0 })}</strong><span>{t("selection.rewards", { first: game!.raceRewards[0], second: game!.raceRewards[1] })}</span></div>
-          <div className="my-team">{me?.team.map((athlete) => <SelectionCard key={athlete.id} athlete={athlete} accent={cardAccents[athlete.id] ?? "#f2bd27"} used={me.usedAthleteIds.includes(athlete.id)} selected={selectedIds.includes(athlete.id)} disabled={me.selectionLocked || (!selectedIds.includes(athlete.id) && selectedIds.length >= game!.selectionCount)} reason={me.selectionLocked ? t("selection.locked") : t("selection.full", { count: game!.selectionCount })} onChoose={() => toggleRacer(athlete.id)} />)}</div>
-          <div className="selection-dock"><div className="selection-dock-inner">{!isSpectator && <><div className="selection-chosen" aria-live="polite"><strong>{me?.team.filter((athlete) => selectedIds.includes(athlete.id)).map((athlete) => cardName(athlete)).join(" · ") || t("selection.nothingPicked")}</strong><span>{selectedIds.length} / {game!.selectionCount}</span></div><button className="selection-confirm" disabled={selectedIds.length !== game!.selectionCount || me?.selectionLocked || status !== "connected"} onClick={() => send({ type: "SELECT_RACERS", athleteIds: selectedIds })}>{me?.selectionLocked ? t("selection.locked") : status !== "connected" ? t("selection.reconnecting") : t("selection.confirm")}</button></>}<p className="selection-ready">{t("selection.ready", { ready: game!.players.filter((player) => player.selectionLocked).length, total: game!.players.length })}</p></div></div>
+          <div className="my-team">{me?.team.map((athlete) => <SelectionCard key={athlete.id} athlete={athlete} accent={cardAccents[athlete.id] ?? "#f2bd27"} used={me.usedAthleteIds.includes(athlete.id)} selected={selectedIds.includes(athlete.id)} disabled={autoPlay || me.selectionLocked || (!selectedIds.includes(athlete.id) && selectedIds.length >= game!.selectionCount)} reason={me.selectionLocked ? t("selection.locked") : t("selection.full", { count: game!.selectionCount })} onChoose={() => toggleRacer(athlete.id)} />)}</div>
+          <div className="selection-dock"><div className="selection-dock-inner">{!isSpectator && <><div className="selection-chosen" aria-live="polite"><strong>{me?.team.filter((athlete) => selectedIds.includes(athlete.id)).map((athlete) => cardName(athlete)).join(" · ") || t("selection.nothingPicked")}</strong><span>{selectedIds.length} / {game!.selectionCount}</span></div><button className="selection-confirm" disabled={autoPlay || selectedIds.length !== game!.selectionCount || me?.selectionLocked || status !== "connected"} onClick={() => send({ type: "SELECT_RACERS", athleteIds: selectedIds })}>{me?.selectionLocked ? t("selection.locked") : status !== "connected" ? t("selection.reconnecting") : t("selection.confirm")}</button></>}<p className="selection-ready">{t("selection.ready", { ready: game!.players.filter((player) => player.selectionLocked).length, total: game!.players.length })}</p></div></div>
         </section>
       )}
 
@@ -793,7 +795,7 @@ export default function App() {
           {use3DRaceTable ? <Suspense fallback={<div className="race-table-loading" aria-label={t("race.loading")} />}>
             <RaceTableScene turnKey={rollAnimation?.autoThrow ? `playback-${rollAnimation.revision}-${rollAnimation.index}` : raceDiceTurnKey(game!, playbackBusy)} moment={moment} focus={cameraFocus ?? (game!.pendingDecision ? { athleteId: game!.pendingDecision.athleteId, playerId: game!.pendingDecision.playerId, close: true } : raceRollFocus(game!))} activePlayerId={game!.activePlayerId} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
               playbackBusy,
-              enabled: canRollRaceDice(
+              enabled: !autoPlay && canRollRaceDice(
                 controlGame,
                 playerId,
                 localRollPending || playbackBusy || !!rollAnimation || status !== "connected",
@@ -810,7 +812,7 @@ export default function App() {
           </Suspense> : <div className="track-wrap"><RaceTrack moment={moment} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} /></div>}
           <div className="race-console">
             <div className="score-strip">{game!.players.map((player, index) => <div className={game!.activePlayerId === player.id ? "active" : ""} key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><small>{scoreLabel(player, game!.phase, t)}</small></div>)}</div>
-            {!use3DRaceTable && <button className="command dice-command" disabled={!canRollRaceDice(
+            {!use3DRaceTable && <button className="command dice-command" disabled={autoPlay || !canRollRaceDice(
               controlGame,
               playerId,
               localRollPending || playbackBusy || !!rollAnimation || status !== "connected",
@@ -837,7 +839,7 @@ export default function App() {
           {liveDecision.rollPreview && <p className="decision-roll">{t("decision.rollPreview")} <strong>{liveDecision.rollPreview.value}</strong>{liveDecision.rollPreview.finalValue !== liveDecision.rollPreview.value && <small>{t("decision.finalMove", { value: liveDecision.rollPreview.finalValue })}</small>}</p>}
           <p>{decisionPrompt(liveDecision, t)}</p>
           <div className="decision-options">{liveDecision.options.map((option) => <button className={`command secondary ${option.id === decisionOutcome?.optionId ? "decision-chosen" : ""}`} key={option.id}
-            disabled={!!decisionOutcome || liveDecision.playerId !== playerId || status !== "connected" || playbackBusy || resolvingDecisionId === liveDecision.id || controlGame?.pendingDecision?.id !== liveDecision.id}
+            disabled={autoPlay || !!decisionOutcome || liveDecision.playerId !== playerId || status !== "connected" || playbackBusy || resolvingDecisionId === liveDecision.id || controlGame?.pendingDecision?.id !== liveDecision.id}
             onClick={() => resolveDecision(liveDecision.id, option.id)}>{decisionOptionLabel(option.label, t)}
             {option.athlete && <AthleteSkill athlete={option.athlete} />}
             {option.ownerName != null && <small className="decision-option-detail">{t("race:decision.optionDetail", { owner: option.ownerName, position: option.position })}</small>}</button>)}</div>
@@ -855,7 +857,7 @@ export default function App() {
             : t("results.raceTitle")}</h2></div>
           <div className="podium-celebration" aria-hidden="true"><i className="confetti confetti-one">✦</i><i className="confetti confetti-two">✧</i><i className="firework firework-one">✹</i><i className="firework firework-two">✺</i></div>
           <div className="podium-list">{game!.players.slice().sort((a, b) => b.score - a.score).map((player, index) => <div key={player.id} className={index === 0 ? "leader" : index === 1 ? "second" : ""}><span>{index + 1}</span><strong>{player.name}</strong><div className="result-racers">{game!.raceResults.filter((result) => result.playerId === player.id).map((result) => <small key={result.athlete.id}>{cardName(result.athlete)} +{result.points}</small>)}</div><b>{t("results.points", { score: player.score })}</b></div>)}</div>
-          {game!.phase === "RACE_RESULTS" && <button className="command primary big" disabled={!isHost} onClick={() => send({ type: "ADVANCE_RACE" })}>{isHost ? t("results.next") : t("results.waitingHost")}</button>}
+          {game!.phase === "RACE_RESULTS" && <button className="command primary big" disabled={autoPlay || !isHost} onClick={() => send({ type: "ADVANCE_RACE" })}>{isHost ? t("results.next") : t("results.waitingHost")}</button>}
         </section>
       )}
 
