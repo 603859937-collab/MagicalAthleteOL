@@ -230,6 +230,8 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 .decision-dialog > small { color: #716b62; font-weight: 800; text-align: center; }
 .decision-backdrop.resolved { pointer-events: none; }
 .decision-dialog header > strong.decision-result-badge { color: #151515; background: #f2bd27; font-size: .8rem; }
+.decision-dialog header > strong.decision-auto-badge { max-width: 48%; min-height: 42px; height: auto; padding: 4px 8px; color: #151515; background: #f2bd27; font-size: .8rem; text-align: center; }
+.decision-dialog .decision-cancel-auto { justify-self: end; min-width: 0; min-height: 44px; padding: 8px 14px; font-size: .85rem; }
 .decision-backdrop.resolved .command:disabled { opacity: .5; }
 .decision-backdrop.resolved .command.decision-chosen { opacity: 1; color: white; border-color: #151515; background: #287fc2; box-shadow: 4px 4px 0 #151515, 0 0 0 4px #287fc244; animation: decision-chosen-pulse 1.2s ease-out 2; }
 @keyframes decision-chosen-pulse { 0% { box-shadow: 4px 4px 0 #151515, 0 0 0 0 #287fc2cc; } 70% { box-shadow: 4px 4px 0 #151515, 0 0 0 12px #287fc200; } 100% { box-shadow: 4px 4px 0 #151515, 0 0 0 4px #287fc244; } }

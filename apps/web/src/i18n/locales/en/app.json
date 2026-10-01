@@ -181,7 +181,9 @@
     "waitingFor": "Waiting for {{name}} to choose",
     "replayBadge": "Chosen",
     "replayTimeout": "{{name}} timed out, so \"{{label}}\" was chosen automatically",
-    "replayChosen": "{{name}} picked \"{{label}}\""
+    "replayChosen": "{{name}} picked \"{{label}}\"",
+    "autoChoosing": "Choosing automatically",
+    "replayManaged": "{{name}} automatically picked \"{{label}}\""
   },
   "results": {
     "finalKicker": "FINAL SCORE",
