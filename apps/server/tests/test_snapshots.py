@@ -77,3 +77,18 @@ def test_existing_room_upgrades_genius_prediction_subscriptions() -> None:
     assert roll['value'] == 5 and roll['finalValue'] == 6
     assert transition.state.active_player_id == 'p0'
     assert transition.state.pending_decision['abilityName'] == 'GeniusPrediction'
+
+
+def test_spectator_identities_survive_saved_room_restore():
+    snapshot = RoomSnapshot('TEST', {}, MagsimGameEngine().create_game(()), 4, None, None, datetime.now(UTC),
+                            spectators={'watcher': SnapshotPlayer(Player('watcher', 'Watcher'), 'watch-token', set())})
+    restored = decode_snapshot(encode_snapshot(snapshot))
+    assert restored.spectators['watcher'].reconnect_token == 'watch-token'
+    assert not restored.players and not restored.game_state.players
+
+
+def test_old_room_snapshot_starts_with_empty_spectator_seats():
+    snapshot = RoomSnapshot('TEST', {}, MagsimGameEngine().create_game(()), 4, None, None, datetime.now(UTC))
+    del snapshot.spectators
+    restored = decode_snapshot(encode_snapshot(snapshot))
+    assert restored.spectators == {}

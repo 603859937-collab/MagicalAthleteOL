@@ -10,6 +10,16 @@
     "cancelJoin": "Cancel join",
     "createRoom": "Create room"
   },
+  "spectator": {
+    "join": "Watch race",
+    "seats": "Spectator seats",
+    "count": "Spectators {{count}} / 20",
+    "watching": "Watching",
+    "leave": "Stop watching",
+    "reconnect": "Reconnect as spectator",
+    "selection": "Waiting for racer selection",
+    "selectionHint": "Racers are revealed when everyone is ready. You can watch the whole race."
+  },
   "status": {
     "connecting": "Connecting",
     "connected": "Online",

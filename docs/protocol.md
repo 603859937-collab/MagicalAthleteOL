@@ -57,6 +57,8 @@ LOBBY
 
 ## 状态广播
 
+`JOIN_ROOM.role` 可为 `player`（默认）或 `spectator`。旁观者可在开局后或六个玩家席位已满时加入，另有 20 个旁观席；其身份和重连凭证与玩家分开保存。旁观者收到相同的公开赛事广播，`game.hand` 为空，并且只有 `LEAVE_ROOM` 可执行，其他行动返回 `SPECTATOR_READ_ONLY`。`WELCOME` 与广播快照额外包含 `viewerRole` 和 `spectators: [{id, name, connected}]`，旁观者退出不重置对局。
+
 复制角色的候选选项包含可选的 `athlete: {id, name}`，客户端按 `id` 展示技能说明。蛋、双胞胎或模仿猫当前有复制对象时，其 `activeRacers` 条目包含 `copiedAthlete: {id, name}`；角色自身的 `id` 仍分别为 `egg`、`twin` 或 `copycat`，复制对象的技能文字由客户端本地化。模仿猫在比赛中换了领先者后，`copiedAthlete` 也随权威状态更新。
 
 有效行动产生 `STATE_UPDATED`。`events` 用于移动动画和提示，`game` 是权威快照；客户端发现 revision 跳跃时直接采用最新快照。骰子结果通过 `rollResults` 明确广播给房间内所有客户端，每个结果带全局一致的 `id`，客户端必须以此字段中的 `values` 为权威点数。长腿的慢跑跳过掷骰，对应事件与结果会带 `noDice: true` 且 `values` 为空，客户端不应播放骰子动画。分步投骰的每颗骰子拥有独立结果 ID，并以 `rollSessionId` 分组；`kind` 区分 `MAIN_ROLL`、`ABILITY_ROLL` 和 `ROLL_OFF`，`participants` 标识该颗骰子的玩家及赛车手。`rollSerial` 在单场比赛内单调递增；一次待决策预览及其最终事件引用同一个结果 ID。

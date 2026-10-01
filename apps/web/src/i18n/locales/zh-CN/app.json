@@ -10,6 +10,16 @@
     "cancelJoin": "取消加入",
     "createRoom": "创建房间"
   },
+  "spectator": {
+    "join": "旁观比赛",
+    "seats": "旁观席",
+    "count": "旁观者 {{count}} / 20",
+    "watching": "正在旁观",
+    "leave": "退出旁观",
+    "reconnect": "重新连接旁观",
+    "selection": "等待玩家选择角色",
+    "selectionHint": "选人结束后会公开本场角色，你可以观看完整比赛。"
+  },
   "status": {
     "connecting": "连接中",
     "connected": "在线",

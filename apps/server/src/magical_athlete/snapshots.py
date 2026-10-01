@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pickle
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from .game import GameState, Player
@@ -31,6 +31,7 @@ class RoomSnapshot:
     roll_deadline: datetime | None
     last_active_at: datetime
     bot_deadline: datetime | None = None
+    spectators: dict[str, SnapshotPlayer] = field(default_factory=dict)
 
 
 def encode_snapshot(snapshot: RoomSnapshot) -> bytes:
@@ -45,6 +46,8 @@ def decode_snapshot(data: bytes) -> RoomSnapshot:
     snapshot = payload.get("snapshot")
     if not isinstance(snapshot, RoomSnapshot):
         raise IncompatibleSnapshotError("invalid room snapshot payload")
+    if not hasattr(snapshot, "spectators"):
+        snapshot.spectators = {}
     # Pickle preserves instance triggers and subscriber tables from the old
     # deployment. Upgrade Genius without discarding an ongoing room.
     engine = snapshot.game_state.magsim_engine if snapshot.game_state is not None else None
