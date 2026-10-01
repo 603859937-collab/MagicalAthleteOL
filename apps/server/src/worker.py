@@ -128,6 +128,7 @@ class RoomDurableObject(DurableObject):
                     connected=False,
                     seen_action_ids=set(item.seen_action_ids),
                     is_bot=item.is_bot,
+                    auto_play=item.auto_play,
                 )
                 for player_id, item in snapshot.players.items()
             },
@@ -166,6 +167,7 @@ class RoomDurableObject(DurableObject):
                     reconnect_token=member.reconnect_token,
                     seen_action_ids=set(member.seen_action_ids),
                     is_bot=member.is_bot,
+                    auto_play=member.auto_play,
                 )
                 for player_id, member in self.room.players.items()
             },
