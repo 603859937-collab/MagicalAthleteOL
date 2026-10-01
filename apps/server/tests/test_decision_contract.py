@@ -96,6 +96,10 @@ def test_each_setup_candidate_copies_the_displayed_racer(athlete, option):
         public = engine.public_state(state, 'a')['players'][0]['activeRacers'][0]
         assert public['id'] == 'twin'
         assert public['copiedAthlete'] == expected_card
+    else:
+        public = engine.public_state(state, 'a')['players'][0]['activeRacers'][0]
+        assert public['id'] == 'egg'
+        assert public['copiedAthlete'] == expected_card
 
 
 @pytest.mark.parametrize('option', ['0', '1', '2', 'skip'])
