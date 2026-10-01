@@ -6,7 +6,7 @@ import pytest
 
 from magical_athlete.athletes import ATHLETE_BY_ID
 from magical_athlete.game import GamePhase, MagsimGameEngine, Player
-from magical_athlete.protocol import JoinRoomIntent, ResolveDecisionIntent, SetAutoPlayIntent, StartGameIntent
+from magical_athlete.protocol import AdvanceRaceIntent, JoinRoomIntent, ResolveDecisionIntent, RollDiceIntent, RollStartIntent, SelectRacersIntent, SetAutoPlayIntent, StartGameIntent
 from magical_athlete.rooms import InMemoryRoomRepository, RoomManager, RoomPlayer
 from test_rooms import RecordingSocket
 
@@ -106,3 +106,90 @@ async def test_managed_player_cannot_manually_resolve_another_players_skill():
                                decisionId=decision['id'], optionId=decision['options'][0]['id']))
     assert room.players['a'].socket.messages[-1]['code'] == 'NOT_DECIDING_PLAYER'
     assert room.game_state.pending_decision == decision
+
+
+@pytest.mark.anyio
+async def test_genius_predicts_on_later_managed_turns_and_cancel_restores_manual_choice(monkeypatch):
+    from magical_athlete import rooms as room_module
+    monkeypatch.setattr(room_module, 'ROLL_ANIMATION_LEAD_SECONDS', 0)
+    room, manager = await human_room()
+    state = replace(room.game_state, phase=GamePhase.CHARACTER_SELECTION, first_turn_player_id='a',
+                    teams={'a': (ATHLETE_BY_ID['genius'], ATHLETE_BY_ID['banana']),
+                           'b': (ATHLETE_BY_ID['coach'], ATHLETE_BY_ID['blimp'])})
+    state = room.engine.select_racers(state, 'a', ('genius', 'banana')).state
+    room.game_state = room.engine.select_racers(state, 'b', ('coach', 'blimp')).state
+    room.game_state.magsim_engine.rng.randint = lambda *_: 2
+    await toggle(manager, room, 'a', True, 'enable-a')
+    await toggle(manager, room, 'b', True, 'enable-b')
+    predictions = []
+    for _ in range(50):
+        choice = room.game_state.pending_decision
+        if choice and choice['abilityName'] == 'GeniusPrediction':
+            assert choice['id'] not in predictions
+            predictions.append(choice['id'])
+            if len(predictions) == 3:
+                break
+        assert room.bot_deadline is not None
+        assert await manager.resolve_bot_action(room, room.bot_deadline + timedelta(seconds=1))
+    assert len(predictions) == 3
+    resolved = [event for message in room.players['a'].socket.messages for event in message.get('events', [])
+                if event['type'] == 'DECISION_RESOLVED' and event.get('abilityName') == 'GeniusPrediction']
+    assert len(resolved) == 2 and all(event['bot'] and event['optionLabel'] in ('1', '6') for event in resolved)
+    queued_deadline = room.bot_deadline
+    await toggle(manager, room, 'a', False, 'cancel-a')
+    assert room.bot_deadline is None and room.decision_deadline is not None
+    assert not await manager.resolve_bot_action(room, queued_deadline + timedelta(seconds=1))
+    assert room.game_state.pending_decision['id'] == predictions[-1]
+    await manager.handle_intent(room, 'a', ResolveDecisionIntent(type='RESOLVE_DECISION', actionId='manual-prediction',
+                               decisionId=predictions[-1], optionId='5'))
+    assert room.game_state.pending_decision is None
+    assert room.game_state.resolution_status == 'WAITING_FOR_ROLL'
+    ability = next(a for a in room.game_state.magsim_engine.get_racer(0).active_abilities if a.name == 'GeniusPrediction')
+    assert ability.prediction == 6 and not room.players['a'].auto_play
+
+
+@pytest.mark.anyio
+async def test_cancelled_managed_play_stays_manual_in_race_two_with_fresh_genius_predictions(monkeypatch):
+    from magical_athlete import rooms as room_module
+    monkeypatch.setattr(room_module, 'ROLL_ANIMATION_LEAD_SECONDS', 0)
+    room, manager = await human_room()
+    state = replace(room.game_state, phase=GamePhase.CHARACTER_SELECTION, first_turn_player_id='a',
+                    teams={'a': tuple(ATHLETE_BY_ID[a] for a in ('coach', 'banana', 'genius', 'blimp')),
+                           'b': tuple(ATHLETE_BY_ID[a] for a in ('centaur', 'gunk', 'legs', 'huge_baby'))})
+    state = room.engine.select_racers(state, 'a', ('coach', 'banana')).state
+    room.game_state = room.engine.select_racers(state, 'b', ('centaur', 'gunk')).state
+    await toggle(manager, room, 'a', True, 'enable-a')
+    await toggle(manager, room, 'b', True, 'enable-b')
+    for _ in range(400):
+        if room.game_state.phase == GamePhase.RACE_RESULTS:
+            break
+        assert await manager.resolve_bot_action(room, room.bot_deadline + timedelta(seconds=1))
+    assert room.game_state.phase == GamePhase.RACE_RESULTS
+    await toggle(manager, room, 'a', False, 'cancel-before-race-two')
+    await manager.handle_intent(room, 'a', AdvanceRaceIntent(type='ADVANCE_RACE', actionId='race-two'))
+    predictions = []
+    for step in range(400):
+        state = room.game_state
+        assert state.race_number == 1 and not room.public_state('a')['game']['players'][0]['autoPlay']
+        choice = state.pending_decision
+        if choice and choice['playerId'] == 'a':
+            assert choice['abilityName'] == 'GeniusPrediction'
+            assert choice['id'] not in predictions
+            assert len(choice['options']) == 6 and room.bot_deadline is None
+            predictions.append(choice['id'])
+            if len(predictions) == 3:
+                break
+            intent = ResolveDecisionIntent(type='RESOLVE_DECISION', actionId=f'manual-predict-{step}',
+                                           decisionId=choice['id'], optionId='5')
+        elif state.phase == GamePhase.RACE_ROLL and 'a' in state.roll_candidates and 'a' not in state.roll_values:
+            intent = RollStartIntent(type='ROLL_START', actionId=f'manual-order-{step}')
+        elif state.phase == GamePhase.CHARACTER_SELECTION and 'a' not in state.selections:
+            intent = SelectRacersIntent(type='SELECT_RACERS', actionId=f'manual-select-{step}', athleteIds=('genius', 'blimp'))
+        elif state.phase == GamePhase.RACING and state.active_player_id == 'a' and state.resolution_status == 'WAITING_FOR_ROLL':
+            intent = RollDiceIntent(type='ROLL_DICE', actionId=f'manual-die-{step}')
+        else:
+            assert room.bot_deadline is not None
+            assert await manager.resolve_bot_action(room, room.bot_deadline + timedelta(seconds=1))
+            continue
+        await manager.handle_intent(room, 'a', intent)
+    assert len(predictions) == 3
