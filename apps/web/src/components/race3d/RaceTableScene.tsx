@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CuboidCollider, Physics, RigidBody, type RapierRigidBody } from "@react-three/rapier";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CanvasTexture, DoubleSide, ExtrudeGeometry, PCFSoftShadowMap, Shape, SRGBColorSpace, TextureLoader, Vector3 } from "three";
+import { CanvasTexture, DoubleSide, ExtrudeGeometry, PCFSoftShadowMap, RepeatWrapping, Shape, SRGBColorSpace, TextureLoader, Vector3 } from "three";
 import { FinishFireworks } from "./FinishFireworks";
 import type { ActionMoment } from "../../eventPresentation";
 import type { PlayerState } from "../../protocol";
@@ -101,12 +101,42 @@ function BoardArtwork({ trackName }: Pick<RaceTableSceneProps, "trackName">) {
   }, [texture, trackName]);
   return <mesh receiveShadow position={[0, 0.258, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
     <planeGeometry args={[BOARD_SIZE.width, BOARD_SIZE.depth]} />
-    <meshStandardMaterial map={texture} transparent roughness={0.95} metalness={0}
-      polygonOffset polygonOffsetFactor={-1} />
+    {festivalArtEnabled
+      ? <meshPhysicalMaterial map={texture} transparent roughness={.78} metalness={0}
+        clearcoat={.12} clearcoatRoughness={.85} polygonOffset polygonOffsetFactor={-1} />
+      : <meshStandardMaterial map={texture} transparent roughness={.95} metalness={0}
+        polygonOffset polygonOffsetFactor={-1} />}
   </mesh>;
 }
 
 function BoardBase() {
+  const { gl } = useThree();
+  const edgeTexture = useMemo(() => {
+    if (!festivalArtEnabled) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = 128; canvas.height = 64;
+    const context = canvas.getContext("2d");
+    if (context) {
+      context.fillStyle = "#b7a487"; context.fillRect(0, 0, 128, 64);
+      // Subtle, deterministic paper fibres along the cut edge of the board.
+      for (let i = 0; i < 170; i += 1) {
+        const x = (i * 37) % 128; const y = (i * 19) % 64;
+        context.strokeStyle = i % 2 ? "#efdfc33a" : "#63534124";
+        context.lineWidth = i % 3 ? .5 : 1;
+        context.beginPath(); context.moveTo(x, y); context.lineTo(x + 4 + i % 13, y + .3); context.stroke();
+      }
+      for (let y = 7; y < 64; y += 13) {
+        context.fillStyle = "#66584428"; context.fillRect(0, y, 128, .7);
+      }
+    }
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    texture.wrapS = RepeatWrapping; texture.wrapT = RepeatWrapping;
+    texture.repeat.set(.5, 2);
+    texture.anisotropy = Math.min(16, gl.capabilities.getMaxAnisotropy());
+    return texture;
+  }, [gl]);
+  useEffect(() => () => edgeTexture?.dispose(), [edgeTexture]);
   const geometry = useMemo(() => {
     const x = BOARD_SIZE.width / 2;
     const z = BOARD_SIZE.depth / 2;
@@ -122,11 +152,15 @@ function BoardBase() {
     shape.lineTo(-x, -z + radius);
     shape.quadraticCurveTo(-x, -z, -x + radius, -z);
     return new ExtrudeGeometry(shape, { depth: .3, bevelEnabled: true,
-      bevelSize: .015, bevelThickness: .015, bevelSegments: 2, steps: 1, curveSegments: 16 });
+      bevelSize: festivalArtEnabled ? .07 : .015, bevelThickness: festivalArtEnabled ? .035 : .015,
+      bevelSegments: festivalArtEnabled ? 8 : 2, steps: 1, curveSegments: festivalArtEnabled ? 40 : 16 });
   }, []);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  return <mesh geometry={geometry} castShadow receiveShadow position={[0, -.065, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-    <meshStandardMaterial color={INK} roughness={0.9} />
+  return <mesh geometry={geometry} castShadow receiveShadow position={[0, festivalArtEnabled ? -.085 : -.065, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+    {festivalArtEnabled ? <>
+      <meshPhysicalMaterial attach="material-0" color="#292a2e" roughness={.68} clearcoat={.15} clearcoatRoughness={.8} />
+      <meshStandardMaterial attach="material-1" map={edgeTexture} color="#d5c4a7" roughness={.92} />
+    </> : <meshStandardMaterial color={INK} roughness={0.9} />}
   </mesh>;
 }
 

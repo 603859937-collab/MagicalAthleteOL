@@ -2,6 +2,8 @@ import i18n from "../../i18n";
 import { festivalArtEnabled } from "../../artPack";
 import { assetUrl } from "../../runtimeConfig";
 import atlas from "./boardAtlas.json";
+import festivalAtlas from "./festivalBoardAtlas.json";
+import { drawFestivalSpecialTile } from "./festivalBoardIllustrations";
 import { FINISH_BADGE_RECT, REFERENCE_BOARD, referenceRectForStep } from "./trackLayout";
 
 export type TrackName = "Standard" | "WildWilds";
@@ -49,11 +51,16 @@ let atlasPromise: Promise<HTMLImageElement> | undefined;
 
 export function loadBoardAtlas(): Promise<HTMLImageElement> {
   if (!atlasPromise) {
-    atlasPromise = new Promise<HTMLImageElement>((resolve, reject) => {
+    const load = (festival: boolean) => new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
+      image.dataset.boardAtlas = festival ? "festival" : "classic";
       image.onload = () => resolve(image);
       image.onerror = () => reject(new Error("Board illustration could not be loaded"));
-      image.src = assetUrl("assets/boards/print-atlas.webp");
+      image.src = assetUrl(festival ? "assets/art-pack/festival-print-atlas.png" : "assets/boards/print-atlas.webp");
+    });
+    atlasPromise = load(festivalArtEnabled).catch((error: unknown) => {
+      if (festivalArtEnabled) return load(false);
+      throw error;
     }).catch((error: unknown) => {
       atlasPromise = undefined;
       throw error;
@@ -72,11 +79,18 @@ export function drawBoardArtwork(context: CanvasRenderingContext2D, track: Track
   const wild = track === "WildWilds";
   const stamp = (name: keyof typeof atlas, x: number, y: number, w: number, h: number) => {
     if (!image) return;
-    const [sx, sy, sw, sh] = atlas[name];
+    const regions = image.dataset.boardAtlas === "festival" ? festivalAtlas : atlas;
+    const region = (regions as Record<string, number[]>)[name];
+    if (!region) return;
+    const [sx, sy, sw, sh] = region;
     context.drawImage(image, sx, sy, sw, sh, x, y, w, h);
   };
   context.clearRect(0, 0, width, height);
-  context.fillStyle = INK;
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = festivalArtEnabled ? "high" : "low";
+  const rim = context.createLinearGradient(0, 0, 0, height);
+  rim.addColorStop(0, "#46474a"); rim.addColorStop(.18, "#27282b"); rim.addColorStop(1, "#191a1d");
+  context.fillStyle = festivalArtEnabled ? rim : INK;
   rounded(context, 0, 0, width, height, 47);
   context.fill();
 
@@ -90,8 +104,9 @@ export function drawBoardArtwork(context: CanvasRenderingContext2D, track: Track
     context.strokeStyle = INK;
     context.lineWidth = 3;
     context.strokeRect(x, y, w, h);
-    if (wild && image && `tile-${step}` in atlas && (!festivalArtEnabled || !MOVE_AMOUNTS[step])) {
-      // Retain the original illustrated scoring stars and trip spaces.
+    if (wild && festivalArtEnabled && drawFestivalSpecialTile(context, step, x + 3, y + 3, w - 6, h - 6)) {
+      // Original-inspired stars, shoes, impact marks, and rope, rendered as paths.
+    } else if (wild && image && `tile-${step}` in atlas && !festivalArtEnabled) {
       stamp(`tile-${step}` as keyof typeof atlas, x + 3, y + 3, w - 6, h - 6);
     } else if (wild && festivalArtEnabled && MOVE_AMOUNTS[step]) {
       drawMoveArrow(context, step, x + 4, y + 4, w - 8, h - 8);
@@ -130,17 +145,31 @@ export function drawBoardArtwork(context: CanvasRenderingContext2D, track: Track
   // White printed keylines, with black gutters just like the physical board.
   context.strokeStyle = PAPER;
   context.lineWidth = 3;
-  rounded(context, 17, 17, 1166, 326, 40);
+  rounded(context, 17, 17, 1166, 326, festivalArtEnabled ? 30 : 40);
   context.stroke();
-  context.beginPath();
-  context.moveTo(252, 18);
-  context.lineTo(252, 102);
-  context.lineTo(20, 102);
-  context.moveTo(252, 102);
-  context.lineTo(1101, 102);
-  context.lineTo(1101, 258);
-  context.lineTo(20, 258);
-  context.stroke();
+  if (festivalArtEnabled) {
+    context.strokeStyle = "#f1eee3";
+    rounded(context, 110, 103, 990, 154, 15);
+    context.stroke();
+    context.beginPath();
+    context.moveTo(252, 20); context.lineTo(252, 93);
+    context.quadraticCurveTo(252, 103, 242, 103); context.lineTo(20, 103);
+    context.stroke();
+    context.strokeStyle = "#fff9e325"; context.lineWidth = 1.2;
+    rounded(context, 4, 4, 1192, 352, 43); context.stroke();
+    context.strokeStyle = "#08090b55"; context.lineWidth = 1;
+    rounded(context, 10, 10, 1180, 340, 37); context.stroke();
+  } else {
+    context.beginPath();
+    context.moveTo(252, 18);
+    context.lineTo(252, 102);
+    context.lineTo(20, 102);
+    context.moveTo(252, 102);
+    context.lineTo(1101, 102);
+    context.lineTo(1101, 258);
+    context.lineTo(20, 258);
+    context.stroke();
+  }
 
   stamp(wild ? "wild" : "mild", 116, 109, 980, 140);
   stamp("start", 76, 38, 122, 40);
