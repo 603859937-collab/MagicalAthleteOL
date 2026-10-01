@@ -39,6 +39,9 @@
     "notConnected": "尚未连接到房间"
   },
   "serverErrors": {
+    "TAUNT_COOLDOWN": "道具正在冷却，请稍等片刻",
+    "TAUNT_NOT_RACING": "比赛开始后才能使用互动道具",
+    "INVALID_TAUNT_TARGET": "请选择房间里的其他玩家",
     "ALREADY_JOINED": "已经加入房间",
     "ALREADY_ROLLED": "你已经掷过本轮起始骰",
     "ATHLETE_ALREADY_LOCKED": "本场阵容已经锁定",
@@ -200,6 +203,19 @@
     "source": "触发来源",
     "target": "受影响",
     "space": "格"
+  },
+  "taunts": {
+    "open": "互动",
+    "subtitle": "趣味互动 · 不影响比赛结果",
+    "title": "来点赛场互动",
+    "pickTarget": "1. 选择一位玩家",
+    "pickHint": "先选玩家，再点击下面的道具投掷",
+    "aiming": "准备向 {{name}} 投掷",
+    "egg": "鸡蛋",
+    "tomato": "番茄",
+    "cooldown": "{{seconds}} 秒后可以再次投掷",
+    "thrown": "{{actor}} 向 {{target}} 丢了{{item}}",
+    "idle": "点「互动」，向朋友丢个鸡蛋或番茄"
   },
   "race3d": {
     "position": "比赛位置",

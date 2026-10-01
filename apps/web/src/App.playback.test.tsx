@@ -4,6 +4,7 @@ import type { GameState, PendingDecision, ServerMessage } from "./protocol";
 import type { RaceTableSceneProps } from "./components/race3d/RaceTableScene";
 import { AthleteSkill } from "./components/AthleteSkill";
 import { RaceLeaderboard } from "./components/RaceLeaderboard";
+import { TauntPanel } from "./components/TauntPanel";
 
 const connection = vi.hoisted(() => ({ receive: (_message: ServerMessage) => {}, send: vi.fn(), join: vi.fn() }));
 vi.mock("./gameClient", () => ({
@@ -59,6 +60,29 @@ async function join(state: GameState, spectator = false) {
   await receive({ type: "WELCOME", roomId: "TEST", revision: 1, playerId: spectator ? "watcher" : "human", reconnectToken: "token", game: state,
     viewerRole: spectator ? 'spectator' : 'player', spectators: spectator ? [{id: 'watcher', name: 'Watcher', connected: true}] : [] });
 }
+
+it("shows cosmetic throws immediately without changing pending dice playback", async () => {
+  await join(game());
+  await act(async () => scene().dice.onThrow("local-roll"));
+  const before = scene();
+  await receive({type:"PROP_THROWN", id:"prop-1", actorId:"bot", actorName:"Bot", targetPlayerId:"human", targetName:"Human", item:"egg", cooldownMs:4000});
+  expect(scene().taunts?.[0].id).toBe("prop-1");
+  expect(scene().players).toEqual(before.players);
+  expect(scene().dice.enabled).toBe(before.dice.enabled);
+  expect(scene().dice.targetValue).toBe(before.dice.targetValue);
+  await receive({type:"ERROR", code:"TAUNT_COOLDOWN", message:"Cooldown", actionId:"taunt-failed"});
+  expect(scene().dice.enabled).toBe(false);
+  expect(scene().dice.resetKey).toBe(before.dice.resetKey);
+  await advance(2300);
+  expect(scene().taunts).toEqual([]);
+});
+
+it("allows spectator props while retaining read-only gameplay", async () => {
+  await join(game(), true);
+  await act(async () => view.root.findByType(TauntPanel).props.onThrow("human", "tomato"));
+  expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({type:"THROW_PROP", targetPlayerId:"human", item:"tomato", actionId:"taunt-local-roll"}));
+  expect(scene().dice.enabled).toBe(false);
+});
 
 beforeAll(async () => {
   vi.stubGlobal("window", {

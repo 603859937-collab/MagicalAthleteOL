@@ -11,10 +11,11 @@ import { AthleteRules } from "./components/AthleteRules";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { decisionResolution, decisionTitle, decisionPrompt, decisionOptionLabel, resolvedDecisionDialog, type DecisionDialogState } from "./decisionPresentation";
 import { ActionMoment } from "./components/ActionMoment";
+import { TauntPanel, propEmoji } from "./components/TauntPanel";
 import { actionMoment, eventText, isRedundantAbilityEvent, rollOffPresentation, type ActionMoment as Moment } from "./eventPresentation";
 import { RaceTrack } from "./components/RaceTrack";
 import { actionId, clearSession, GameClient, loadSession, roomFromPath, saveSession } from "./gameClient";
-import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, RoomSnapshot, ServerMessage } from "./protocol";
+import type { ActiveRacer, AthleteCard, ClientIntent, GameEvent, PropThrow, RoomSnapshot, ServerMessage } from "./protocol";
 import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPresentation";
 import { canRollRaceDice, raceDiceTurnKey, raceRollFocus } from "./raceControls";
 import { apiUrl, assetUrl } from "./runtimeConfig";
@@ -119,6 +120,9 @@ export default function App() {
   const [raceDetailsOpen, setRaceDetailsOpen] = useState(false);
   const [feedOpen, setFeedOpen] = useState(false);
   const [moment, setMoment] = useState<Moment | null>(null);
+  const [taunts, setTaunts] = useState<PropThrow[]>([]);
+  const [latestTaunt, setLatestTaunt] = useState<PropThrow | null>(null);
+  const [tauntError, setTauntError] = useState("");
   const [rollOffResult, setRollOffResult] = useState<{ outcome: string; winnerId?: string } | null>(null);
   const [decisionSeconds, setDecisionSeconds] = useState(0);
   const [resolvingDecisionId, setResolvingDecisionId] = useState<string | null>(null);
@@ -140,6 +144,12 @@ export default function App() {
   const finishingRollKey = useRef<string | null>(null);
   const revealTimer = useRef<number | null>(null);
   const playbackId = useRef(0);
+
+  useEffect(() => {
+    if (!taunts.length) return;
+    const timer = window.setTimeout(() => setTaunts([]), 2200);
+    return () => window.clearTimeout(timer);
+  }, [taunts]);
 
   useEffect(() => {
     window.addEventListener("pointerdown", unlockGameAudio);
@@ -215,6 +225,7 @@ export default function App() {
   }
 
   function returnToEntry() {
+    setTaunts([]); setLatestTaunt(null); setTauntError("");
     resetPlayback();
     client.current.close();
     setStatus("disconnected");
@@ -392,6 +403,10 @@ export default function App() {
       return returnToEntry();
     }
     if (message.type === "ERROR") {
+      if (message.actionId?.startsWith("taunt-")) {
+        setTauntError(errorText(t, message.code, message.message));
+        return;
+      }
       setResolvingDecisionId(null);
       submittedDecisionId.current = null;
       if (authoritativeSnapshot.current) showPendingDecision(authoritativeSnapshot.current);
@@ -404,6 +419,12 @@ export default function App() {
       return setError(errorText(t, message.code, message.message));
     }
     if (message.type === "ACTION_ACK") return;
+    if (message.type === "PROP_THROWN") {
+      setLatestTaunt(message);
+      setTaunts(current => [...current.filter(event => event.id !== message.id), message].slice(-4));
+      if (message.actorId === viewerId.current) setTauntError("");
+      return;
+    }
     if (message.type === "WELCOME") {
       resetPlaybackForWelcome(message);
       rememberAuthoritativeSnapshot(message);
@@ -478,12 +499,14 @@ export default function App() {
   }
 
   function send(intent: GameActionInput, suppliedActionId = actionId()): boolean {
-    if (isSpectator && intent.type !== "LEAVE_ROOM") return false;
+    if (isSpectator && intent.type !== "LEAVE_ROOM" && intent.type !== "THROW_PROP") return false;
     try {
       client.current.send({ ...intent, actionId: suppliedActionId } as GameAction);
       return true;
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("errors.send"));
+      const message = reason instanceof Error ? reason.message : t("errors.send");
+      if (intent.type === "THROW_PROP") setTauntError(message);
+      else setError(message);
       return false;
     }
   }
@@ -713,6 +736,10 @@ export default function App() {
           </div>)}
         </div>
         <div className="room-code">{musicToggle}
+          {game!.phase === "RACING" && <TauntPanel players={game!.players} viewerId={playerId} connected={status === "connected"} latest={latestTaunt} error={tauntError} onThrow={(targetPlayerId, item) => {
+            setTauntError("");
+            return send({ type: "THROW_PROP", targetPlayerId, item }, `taunt-${actionId()}`);
+          }} />}
           {!isSpectator && controlMe && <button className="auto-play-toggle" aria-pressed={autoPlay} disabled={status !== "connected"} title={t("autoPlay.hint")} onClick={() => send({ type: "SET_AUTO_PLAY", enabled: !autoPlay })}>{t(autoPlay ? "autoPlay.disable" : "autoPlay.enable")}</button>}
           {immersiveRace && <button className="feed-toggle" aria-expanded={feedOpen} aria-controls="race-feed" onClick={() => setFeedOpen(!feedOpen)}>{t("topbar.feed")}<span className="event-feed-count">{feedCount}</span></button>}
           <LanguageSwitcher compact />
@@ -793,7 +820,7 @@ export default function App() {
         <section className="race-stage stage">
           <div className="race-heading"><div><p className="kicker">RACE {game!.raceNumber} / 4</p><h2>{tracks[game!.raceNumber - 1]}</h2></div><div className="reward"><span>🏆 {game!.raceRewards[0]}</span><span>◉ {game!.raceRewards[1]}</span></div></div>
           {use3DRaceTable ? <Suspense fallback={<div className="race-table-loading" aria-label={t("race.loading")} />}>
-            <RaceTableScene turnKey={rollAnimation?.autoThrow ? `playback-${rollAnimation.revision}-${rollAnimation.index}` : raceDiceTurnKey(game!, playbackBusy)} moment={moment} focus={cameraFocus ?? (game!.pendingDecision ? { athleteId: game!.pendingDecision.athleteId, playerId: game!.pendingDecision.playerId, close: true } : raceRollFocus(game!))} activePlayerId={game!.activePlayerId} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
+            <RaceTableScene taunts={taunts} turnKey={rollAnimation?.autoThrow ? `playback-${rollAnimation.revision}-${rollAnimation.index}` : raceDiceTurnKey(game!, playbackBusy)} moment={moment} focus={cameraFocus ?? (game!.pendingDecision ? { athleteId: game!.pendingDecision.athleteId, playerId: game!.pendingDecision.playerId, close: true } : raceRollFocus(game!))} activePlayerId={game!.activePlayerId} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} dice={{
               playbackBusy,
               enabled: !autoPlay && canRollRaceDice(
                 controlGame,
@@ -812,6 +839,7 @@ export default function App() {
           </Suspense> : <div className="track-wrap"><RaceTrack moment={moment} players={game!.players} finishLine={game!.finishLine} trackName={game!.trackName} /></div>}
           <div className="race-console">
             <div className="score-strip">{game!.players.map((player, index) => <div className={game!.activePlayerId === player.id ? "active" : ""} key={player.id}><span className={`color-chip ${playerColors[index]}`} /><strong>{player.name}</strong><small>{scoreLabel(player, game!.phase, t)}</small></div>)}</div>
+            <p className="taunt-recap" aria-live="polite">{latestTaunt ? `${propEmoji(latestTaunt.item)} ${t("taunts.thrown", { actor: latestTaunt.actorName, target: latestTaunt.targetName, item: t(`taunts.${latestTaunt.item}`) })}` : t("taunts.idle")}</p>
             {!use3DRaceTable && <button className="command dice-command" disabled={autoPlay || !canRollRaceDice(
               controlGame,
               playerId,

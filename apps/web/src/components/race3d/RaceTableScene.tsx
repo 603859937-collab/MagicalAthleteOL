@@ -4,7 +4,8 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { CanvasTexture, DoubleSide, ExtrudeGeometry, PCFSoftShadowMap, Shape, SRGBColorSpace, TextureLoader, Vector3 } from "three";
 import { FinishFireworks } from "./FinishFireworks";
 import type { ActionMoment } from "../../eventPresentation";
-import type { PlayerState } from "../../protocol";
+import type { PlayerState, PropThrow } from "../../protocol";
+import { TauntEffects } from "./TauntEffects";
 import { useTranslation } from "react-i18next";
 
 import { athleteText } from "../../i18n/athletes";
@@ -20,6 +21,7 @@ import { createBoardCanvas, drawBoardArtwork, loadBoardAtlas } from "./boardArtw
 import { TableDice, type DiceLauncher, type DiceThrowState } from "./TableDice";
 
 export interface RaceTableSceneProps {
+  taunts?: PropThrow[];
   turnKey?: string;
   moment?: ActionMoment | null;
   players: PlayerState[];
@@ -224,7 +226,7 @@ function TableAndBounds() {
   </RigidBody>;
 }
 
-function Scene({ turnKey, moment, players, finishLine, trackName, dice, focus, activePlayerId, overview, reducedMotion, onDiceStateChange, registerDiceLauncher }: RaceTableSceneProps & {
+function Scene({ turnKey, moment, taunts = [], players, finishLine, trackName, dice, focus, activePlayerId, overview, reducedMotion, onDiceStateChange, registerDiceLauncher }: RaceTableSceneProps & {
   overview: boolean; reducedMotion: boolean;
   onDiceStateChange: (state: DiceThrowState) => void;
   registerDiceLauncher: (launcher: DiceLauncher | null) => void;
@@ -238,6 +240,7 @@ function Scene({ turnKey, moment, players, finishLine, trackName, dice, focus, a
       shadow-camera-near={4} shadow-camera-far={32}
       shadow-camera-left={-13} shadow-camera-right={13} shadow-camera-top={6} shadow-camera-bottom={-6} />
     <directionalLight position={[9, 7, -7]} intensity={0.38} color="#dce8ff" />
+    <TauntEffects events={taunts} players={players} finishLine={finishLine} reducedMotion={reducedMotion} />
     <Physics gravity={[0, -12, 0]}>
       <TableAndBounds />
       <TrackBoard trackName={trackName} />
