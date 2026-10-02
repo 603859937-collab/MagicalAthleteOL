@@ -145,7 +145,20 @@ export interface DiceRollResult {
   throwCount?: number;
 }
 
+export type PropItem = "egg" | "tomato";
+export interface PropThrow {
+  type: "PROP_THROWN";
+  id: string;
+  actorId: string;
+  actorName: string;
+  targetPlayerId: string;
+  targetName: string;
+  item: PropItem;
+  cooldownMs: number;
+}
+
 export type ServerMessage =
+  | PropThrow
   | { type: "ROOM_LEFT" }
   | { type: "KICKED" }
   | (RoomSnapshot & { type: "WELCOME"; playerId: string; reconnectToken: string })
@@ -208,6 +221,7 @@ export type ClientIntent =
   | { type: "SET_VARIANT"; actionId: string; doubleRacer: boolean }
   | { type: "SET_AUTO_DEAL"; actionId: string; autoDeal: boolean }
   | { type: "SET_AUTO_PLAY"; actionId: string; enabled: boolean }
+  | { type: "THROW_PROP"; actionId: string; targetPlayerId: string; item: PropItem }
   | { type: "ROLL_START"; actionId: string }
   | { type: "DRAFT_ATHLETE"; actionId: string; athleteId: string }
   | { type: "SELECT_RACERS"; actionId: string; athleteIds: string[] }

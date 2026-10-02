@@ -51,6 +51,13 @@ class SetAutoPlayIntent(BaseModel):
     enabled: bool
 
 
+class ThrowPropIntent(BaseModel):
+    type: Literal["THROW_PROP"]
+    action_id: str = Field(alias="actionId", min_length=1, max_length=64)
+    target_player_id: str = Field(alias="targetPlayerId", min_length=1, max_length=64)
+    item: Literal["egg", "tomato"]
+
+
 class RollDiceIntent(BaseModel):
     type: Literal["ROLL_DICE"]
     action_id: str = Field(alias="actionId", min_length=1, max_length=64)
@@ -94,6 +101,7 @@ ClientIntent = Annotated[
     | SetVariantIntent
     | SetAutoDealIntent
     | SetAutoPlayIntent
+    | ThrowPropIntent
     | RollStartIntent
     | DraftAthleteIntent
     | SelectRacersIntent

@@ -39,6 +39,9 @@
     "notConnected": "Not connected to a room yet"
   },
   "serverErrors": {
+    "TAUNT_COOLDOWN": "Props are cooling down. Try again in a moment.",
+    "TAUNT_NOT_RACING": "Props are available during a race.",
+    "INVALID_TAUNT_TARGET": "Choose another player in this room.",
     "ALREADY_JOINED": "You are already in a room",
     "ALREADY_ROLLED": "You already rolled for this round",
     "ATHLETE_ALREADY_LOCKED": "Your lineup for this race is already locked",
@@ -202,6 +205,19 @@
     "source": "Triggered by",
     "target": "Affected",
     "space": "space"
+  },
+  "taunts": {
+    "open": "Interact",
+    "subtitle": "JUST FOR FUN · NO EFFECT ON THE RACE",
+    "title": "Throw a playful prop",
+    "pickTarget": "1. Choose a player",
+    "pickHint": "Choose a player, then a prop below",
+    "aiming": "Ready to throw at {{name}}",
+    "egg": "Egg",
+    "tomato": "Tomato",
+    "cooldown": "Ready again in {{seconds}}s",
+    "thrown": "{{actor}} threw a {{item}} at {{target}}",
+    "idle": "Open Interact to throw an egg or tomato"
   },
   "race3d": {
     "position": "Race position",
