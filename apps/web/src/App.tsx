@@ -313,6 +313,11 @@ export default function App() {
     const runId = playbackId.current;
     const resolved = resolvedDecisionDialog(decisionDialogRef.current, item.events, viewerId.current);
     if (resolved) {
+      if (resolved.outcome?.managed) {
+        // Keep the candidates visible even when the bot's answer is already queued.
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 650));
+        if (runId !== playbackId.current) return;
+      }
       showDecision(resolved);
       await new Promise<void>((resolve) => window.setTimeout(resolve, 1200));
       if (runId !== playbackId.current) return;
@@ -745,6 +750,8 @@ export default function App() {
   const feedCount = game!.raceLog.length || feed.length;
   const liveDecision = decisionDialog?.decision;
   const decisionOutcome = decisionDialog?.outcome;
+  const decisionOwner = controlGame?.players.find(player => player.id === liveDecision?.playerId);
+  const decisionIsAutomated = !!(decisionOwner?.isBot || decisionOwner?.autoPlay);
   const decisionPlayerName = game?.players.find((player) => player.id === liveDecision?.playerId)?.name;
   const chosenOption = liveDecision?.options.find((option) => option.id === decisionOutcome?.optionId);
   const chosenLabel = chosenOption ? decisionOptionLabel(chosenOption.label, t) : t("common.automatic");
@@ -889,15 +896,18 @@ export default function App() {
       {moment && game!.phase !== "RACING" && <ActionMoment moment={moment} />}
       {liveDecision && <div className={`decision-backdrop ${decisionOutcome ? "resolved" : ""}`}>
         <section className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
-          <header><div><small>{athleteName(liveDecision.athleteId, liveDecision.athleteName)}</small><h2 id="decision-title">{decisionTitle(liveDecision, t)}</h2></div><strong className={decisionOutcome ? "decision-result-badge" : undefined}>{decisionOutcome ? t("decision.replayBadge") : `${decisionSeconds}s`}</strong></header>
+          <header><div><small>{athleteName(liveDecision.athleteId, liveDecision.athleteName)}</small><h2 id="decision-title">{decisionTitle(liveDecision, t)}</h2></div><strong className={decisionOutcome ? "decision-result-badge" : decisionIsAutomated ? "decision-auto-badge" : undefined}>{decisionOutcome ? t("decision.replayBadge") : decisionIsAutomated ? t("decision.autoChoosing") : `${decisionSeconds}s`}</strong></header>
+          {autoPlay && <button className="command secondary decision-cancel-auto" disabled={status !== "connected"}
+            onClick={() => send({ type: "SET_AUTO_PLAY", enabled: false })}>{t("autoPlay.disable")}</button>}
           {liveDecision.rollPreview && <p className="decision-roll">{t("decision.rollPreview")} <strong>{liveDecision.rollPreview.value}</strong>{liveDecision.rollPreview.finalValue !== liveDecision.rollPreview.value && <small>{t("decision.finalMove", { value: liveDecision.rollPreview.finalValue })}</small>}</p>}
           <p>{decisionPrompt(liveDecision, t)}</p>
           <div className="decision-options">{liveDecision.options.map((option) => <button className={`command secondary ${option.id === decisionOutcome?.optionId ? "decision-chosen" : ""}`} key={option.id}
+            ref={option.id === decisionOutcome?.optionId ? node => node?.scrollIntoView({block: "nearest"}) : undefined}
             disabled={autoPlay || !!decisionOutcome || liveDecision.playerId !== playerId || status !== "connected" || playbackBusy || resolvingDecisionId === liveDecision.id || controlGame?.pendingDecision?.id !== liveDecision.id}
             onClick={() => resolveDecision(liveDecision.id, option.id)}>{decisionOptionLabel(option.label, t)}
             {option.athlete && <AthleteSkill athlete={option.athlete} />}
             {option.ownerName != null && <small className="decision-option-detail">{t("race:decision.optionDetail", { owner: option.ownerName, position: option.position })}</small>}</button>)}</div>
-          {decisionOutcome ? <small aria-live="polite">{t(decisionOutcome.automatic ? "decision.replayTimeout" : "decision.replayChosen", { name: decisionPlayerName, label: chosenLabel })}</small>
+          {decisionOutcome ? <small aria-live="polite">{t(decisionOutcome.managed ? "decision.replayManaged" : decisionOutcome.automatic ? "decision.replayTimeout" : "decision.replayChosen", { name: decisionPlayerName, label: chosenLabel })}</small>
             : liveDecision.playerId !== playerId && <small>{t("decision.waitingFor", { name: decisionPlayerName })}</small>}
         </section>
       </div>}

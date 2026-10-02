@@ -13,18 +13,19 @@ export function decisionTitle(decision: PendingDecision, t: TFunction = i18n.t):
   return t("race:decision.titleFallback", { athlete: athleteNameOf(t, decision) });
 }
 
-export type DecisionOutcome = { optionId: string | null; automatic: boolean; playerId: string };
+export type DecisionOutcome = { optionId: string | null; automatic: boolean; playerId: string; managed?: boolean };
 
 export type DecisionDialogState = { decision: PendingDecision; outcome: DecisionOutcome | null };
 
-// Only update an already visible choice. The submitting player has closed it.
+// Manual submissions close immediately; automated choices replay for their owner too.
 export function resolvedDecisionDialog(
   current: DecisionDialogState | null,
   events: GameEvent[],
   viewerId: string,
 ): DecisionDialogState | null {
-  if (!current || current.decision.playerId === viewerId) return null;
+  if (!current) return null;
   const outcome = decisionResolution(current.decision, events);
+  if (current.decision.playerId === viewerId && !outcome?.managed && !outcome?.automatic) return null;
   return outcome ? { decision: current.decision, outcome } : null;
 }
 
@@ -41,6 +42,7 @@ export function decisionResolution(
     optionId: resolved.optionId || null,
     automatic: Boolean(resolved.automatic) || resolved.type === "DECISION_TIMED_OUT",
     playerId: resolved.playerId ?? decision.playerId,
+    ...(resolved.bot ? { managed: true } : {}),
   };
 }
 
