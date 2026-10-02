@@ -1,7 +1,6 @@
 /* On small screens the board and controls take their own rows. Scrolling
    exposes every card and action instead of clipping a fixed desktop overlay. */
 .race-moment-slot { display: contents; }
-.race-moment-idle { display: none; }
 
 @media (max-width: 700px), (max-height: 500px) and (max-width: 980px) {
   .topbar, .immersive-race .topbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; }
@@ -75,11 +74,6 @@
   .immersive-race .moment-actor small { font-size: .65rem; line-height: 1.2; }
   .immersive-race .moment-effect { font-size: .85rem; line-height: 1.4; }
   .immersive-race .moment-positions { flex-wrap: wrap; }
-  .race-moment-idle { display: grid; place-content: center; justify-items: center; gap: 4px; min-height: 112px; padding: 10px; border: 1px dashed #d9cdb5; border-radius: 16px; color: #625c50; background: #fffdf780; text-align: center; }
-  .race-moment-idle > span { font-size: 1.2rem; color: #b3923e; }
-  .race-moment-idle > strong { font-size: .85rem; }
-  .race-moment-idle > small { font-size: .7rem; }
-
   .immersive-race { background: linear-gradient(180deg, #f8f5ed, #eee8da); }
   .immersive-race .topbar { border: 1px solid #fff2; border-radius: 14px; box-shadow: 0 3px 12px #24242712; }
   .immersive-race .race-heading { padding: 8px 0 0; align-items: center; gap: 12px; }

@@ -203,8 +203,6 @@
     "empty": "No events yet this race"
   },
   "momentFlow": {
-    "idle": "Waiting for the next action",
-    "hint": "Moves and powers will appear here",
     "source": "Triggered by",
     "target": "Affected",
     "space": "space"
