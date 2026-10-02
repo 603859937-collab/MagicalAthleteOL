@@ -102,6 +102,8 @@
   "decision": {
     "titleFallback": "{{athlete}}'s power",
     "skip": "Decline",
+    "use": "Use",
+    "chooseAction": "Choose an action",
     "suckerfishFollow": "Follow {{name}} from space {{from}} to space {{to}}?",
     "chooseDie": "Choose the die value to use",
     "chooseTile": "Choose the space to warp to",

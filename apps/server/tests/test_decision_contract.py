@@ -87,10 +87,19 @@ def test_each_setup_candidate_copies_the_displayed_racer(athlete, option):
     engine, state = selection_game(athlete)
     choice = state.pending_decision
     expected = choice['options'][option]['label']
+    expected_card = choice['options'][option]['athlete']
     state = engine.resolve_decision(state, 'a', choice['id'], str(option)).state
     ability = next(a for a in state.magsim_engine.get_racer(0).active_abilities
                    if a.name == ('EggCopy' if athlete == 'egg' else 'TwinCopy'))
     assert ability.copied_racer == expected
+    if athlete == 'twin':
+        public = engine.public_state(state, 'a')['players'][0]['activeRacers'][0]
+        assert public['id'] == 'twin'
+        assert public['copiedAthlete'] == expected_card
+    else:
+        public = engine.public_state(state, 'a')['players'][0]['activeRacers'][0]
+        assert public['id'] == 'egg'
+        assert public['copiedAthlete'] == expected_card
 
 
 @pytest.mark.parametrize('option', ['0', '1', '2', 'skip'])
@@ -250,7 +259,7 @@ def test_third_wheel_picks_one_of_multiple_pairs(option, destination):
         ['ThirdWheel', 'Coach', 'Blimp', 'Legs', 'Inchworm'], [0, 4, 4, 8, 8])
     assert broker.pending.ability_name == 'ThirdWheelJoin'
     assert broker.pending.public_options() == [
-        {'id': '0', 'label': '4'}, {'id': '1', 'label': '8'}, {'id': 'skip', 'label': '不使用'}]
+        {'id': '0', 'label': '4'}, {'id': '1', 'label': '8'}, {'id': 'skip', 'label': 'skip'}]
     broker.choose(broker.pending.id, option)
     engine.continue_turn()
     assert engine.get_racer(0).position == destination

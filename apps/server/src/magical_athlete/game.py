@@ -584,6 +584,10 @@ class MagsimGameEngine:
             "options": pending.public_options(),
         }
         for option, value in zip(public["options"], pending.options):
+            candidate_name = getattr(value, "racer_name", None)
+            candidate = next((card for card in ATHLETE_CATALOG if card.engine_name == candidate_name), None)
+            if candidate is not None:
+                option["athlete"] = candidate.public_data()
             target_idx = getattr(value, "idx", None)
             if target_idx in athlete_map:
                 target_owner = owner_map[target_idx]
@@ -878,14 +882,22 @@ class MagsimGameEngine:
             events.append({"type": "TRIP_RECOVERED", **base})
 
     def public_state(self, state: GameState, viewer_id: str | None = None) -> dict[str, Any]:
+        from magsim.core.abilities import CopyAbilityProtocol
+
         revealed = state.phase in (GamePhase.RACING, GamePhase.RACE_RESULTS, GamePhase.FINISHED)
         active_racers_by_owner: dict[str, list[dict[str, Any]]] = {player.id: [] for player in state.players}
         if state.magsim_engine is not None:
             for racer in state.magsim_engine.state.racers:
                 owner = state.racer_owner_by_index[racer.idx]
                 athlete = state.racer_athlete_by_index[racer.idx]
+                copied_name = next((
+                    ability.copied_racer for ability in racer.active_abilities
+                    if isinstance(ability, CopyAbilityProtocol) and ability.copied_racer is not None
+                ), None)
+                copied_athlete = next((card for card in ATHLETE_CATALOG if card.engine_name == copied_name), None)
                 active_racers_by_owner[owner].append({
                     **athlete.public_data(),
+                    **({"copiedAthlete": copied_athlete.public_data()} if copied_athlete is not None else {}),
                     "position": racer.position or 0,
                     "points": racer.victory_points,
                     "finished": racer.finished,
