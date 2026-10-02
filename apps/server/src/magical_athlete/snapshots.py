@@ -45,4 +45,18 @@ def decode_snapshot(data: bytes) -> RoomSnapshot:
     snapshot = payload.get("snapshot")
     if not isinstance(snapshot, RoomSnapshot):
         raise IncompatibleSnapshotError("invalid room snapshot payload")
+    # Pickle preserves instance triggers and subscriber tables from the old
+    # deployment. Upgrade Genius without discarding an ongoing room.
+    engine = snapshot.game_state.magsim_engine if snapshot.game_state is not None else None
+    if engine is not None:
+        from magsim.racers.genius import AbilityGenius
+
+        migrated = False
+        for racer in engine.state.racers:
+            for ability in racer.active_abilities:
+                if isinstance(ability, AbilityGenius) and ability.triggers != AbilityGenius.triggers:
+                    ability.triggers = AbilityGenius.triggers
+                    migrated = True
+        if migrated:
+            engine._rebuild_subscribers()
     return snapshot

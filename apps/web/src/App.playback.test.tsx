@@ -100,6 +100,24 @@ it("updates standings alongside movement playback", async () => {
   expect(view.root.findByType(RaceLeaderboard).props.players[1].activeRacers[0].position).toBe(5);
 });
 
+it("finishes landing movement before showing a Duelist choice", async () => {
+  await join(game());
+  const duel = { ...decision, id: 'duel', athleteId: 'duelist', athleteName: 'Duelist', abilityName: 'DuelistDuel' };
+  const landed = game({ pendingDecision: duel, resolutionStatus: 'WAITING_FOR_DECISION' });
+  landed.players[0].activeRacers[0].position = 3;
+  await receive({ type: 'STATE_UPDATED', roomId: 'TEST', revision: 2, game: landed, rollResults: [], events: [
+    { type: 'RACER_MOVED', playerId: 'human', athleteId: 'banana', from: 0, to: 3 },
+    { type: 'DECISION_REQUIRED', decisionId: 'duel', abilityName: 'DuelistDuel' },
+  ] });
+  expect(dialogs()).toHaveLength(0);
+  await advance(2000);
+  expect(dialogs()).toHaveLength(0);
+  await advance(3000);
+  expect(scene().players[0].activeRacers[0].position).toBe(3);
+  expect(dialogs()).toHaveLength(1);
+  expect(dialogs()[0].findByProps({ id: 'decision-title' }).children.join('')).toContain('决斗');
+});
+
 it("highlights the same waiting dialog before movement, then closes it", async () => {
   await join(game({ pendingDecision: decision, resolutionStatus: "WAITING_FOR_DECISION" }));
   const original = dialogs()[0];

@@ -653,10 +653,17 @@ class MagsimGameEngine:
 
     def _positions(self, state: GameState) -> dict[str, int]:
         engine = state.magsim_engine
+        preview = self._preview_positions(engine)
         return {
-            state.racer_athlete_by_index[racer.idx].id: racer.position or 0
+            state.racer_athlete_by_index[racer.idx].id: preview.get(racer.idx, racer.position or 0)
             for racer in engine.state.racers
         }
+
+    @staticmethod
+    def _preview_positions(engine: Any) -> dict[int, int]:
+        return {event.target_racer_idx: event.end_tile
+                for event in getattr(engine, "preview_events", ())
+                if event.__class__.__name__ in {"PostMoveEvent", "PostWarpEvent"}}
 
     def _finish_race(
         self, state: GameState, events: list[dict[str, Any]]
@@ -887,6 +894,7 @@ class MagsimGameEngine:
         revealed = state.phase in (GamePhase.RACING, GamePhase.RACE_RESULTS, GamePhase.FINISHED)
         active_racers_by_owner: dict[str, list[dict[str, Any]]] = {player.id: [] for player in state.players}
         if state.magsim_engine is not None:
+            preview_positions = self._preview_positions(state.magsim_engine)
             for racer in state.magsim_engine.state.racers:
                 owner = state.racer_owner_by_index[racer.idx]
                 athlete = state.racer_athlete_by_index[racer.idx]
@@ -898,7 +906,7 @@ class MagsimGameEngine:
                 active_racers_by_owner[owner].append({
                     **athlete.public_data(),
                     **({"copiedAthlete": copied_athlete.public_data()} if copied_athlete is not None else {}),
-                    "position": racer.position or 0,
+                    "position": preview_positions.get(racer.idx, racer.position or 0),
                     "points": racer.victory_points,
                     "finished": racer.finished,
                     "finishPosition": racer.finish_position,
