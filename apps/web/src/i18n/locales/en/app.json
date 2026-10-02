@@ -33,6 +33,7 @@
   "errors": {
     "createRoom": "Could not create a room",
     "network": "Cannot reach the server. Please try again.",
+    "connectionTimeout": "Joining timed out. Check your connection and try again.",
     "missingFields": "Enter a room code and a player name",
     "kicked": "The host removed you from the room",
     "send": "Could not send that action",
