@@ -519,6 +519,8 @@ input:focus { border-color: #287fc2; box-shadow: 0 0 0 3px rgba(40,127,194,.18);
 @media (pointer: coarse) { .language-switcher button { min-height: 44px; } }
 
 .spectator-bar { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin: 12px 20px; padding: 10px 14px; border-radius: 10px; background: #fffdf1e8; font-size: .8rem; }
+.auto-play-toggle { min-height: 34px; padding: 4px 10px; color: #fff; border: 1px solid #ffffff40; border-radius: 8px; background: #3a3a3f; font-size: .72rem; font-weight: 800; }
+.auto-play-toggle[aria-pressed="true"] { color: #151515; background: #f2bd27; }
 .spectator-bar details { min-width: 0; }
 .spectator-bar p { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; overflow-wrap: anywhere; }
 .spectator-bar button { flex-shrink: 0; min-height: 36px; border: 1px solid #716b62; border-radius: 6px; background: transparent; }

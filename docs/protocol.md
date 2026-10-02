@@ -59,6 +59,8 @@ LOBBY
 
 `game.previousWinners` 保存本局已结束比赛的真实冠军卡片，并跨比赛保留。双胞胎的复制候选仅来自这些冠军，重复冠军合并成一个选项；首场没有冠军时不出现复制选择。旧快照只恢复仍保留在 `raceResults` 中的冠军，不伪造已丢失的历史记录。
 
+玩家可发送 `SET_AUTO_PLAY {actionId, enabled}` 开启或取消本人的全托管，其他玩家和旁观者不能代为设置。`game.players[].autoPlay` 表示当前托管状态；玩家身份与手牌保留，机器人代为完成投骰、招募、选人、技能选择和房主的下一场推进。托管会跨断线重连及房间快照保留，取消后未执行的自动行动停止，旁观者调用返回 `SPECTATOR_READ_ONLY`。
+
 `JOIN_ROOM.role` 可为 `player`（默认）或 `spectator`。旁观者可在开局后或六个玩家席位已满时加入，另有 20 个旁观席；其身份和重连凭证与玩家分开保存。旁观者收到相同的公开赛事广播，`game.hand` 为空，并且只有 `LEAVE_ROOM` 可执行，其他行动返回 `SPECTATOR_READ_ONLY`。`WELCOME` 与广播快照额外包含 `viewerRole` 和 `spectators: [{id, name, connected}]`，旁观者退出不重置对局。
 
 复制角色的候选选项包含可选的 `athlete: {id, name}`，客户端按 `id` 展示技能说明。蛋、双胞胎或模仿猫当前有复制对象时，其 `activeRacers` 条目包含 `copiedAthlete: {id, name}`；角色自身的 `id` 仍分别为 `egg`、`twin` 或 `copycat`，复制对象的技能文字由客户端本地化。模仿猫在比赛中换了领先者后，`copiedAthlete` 也随权威状态更新。

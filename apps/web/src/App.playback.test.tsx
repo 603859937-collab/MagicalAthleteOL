@@ -97,6 +97,36 @@ it('does not show a spectator private selection controls', async () => {
   expect(view.root.findAllByType('h2').some(node => node.children.includes('等待玩家选择角色'))).toBe(true);
 });
 
+it('lets a human enable and cancel managed play while disabling manual dice', async () => {
+  await join(game());
+  const toggle = () => view.root.findByProps({className: 'auto-play-toggle'});
+  expect(scene().dice.enabled).toBe(true);
+  await act(async () => toggle().props.onClick());
+  expect(connection.send).toHaveBeenLastCalledWith(expect.objectContaining({type: 'SET_AUTO_PLAY', enabled: true}));
+  const managed = game();
+  managed.players[0].autoPlay = true;
+  await receive({type: 'STATE_UPDATED', roomId: 'TEST', revision: 2, game: managed, rollResults: [],
+    events: [{type: 'AUTO_PLAY_CHANGED', playerId: 'human'}]});
+  expect(toggle().props['aria-pressed']).toBe(true);
+  expect(scene().dice.enabled).toBe(false);
+  await act(async () => toggle().props.onClick());
+  expect(connection.send).toHaveBeenLastCalledWith(expect.objectContaining({type: 'SET_AUTO_PLAY', enabled: false}));
+  await receive({type: 'STATE_UPDATED', roomId: 'TEST', revision: 3, game: game(), rollResults: [], events: []});
+  expect(toggle().props['aria-pressed']).toBe(false);
+  expect(scene().dice.enabled).toBe(true);
+});
+
+it('does not offer managed play to spectators and keeps cancel available during a skill choice', async () => {
+  await join(game(), true);
+  expect(view.root.findAllByProps({className: 'auto-play-toggle'})).toHaveLength(0);
+  act(() => view.unmount());
+  const state = game({pendingDecision: {...decision, playerId: 'human'}, resolutionStatus: 'WAITING_FOR_DECISION'});
+  state.players[0].autoPlay = true;
+  await join(state);
+  expect(view.root.findByProps({className: 'auto-play-toggle'}).props.disabled).toBe(false);
+  expect(dialogs()[0].findAllByType('button').every(button => button.props.disabled)).toBe(true);
+});
+
 it("shows copy candidate skills and the Twin's copied skill during the race", async () => {
   const twinDecision = { ...decision, athleteId: "twin", athleteName: "Twin", abilityName: "TwinCopy", choiceType: "RACER" as const,
     options: [{ id: "0", label: "Legs", athlete: { id: "legs", name: "Legs" } }] };

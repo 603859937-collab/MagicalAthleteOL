@@ -1,4 +1,9 @@
 {
+  "autoPlay": {
+    "enable": "开启托管",
+    "disable": "取消托管",
+    "hint": "机器人代为投骰、招募角色、选择阵容和技能；可随时取消。"
+  },
   "entry": {
     "kicker": "THE MAGICAL RACE IS ON",
     "joinLabel": "加入游戏",
