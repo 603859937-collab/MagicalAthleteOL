@@ -23,6 +23,7 @@ vi.mock("./gameClient", () => ({
 vi.mock("./useBackgroundMusic", () => ({ useBackgroundMusic: () => null }));
 vi.mock("./gameAudio", () => ({
   playCharacterScoreSound: vi.fn(), playMoveSound: vi.fn(), playFireworkSound: vi.fn(), unlockGameAudio: vi.fn(),
+  playTripSound: vi.fn(),
 }));
 vi.mock("./components/race3d/RaceTableScene", () => ({ RaceTableScene: (_props: RaceTableSceneProps) => null }));
 
@@ -82,6 +83,20 @@ it("allows spectator props while retaining read-only gameplay", async () => {
   await act(async () => view.root.findByType(TauntPanel).props.onThrow("human", "tomato"));
   expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({type:"THROW_PROP", targetPlayerId:"human", item:"tomato", actionId:"taunt-local-roll"}));
   expect(scene().dice.enabled).toBe(false);
+});
+
+it("plays a trip cue at the trip event and stays silent when reconnecting", async () => {
+  const audio = await import("./gameAudio");
+  await join(game());
+  const tripped = game();
+  tripped.players[0].activeRacers[0].tripped = true;
+  await receive({type:"STATE_UPDATED", roomId:"TEST", revision:2, game:tripped, rollResults:[], events:[{type:"RACER_TRIPPED", playerId:"human", athleteId:"banana"}]});
+  await advance(1649);
+  expect(audio.playTripSound).not.toHaveBeenCalled();
+  await advance(2);
+  expect(audio.playTripSound).toHaveBeenCalledTimes(1);
+  await receive({type:"WELCOME", roomId:"TEST", revision:2, playerId:"human", reconnectToken:"token", game:tripped});
+  expect(audio.playTripSound).toHaveBeenCalledTimes(1);
 });
 
 beforeAll(async () => {

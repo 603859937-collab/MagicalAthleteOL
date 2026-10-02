@@ -20,7 +20,7 @@ import { collectUnseenRollValues, latestAuthoritativeRollValue } from "./rollPre
 import { canRollRaceDice, raceDiceTurnKey, raceRollFocus } from "./raceControls";
 import { apiUrl, assetUrl } from "./runtimeConfig";
 import { scoreLabel } from "./scorePresentation";
-import { playCharacterScoreSound, playMoveSound, playFireworkSound, unlockGameAudio } from "./gameAudio";
+import { playCharacterScoreSound, playMoveSound, playFireworkSound, playTripSound, unlockGameAudio } from "./gameAudio";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 type GameAction = Exclude<ClientIntent, { type: "JOIN_ROOM" }>;
@@ -675,6 +675,7 @@ export default function App() {
         const racer = working.game.players.find((player) => player.id === event.playerId)?.activeRacers.find((item) => item.id === event.athleteId);
         if (racer) racer.tripped = true;
         if (!publish()) return;
+        playTripSound();
         await pause(900);
       }
       if (currentMoment) await pause(700);
