@@ -5,10 +5,11 @@ import type { RaceTableSceneProps } from "./components/race3d/RaceTableScene";
 import { AthleteSkill } from "./components/AthleteSkill";
 import { RaceLeaderboard } from "./components/RaceLeaderboard";
 
-const connection = vi.hoisted(() => ({ receive: (_message: ServerMessage) => {}, send: vi.fn() }));
+const connection = vi.hoisted(() => ({ receive: (_message: ServerMessage) => {}, send: vi.fn(), join: vi.fn() }));
 vi.mock("./gameClient", () => ({
   GameClient: class {
     connect(_intent: unknown, receive: typeof connection.receive, status: (value: string) => void) {
+      connection.join(_intent);
       connection.receive = receive;
       status("connected");
     }
@@ -51,11 +52,12 @@ const scene = () => view.root.findByType(Scene).props as RaceTableSceneProps;
 const dialogs = () => view.root.findAllByProps({ role: "dialog" });
 async function receive(message: ServerMessage) { await act(async () => connection.receive(message)); }
 async function advance(ms: number) { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); }
-async function join(state: GameState) {
+async function join(state: GameState, spectator = false) {
   await act(async () => { view = create(<App />); });
   await act(async () => view.root.findAllByType("input")[0].props.onChange({ target: { value: "human" } }));
-  await act(async () => view.root.findAllByType("button").find((button) => button.props.children === "加入房间")!.props.onClick());
-  await receive({ type: "WELCOME", roomId: "TEST", revision: 1, playerId: "human", reconnectToken: "token", game: state });
+  await act(async () => view.root.findAllByType("button").find((button) => button.props.children === (spectator ? "旁观比赛" : "加入房间"))!.props.onClick());
+  await receive({ type: "WELCOME", roomId: "TEST", revision: 1, playerId: spectator ? "watcher" : "human", reconnectToken: "token", game: state,
+    viewerRole: spectator ? 'spectator' : 'player', spectators: spectator ? [{id: 'watcher', name: 'Watcher', connected: true}] : [] });
 }
 
 beforeAll(async () => {
@@ -70,8 +72,30 @@ beforeAll(async () => {
   App = (await import("./App")).default;
   Scene = (await import("./components/race3d/RaceTableScene")).RaceTableScene;
 });
-beforeEach(() => { vi.useFakeTimers(); connection.send.mockClear(); });
+beforeEach(() => { vi.useFakeTimers(); connection.send.mockClear(); connection.join.mockClear(); });
 afterEach(() => { act(() => view?.unmount()); vi.useRealTimers(); });
+
+it('joins as a spectator, watches movement, and can leave without rolling', async () => {
+  await join(game(), true);
+  expect(connection.join).toHaveBeenCalledWith(expect.objectContaining({role: 'spectator'}));
+  expect(scene().dice.enabled).toBe(false);
+  const moved = game();
+  moved.players[0].activeRacers[0].position = 3;
+  await receive({type: 'STATE_UPDATED', roomId: 'TEST', revision: 2, viewerRole: 'spectator', game: moved, rollResults: [],
+    events: [{type: 'RACER_MOVED', playerId: 'human', athleteId: 'banana', from: 0, to: 3}]});
+  await advance(5000);
+  expect(scene().players[0].activeRacers[0].position).toBe(3);
+  expect(scene().dice.enabled).toBe(false);
+  await act(async () => view.root.findAllByType('button').find(button => button.props.children === '退出旁观')!.props.onClick());
+  expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({type: 'LEAVE_ROOM'}));
+  expect(connection.send).not.toHaveBeenCalledWith(expect.objectContaining({type: 'ROLL_DICE'}));
+});
+
+it('does not show a spectator private selection controls', async () => {
+  await join(game({phase: 'CHARACTER_SELECTION'}), true);
+  expect(view.root.findAllByProps({className: 'selection-confirm'})).toHaveLength(0);
+  expect(view.root.findAllByType('h2').some(node => node.children.includes('等待玩家选择角色'))).toBe(true);
+});
 
 it("shows copy candidate skills and the Twin's copied skill during the race", async () => {
   const twinDecision = { ...decision, athleteId: "twin", athleteName: "Twin", abilityName: "TwinCopy", choiceType: "RACER" as const,

@@ -9,6 +9,7 @@ class JoinRoomIntent(BaseModel):
     player_name: str = Field(alias="playerName", min_length=1, max_length=24)
     player_id: str | None = Field(default=None, alias="playerId")
     reconnect_token: str | None = Field(default=None, alias="reconnectToken")
+    role: Literal["player", "spectator"] = "player"
 
 
 class LeaveRoomIntent(BaseModel):

@@ -103,7 +103,7 @@ export default function App() {
   const athleteName = (id: string, fallback: string) => athleteText(t, { id, name: fallback }).name;
   const initialRoomId = roomFromPath();
   const [roomId, setRoomId] = useState(initialRoomId);
-  const [playerName, setPlayerName] = useState(loadSession(initialRoomId)?.playerName ?? "");
+  const [playerName, setPlayerName] = useState((loadSession(initialRoomId) ?? loadSession(initialRoomId, "spectator"))?.playerName ?? "");
   const [playerId, setPlayerId] = useState("");
   const [viewState, setViewState] = useState<ViewState>({ authoritative: null, display: null, playbackBusy: false });
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
@@ -157,6 +157,7 @@ export default function App() {
   }, []);
 
   const snapshot = viewState.display;
+  const isSpectator = snapshot?.viewerRole === "spectator";
   const controlSnapshot = viewState.authoritative;
   const playbackBusy = viewState.playbackBusy;
   const game = snapshot?.game;
@@ -231,15 +232,16 @@ export default function App() {
     else if (!snapshot) returnToEntry();
   }
 
-  function joinRoom() {
+  function joinRoom(role: "player" | "spectator" = "player") {
     const normalizedRoomId = roomId.trim().toUpperCase();
     const normalizedName = playerName.trim();
     if (!normalizedRoomId || !normalizedName) return setError(t("errors.missingFields"));
     setError("");
-    const session = loadSession(normalizedRoomId);
+    const session = loadSession(normalizedRoomId, role);
     client.current.connect({
       type: "JOIN_ROOM", roomId: normalizedRoomId, playerName: normalizedName,
       playerId: session?.playerId, reconnectToken: session?.reconnectToken,
+      role,
     }, handleMessage, setStatus);
   }
 
@@ -385,7 +387,7 @@ export default function App() {
       return;
     }
     if (message.type === "ROOM_LEFT") {
-      clearSession();
+      clearSession(authoritativeSnapshot.current?.viewerRole ?? "player");
       return returnToEntry();
     }
     if (message.type === "ERROR") {
@@ -410,7 +412,7 @@ export default function App() {
       window.location.hash = `/room/${message.roomId}`;
       setRoomId(message.roomId);
       saveSession({ roomId: message.roomId, playerId: message.playerId,
-        reconnectToken: message.reconnectToken, playerName: playerName.trim() });
+        reconnectToken: message.reconnectToken, playerName: playerName.trim(), role: message.viewerRole ?? "player" });
       setError("");
       return;
     }
@@ -475,6 +477,7 @@ export default function App() {
   }
 
   function send(intent: GameActionInput, suppliedActionId = actionId()): boolean {
+    if (isSpectator && intent.type !== "LEAVE_ROOM") return false;
     try {
       client.current.send({ ...intent, actionId: suppliedActionId } as GameAction);
       return true;
@@ -678,7 +681,8 @@ export default function App() {
         <section className="join-dock" aria-label={t("entry.joinLabel")}>
           <label><span>{t("entry.playerName")}</span><input value={playerName} maxLength={24} onChange={(event) => setPlayerName(event.target.value)} placeholder={t("entry.playerNamePlaceholder")} /></label>
           <label><span>{t("entry.roomCode")}</span><input value={roomId} maxLength={8} onChange={(event) => setRoomId(event.target.value.toUpperCase())} placeholder={t("entry.roomCodePlaceholder")} /></label>
-          <button className="command primary" onClick={status === "disconnected" ? joinRoom : exitRoom}>{status === "disconnected" ? t("entry.join") : t("entry.cancelJoin")}</button>
+          <button className="command primary" onClick={status === "disconnected" ? () => joinRoom() : exitRoom}>{status === "disconnected" ? t("entry.join") : t("entry.cancelJoin")}</button>
+          <button className="command secondary" disabled={status !== "disconnected"} onClick={() => joinRoom("spectator")}>{t("spectator.join")}</button>
           <button className="command secondary" disabled={status !== "disconnected"} onClick={createRoom}>{t("entry.createRoom")}</button>
           <span className={`connection ${status}`}>{statusText}</span>
           {error && <p className="error">{error}</p>}
@@ -713,6 +717,13 @@ export default function App() {
           <small>{t("topbar.room")}</small><strong>{snapshot.roomId}</strong><span className={`status-dot ${status}`} /></div>
       </header>
 
+      {(isSpectator || (snapshot.spectators?.length ?? 0) > 0) && <aside className="spectator-bar" aria-label={t("spectator.seats")}>
+        <details><summary>{isSpectator && <strong>{t("spectator.watching")} · </strong>}{t("spectator.count", { count: snapshot.spectators?.filter((member) => member.connected).length ?? 0 })}</summary>
+          <p>{snapshot.spectators?.map((member) => <span key={member.id}>{member.name}{!member.connected && ` (${t("status.disconnected")})`} </span>)}</p>
+        </details>
+        {isSpectator && <button onClick={status === "disconnected" ? () => joinRoom("spectator") : exitRoom}>{t(status === "disconnected" ? "spectator.reconnect" : "spectator.leave")}</button>}
+      </aside>}
+
       {game!.phase === "LOBBY" && (
         <section className="lobby-stage stage">
           <div className="stage-title"><p className="kicker">2–6 PLAYERS</p><h2>{t("lobby.title")}</h2><p>{t("lobby.roomCode")} <strong>{snapshot.roomId}</strong></p></div>
@@ -735,7 +746,7 @@ export default function App() {
             <button className={!game!.autoDeal ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_AUTO_DEAL", autoDeal: false })}>{t("lobby.dealManual")}</button>
             <button className={game!.autoDeal ? "active" : ""} disabled={!isHost} onClick={() => send({ type: "SET_AUTO_DEAL", autoDeal: true })}>{t("lobby.dealAuto", { cards: game!.cardsPerPlayer })}</button>
           </div>
-          <button className="command secondary" disabled={status !== "connected"} onClick={exitRoom}>{t("lobby.leave")}</button>
+          {!isSpectator && <button className="command secondary" disabled={status !== "connected"} onClick={exitRoom}>{t("lobby.leave")}</button>}
           <button className="command primary big" disabled={!canStart} onClick={() => send({ type: "START_GAME" })}>{isHost ? t("lobby.start") : t("lobby.waitingHost")}</button>
         </section>
       )}
@@ -769,10 +780,10 @@ export default function App() {
 
       {game!.phase === "CHARACTER_SELECTION" && (
         <section className="selection-stage stage">
-          <div className="selection-heading"><p className="kicker">RACE {game!.raceNumber} · {tracks[game!.raceNumber - 1]}</p><h2>{t("selection.title")}</h2><p>{t(game!.selectionCount === 1 ? "selection.hintOne" : "selection.hintMany", { count: game!.selectionCount })}</p></div>
+          <div className="selection-heading"><p className="kicker">RACE {game!.raceNumber} · {tracks[game!.raceNumber - 1]}</p><h2>{t(isSpectator ? "spectator.selection" : "selection.title")}</h2><p>{t(isSpectator ? "spectator.selectionHint" : game!.selectionCount === 1 ? "selection.hintOne" : "selection.hintMany", { count: game!.selectionCount })}</p></div>
           <div className="selection-meta"><strong>{t("selection.yourTeam", { count: me?.team.length ?? 0 })}</strong><span>{t("selection.rewards", { first: game!.raceRewards[0], second: game!.raceRewards[1] })}</span></div>
           <div className="my-team">{me?.team.map((athlete) => <SelectionCard key={athlete.id} athlete={athlete} accent={cardAccents[athlete.id] ?? "#f2bd27"} used={me.usedAthleteIds.includes(athlete.id)} selected={selectedIds.includes(athlete.id)} disabled={me.selectionLocked || (!selectedIds.includes(athlete.id) && selectedIds.length >= game!.selectionCount)} reason={me.selectionLocked ? t("selection.locked") : t("selection.full", { count: game!.selectionCount })} onChoose={() => toggleRacer(athlete.id)} />)}</div>
-          <div className="selection-dock"><div className="selection-dock-inner"><div className="selection-chosen" aria-live="polite"><strong>{me?.team.filter((athlete) => selectedIds.includes(athlete.id)).map((athlete) => cardName(athlete)).join(" · ") || t("selection.nothingPicked")}</strong><span>{selectedIds.length} / {game!.selectionCount}</span></div><button className="selection-confirm" disabled={selectedIds.length !== game!.selectionCount || me?.selectionLocked || status !== "connected"} onClick={() => send({ type: "SELECT_RACERS", athleteIds: selectedIds })}>{me?.selectionLocked ? t("selection.locked") : status !== "connected" ? t("selection.reconnecting") : t("selection.confirm")}</button><p className="selection-ready">{t("selection.ready", { ready: game!.players.filter((player) => player.selectionLocked).length, total: game!.players.length })}</p></div></div>
+          <div className="selection-dock"><div className="selection-dock-inner">{!isSpectator && <><div className="selection-chosen" aria-live="polite"><strong>{me?.team.filter((athlete) => selectedIds.includes(athlete.id)).map((athlete) => cardName(athlete)).join(" · ") || t("selection.nothingPicked")}</strong><span>{selectedIds.length} / {game!.selectionCount}</span></div><button className="selection-confirm" disabled={selectedIds.length !== game!.selectionCount || me?.selectionLocked || status !== "connected"} onClick={() => send({ type: "SELECT_RACERS", athleteIds: selectedIds })}>{me?.selectionLocked ? t("selection.locked") : status !== "connected" ? t("selection.reconnecting") : t("selection.confirm")}</button></>}<p className="selection-ready">{t("selection.ready", { ready: game!.players.filter((player) => player.selectionLocked).length, total: game!.players.length })}</p></div></div>
         </section>
       )}
 

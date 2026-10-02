@@ -108,3 +108,16 @@ def test_old_room_recovers_its_latest_recorded_champion(monkeypatch):
     assert restored.game_state.race_winner_ids == ('legs',)
     assert restored.game_state.pending_roll == {'nextPlayerId': 'a'}
     assert restored.game_state.magsim_engine is None
+def test_spectator_identities_survive_saved_room_restore():
+    snapshot = RoomSnapshot('TEST', {}, MagsimGameEngine().create_game(()), 4, None, None, datetime.now(UTC),
+                            spectators={'watcher': SnapshotPlayer(Player('watcher', 'Watcher'), 'watch-token', set())})
+    restored = decode_snapshot(encode_snapshot(snapshot))
+    assert restored.spectators['watcher'].reconnect_token == 'watch-token'
+    assert not restored.players and not restored.game_state.players
+
+
+def test_old_room_snapshot_starts_with_empty_spectator_seats():
+    snapshot = RoomSnapshot('TEST', {}, MagsimGameEngine().create_game(()), 4, None, None, datetime.now(UTC))
+    del snapshot.spectators
+    restored = decode_snapshot(encode_snapshot(snapshot))
+    assert restored.spectators == {}

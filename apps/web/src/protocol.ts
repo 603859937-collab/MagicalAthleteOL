@@ -123,6 +123,8 @@ export interface RoomSnapshot {
   roomId: string;
   revision: number;
   game: GameState;
+  viewerRole?: "player" | "spectator";
+  spectators?: { id: string; name: string; connected: boolean }[];
 }
 
 export interface DiceRollResult {
@@ -200,7 +202,7 @@ export type ClientIntent =
   | { type: "LEAVE_ROOM"; actionId: string }
   | { type: "KICK_PLAYER"; actionId: string; targetPlayerId: string }
   | { type: "ADD_BOT"; actionId: string }
-  | { type: "JOIN_ROOM"; roomId: string; playerName: string; playerId?: string; reconnectToken?: string }
+  | { type: "JOIN_ROOM"; roomId: string; playerName: string; playerId?: string; reconnectToken?: string; role?: "player" | "spectator" }
   | { type: "START_GAME"; actionId: string }
   | { type: "SET_VARIANT"; actionId: string; doubleRacer: boolean }
   | { type: "SET_AUTO_DEAL"; actionId: string; autoDeal: boolean }
