@@ -112,6 +112,7 @@ export interface GameState {
   draftRoundCount: number;
   rollCandidateIds: string[];
   raceResults: RaceResult[];
+  previousWinners?: AthleteCard[];
   pendingDecision: PendingDecision | null;
   pendingRoll: PendingRoll | null;
   raceLog: GameEvent[];
